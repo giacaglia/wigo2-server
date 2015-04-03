@@ -1,0 +1,19 @@
+-i https://pip.blade.net/pip/dev/+simple/
+
+Flask==0.10.1
+Flask-Admin==1.1.0
+Flask-Login==0.2.11
+Jinja2==2.7.3
+MarkupSafe==0.23
+WTForms==2.0.2
+Werkzeug==0.10.4
+generic==0.3.1
+hiredis==0.1.6
+itsdangerous==0.24
+mock==1.0.1
+pytz==2015.2
+redis==2.10.3
+schematics==1.0.3
+six==1.9.0
+ujson==1.33
+wsgiref==0.1.2
