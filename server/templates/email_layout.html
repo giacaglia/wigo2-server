@@ -1,0 +1,67 @@
+<html>
+<head>
+	<style type="text/css">
+		@import url(http://fonts.googleapis.com/css?family=Source+Sans+Pro);
+		body {
+			margin: 0;
+			padding: 0;
+			min-width: 100%!important;
+		}
+		.content {
+			font-family: 'Source Sans Pro', sans-serif, Arial;
+			max-width: 600px;
+		}
+		.header{
+			border-bottom: 1px solid #dcdcdc;
+		}
+		.body{
+			padding: 40px 20px 40px 20px;
+		}
+		.footer{
+			border-top: 1px solid #dcdcdc;
+		}
+	</style>
+</head>
+<body bgcolor="#fcfcfc" style="margin: 0;padding: 0;min-width: 100%!important;">
+	<table width="100%" bgcolor="#fcfcfc" border="0" cellpadding="0" cellspacing="0" style="" class="wrapper">
+		<tr><td>
+			<table width="100%" align="center" bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" style="font-family: 'Source Sans Pro', sans-serif, Arial;max-width: 600px;" class="content">
+				<tr><td>
+					<table class="header" width="100%" height="80px" bgcolor="#f7f7f7" border="0" cellpadding="0" cellspacing="0" style="border-bottom: 1px solid #dcdcdc;">
+						<tr><td style="text-align:center;">
+							<img src="https://api.wigo.us/static/img/logo_small.png" alt="" width="auto" height="70px" border="0">	
+						</td></tr>
+					</table>
+				</td></tr>
+				<tr><td>
+
+                        {% block content %}{% endblock %}
+
+				</td></tr>
+				<tr><td>
+                    <table class="footer" width="100%" height="40px" bgcolor="#f7f7f7" border="0" cellpadding="0"
+                           cellspacing="0" style="border-top: 1px solid #dcdcdc;">
+                        <tr>
+                            <td style="color: #999999; text-align:center">
+                                <p>
+                                    Our mailing address is:<br/>
+                                    Wigo Inc. 250 Summer St. Boston, MA 02210
+                                </p>
+
+                                <p>
+                                    If you would like to unsubscribe and stop receiving these emails <a href="-UNSUB-">click
+                                    here</a>.
+                                </p>
+
+                                <p>
+                                    Wigo, Inc. &#0169; 2015
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td></tr>
+			</table>
+		</td></tr>
+	</table>
+</body>
+</html>
