@@ -96,8 +96,8 @@ def setup_upload_routes(app):
         logger.info('handling photo upload directly for key {key}'.format(key=key))
 
         try:
-            s3conn = S3Connection(app.config['WIGO_UPLOADS_AWS_ACCESS_KEY_ID'],
-                                  app.config['WIGO_UPLOADS_AWS_SECRET_ACCESS_KEY'])
+            s3conn = S3Connection(app.config['UPLOADS_AWS_ACCESS_KEY_ID'],
+                                  app.config['UPLOADS_AWS_SECRET_ACCESS_KEY'])
             bucket = s3conn.get_bucket('wigo-uploads', validate=False)
             key = bucket.new_key(key)
             key.set_metadata('Content-Type', content_type)
@@ -124,8 +124,8 @@ def get_upload_location(user, mime_type, filename, path_id=None):
     filename = filename.encode('utf8').replace(' ', '_')
     key = os.path.join(str(user.id % 100), str(user.id), path_id, filename)
 
-    s3conn = S3Connection(Configuration.WIGO_UPLOADS_AWS_ACCESS_KEY_ID,
-                          Configuration.WIGO_UPLOADS_AWS_SECRET_ACCESS_KEY)
+    s3conn = S3Connection(Configuration.UPLOADS_AWS_ACCESS_KEY_ID,
+                          Configuration.UPLOADS_AWS_SECRET_ACCESS_KEY)
 
     params = s3conn.build_post_form_args('wigo-uploads', key, expires_in=6000,
                                          acl='public-read', max_content_length=10485760,

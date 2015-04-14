@@ -18,17 +18,17 @@ def parse_env_list(prefix):
 
 
 class Configuration(object):
-    ENVIRONMENT = os.environ.get('WIGO_ENV', 'dev')
+    ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
     SECRET_KEY = 'bb034599jkrtbg30ijwerrgjvn'
     PROPAGATE_EXCEPTIONS = False
     WTF_CSRF_ENABLED = False
-    ADMIN_PASSWORD = 'jwgh84pKhPvwa'
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'test')
 
     API_KEY = os.environ.get('WIGO_API_KEY', 'oi34u53205ju34ik23')
     API_HOOK_KEY = os.environ.get('WIGO_API_HOOK_KEY', '9tejvdoikkf')
 
-    WIGO_WEB_HOST = os.environ.get('WIGO_WEB_HOST', 'localhost:5000')
-    WIGO_API_HOST = os.environ.get('WIGO_API_HOST', WIGO_WEB_HOST.replace('verify', 'api'))
+    WEB_HOST = os.environ.get('WEB_HOST', 'localhost:5000')
+    API_HOST = os.environ.get('API_HOST', WEB_HOST.replace('verify', 'api'))
 
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     REDIS_URLS = parse_env_list('REDIS_URL')
@@ -79,9 +79,9 @@ class Configuration(object):
     IMAGES_AWS_ACCESS_KEY_ID = os.environ.get('IMAGES_AWS_ACCESS_KEY_ID', '')
     IMAGES_AWS_SECRET_ACCESS_KEY = os.environ.get('IMAGES_AWS_SECRET_ACCESS_KEY', '')
 
-    WIGO_UPLOADS_AWS_ACCESS_KEY_ID = os.environ.get('WIGO_UPLOADS_AWS_ACCESS_KEY_ID', '')
-    WIGO_UPLOADS_AWS_SECRET_ACCESS_KEY = os.environ.get('WIGO_UPLOADS_AWS_SECRET_ACCESS_KEY', '')
-    WIGO_UPLOADS_CDN = os.environ.get('WIGO_UPLOADS_CDN', 'd9vw4owxyhc4n.cloudfront.net')
+    UPLOADS_AWS_ACCESS_KEY_ID = os.environ.get('UPLOADS_AWS_ACCESS_KEY_ID', '')
+    UPLOADS_AWS_SECRET_ACCESS_KEY = os.environ.get('UPLOADS_AWS_SECRET_ACCESS_KEY', '')
+    UPLOADS_CDN = os.environ.get('UPLOADS_CDN', 'd9vw4owxyhc4n.cloudfront.net')
 
     TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
     TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')

@@ -155,7 +155,7 @@ def app_startup():
             }
         },
         'cdn': {
-            'uploads': Configuration.WIGO_UPLOADS_CDN
+            'uploads': Configuration.UPLOADS_CDN
         }
     }
 
