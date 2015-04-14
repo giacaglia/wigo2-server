@@ -15,6 +15,7 @@ flask-restplus==0.7.1
 flower==0.8.1
 geodis==2.0.9
 generic==0.3.1
+gunicorn==19.3.0
 hiredis==0.1.6
 msgpack-python==0.4.6
 psycopg2==2.6
