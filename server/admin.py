@@ -32,6 +32,12 @@ class RedisModelView(BaseModelView):
         super(RedisModelView, self).__init__(model, name, category, endpoint, url, static_folder, menu_class_name,
                                              menu_icon_type, menu_icon_value)
 
+    def is_accessible(self):
+        return current_user.is_authenticated() and current_user.role == 'admin'
+
+    def inaccessible_callback(self, name, **kwargs):
+        return current_app.login_manager.unauthorized()
+
     def scaffold_list_form(self, custom_fieldlist=ListEditableFieldList, validators=None):
         pass
 
