@@ -1,9 +1,11 @@
 from __future__ import absolute_import
 import json
+from flask.ext.admin import AdminIndexView
 from flask.ext.admin.model.filters import BaseFilter
+from flask.ext.login import current_user
 
 from wtforms.widgets import TextArea
-from flask import flash, redirect, url_for
+from flask import flash, redirect, url_for, current_app
 from flask.ext.admin.actions import action
 from flask.ext.admin.babel import gettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
@@ -14,6 +16,14 @@ from wtforms import Form, StringField, BooleanField, SelectField, IntegerField, 
 from flask_admin.form.fields import DateTimeField
 from wtforms.validators import Optional, DataRequired
 from server.models import JsonType
+
+
+class WigoAdminIndexView(AdminIndexView):
+    def is_accessible(self):
+        return current_user.is_authenticated() and current_user.role == 'admin'
+
+    def inaccessible_callback(self, name, **kwargs):
+        return current_app.login_manager.unauthorized()
 
 
 class RedisModelView(BaseModelView):
@@ -96,7 +106,7 @@ class RedisModelView(BaseModelView):
         return MyForm
 
     def get_list(self, page, sort_field, sort_desc, search, filters):
-        query = self.model.select().limit(self.page_size).page(page+1)
+        query = self.model.select().limit(self.page_size).page(page + 1)
 
         # Filters
         if self._filters:

@@ -50,9 +50,9 @@ class User(WigoPersistentModel):
     status = StringType(required=True, default='active')
     privacy = StringType(choices=('public', 'private'), required=True, default='public')
 
-    facebook_id = StringType(required=True)
-    facebook_token = StringType(required=True)
-    facebook_token_expires = DateTimeType(required=True)
+    facebook_id = StringType()
+    facebook_token = StringType()
+    facebook_token_expires = DateTimeType()
     exchange_token = StringType()
     exchange_token_expires = DateTimeType()
 

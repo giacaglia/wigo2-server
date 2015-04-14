@@ -8,6 +8,7 @@ from urlparse import urlparse
 from clize import clize
 from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
+from flask.ext.security.utils import encrypt_password
 from schematics.exceptions import ModelValidationError
 
 from config import Configuration
@@ -19,7 +20,8 @@ from flask.ext.security import Security, login_required
 from flask.ext.wtf import CsrfProtect
 import logconfig
 from server import ApiSessionInterface
-from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, MessageView, EventModelView
+from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, MessageView, EventModelView, \
+    WigoAdminIndexView
 from server.db import wigo_db
 from server.models.user import User, Notification, Message
 from server.models.event import Event
@@ -63,7 +65,7 @@ setup_register_resources(api)
 setup_user_resources(api)
 setup_event_resources(api)
 
-admin = Admin(app, name='Wigo')
+admin = Admin(app, name='Wigo', index_view=WigoAdminIndexView())
 admin.add_view(UserModelView(User))
 admin.add_view(GroupModelView(Group))
 admin.add_view(EventModelView(Event))
@@ -86,6 +88,22 @@ app.register_blueprint(apidoc.apidoc)
 @login_required
 def home():
     return render_template('index.html')
+
+
+@app.before_first_request
+def setup_web_app():
+    try:
+        user = User.find(username='admin')
+        user.role = 'admin'
+        user.password = encrypt_password(Configuration.ADMIN_PASSWORD)
+        user.save()
+    except DoesNotExist:
+        User({
+            'username': 'admin',
+            'password': encrypt_password(Configuration.ADMIN_PASSWORD),
+            'email': 'jason@wigo.us',
+            'role': 'admin'
+        }).save()
 
 
 @app.before_request

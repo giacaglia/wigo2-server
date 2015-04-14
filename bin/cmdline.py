@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import sys
 import os
+from flask.ext.security.utils import encrypt_password
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -50,7 +51,7 @@ def deploy():
 
 
 @clize
-def create_tables():
+def initialize():
     from server.rdbms import db, DataStrings, DataSets, DataSortedSets, DataExpires, DataIntSets, DataIntSortedSets
 
     db.create_tables([DataStrings, DataSets, DataIntSets,
@@ -147,4 +148,4 @@ def import_old_db(groups=False, users=False, friends=False):
 
 
 if __name__ == '__main__':
-    run((deploy, create_tables, import_old_db))
+    run((deploy, initialize, import_old_db))

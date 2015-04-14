@@ -22,6 +22,7 @@ class Configuration(object):
     SECRET_KEY = 'bb034599jkrtbg30ijwerrgjvn'
     PROPAGATE_EXCEPTIONS = False
     WTF_CSRF_ENABLED = False
+    ADMIN_PASSWORD = 'jwgh84pKhPvwa'
 
     API_KEY = os.environ.get('WIGO_API_KEY', 'oi34u53205ju34ik23')
     API_HOOK_KEY = os.environ.get('WIGO_API_HOOK_KEY', '9tejvdoikkf')
