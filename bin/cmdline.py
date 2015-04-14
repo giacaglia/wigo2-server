@@ -21,7 +21,32 @@ logger = logging.getLogger('wigo.cmdline')
 
 @clize
 def deploy():
-    pass
+    from git import Repo
+
+    logconfig.configure('dev')
+
+    repo = Repo('.')
+    target = None
+    if repo.active_branch.name == 'master':
+        target = 'wigo2'
+    elif repo.active_branch.name == 'staging':
+        target = 'wigo2-stage'
+    elif repo.active_branch.name == 'develop':
+        target = 'wigo2-dev'
+    else:
+        logger.error('invalid branch for deployment, %s' % repo.active_branch.name)
+        sys.exit(1)
+
+    if target == 'wigo2' and os.system('nosetests -w tests/') != 0:
+        logger.error('error running unit tests')
+        sys.exit(1)
+
+    remote = next(r for r in repo.remotes if r.name == target)
+    if not remote:
+        remote = repo.create_remote(target, 'git@heroku.blade:%s.git' % target)
+
+    logger.info('deploying to remote %s, %s' % (remote.name, remote.url))
+    os.system('git push %s %s:master' % (target, repo.active_branch.name))
 
 
 @clize
