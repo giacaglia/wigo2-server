@@ -68,7 +68,7 @@ def setup_user_resources(api):
             return self.serialize_list(User, friends, count)
 
         @wigo_user_token_required
-        @api.expect(api.model('Friend', {
+        @api.expect(api.model('NewFriend', {
             'friend_id': fields.Integer(description='User to connect with', required=True)
         }))
         @api.response(200, 'Success', model=Friend.to_doc_model(api))
@@ -80,7 +80,7 @@ def setup_user_resources(api):
             return {'success': True}
 
         @wigo_user_token_required
-        @api.expect(api.model('Friend', {
+        @api.expect(api.model('DeleteFriend', {
             'friend_id': fields.Integer(description='User to removing connection with', required=True)
         }))
         def delete(self, user_id):
@@ -120,7 +120,7 @@ def setup_user_resources(api):
         model = Invite
 
         @wigo_user_token_required
-        @api.expect(api.model('Invite', {
+        @api.expect(api.model('NewInvite', {
             'invited_id': fields.Integer(description='User to invite', required=True),
         }))
         @api.response(200, 'Success', model=Invite.to_doc_model(api))
@@ -142,7 +142,7 @@ def setup_user_resources(api):
         model = Tap
 
         @wigo_user_token_required
-        @api.expect(api.model('Tap', {
+        @api.expect(api.model('NewTap', {
             'tapped_id': fields.Integer(description='User to tap', required=True)
         }))
         @api.response(200, 'Success', model=Tap.to_doc_model(api))
@@ -155,7 +155,7 @@ def setup_user_resources(api):
             return self.serialize_list(Tap, [tap], 1)
 
         @wigo_user_token_required
-        @api.expect(api.model('Tap', {
+        @api.expect(api.model('UnTap', {
             'tapped_id': fields.Integer(description='User to untap', required=True)
         }))
         def delete(self, user_id):

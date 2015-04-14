@@ -27,7 +27,7 @@ logger = logging.getLogger('wigo.facebook')
 def setup_register_resources(api):
     @api.route('/api/register')
     class RegisterResource(WigoResource):
-        @api.expect(api.model('User', {
+        @api.expect(api.model('RegisterUser', {
             'facebook_id': fields.String,
             'facebook_access_token': fields.String,
             'facebook_access_token_expires': fields.Integer,
