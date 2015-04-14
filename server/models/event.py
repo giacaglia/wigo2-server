@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from datetime import timedelta
+from datetime import timedelta, datetime
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType
 from schematics.types.compound import ListType
@@ -68,13 +68,12 @@ class Event(WigoPersistentModel, Dated):
     def add_to_global_events(self, remove_empty=False):
         group = self.group
 
-        existing_event = self.find(group=group, name=self.name)
-        if existing_event and existing_event.id != self.id:
-            raise AlreadyExistsException(existing_event)
-
-        self.db.set(skey(group, Event, Event.event_key(self.name)), self.id)
-
         if self.privacy == 'public':
+            existing_event = self.find(group=group, name=self.name)
+            if existing_event and existing_event.id != self.id:
+                raise AlreadyExistsException(existing_event)
+
+            self.db.set(skey(group, Event, Event.event_key(self.name)), self.id)
             events_key = skey('group', self.group_id, 'events')
             attendees_key = skey(self, 'attendees')
             num_attending = self.db.get_sorted_set_size(attendees_key)
@@ -86,18 +85,36 @@ class Event(WigoPersistentModel, Dated):
     def add_to_user_events(self, user, remove_empty=False):
         events_key = skey(user.group, user, 'events')
 
-        current_attending = user.attending
+        current_attending = user.get_attending_id()
         if current_attending and current_attending == self.id:
             self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 100000))
             self.clean_old(events_key)
         else:
-            attendees_key = user_attendees_key(user, self)
-            num_attending = self.db.get_sorted_set_size(attendees_key)
+            num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
             if remove_empty and num_attending == 0:
                 self.db.sorted_set_remove(events_key, self.id)
             else:
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, num_attending))
                 self.clean_old(events_key)
+
+    def add_to_user_attending(self, user, attendee):
+        # add to the users view of who is attending
+        attendees_key = user_attendees_key(user, self)
+        self.db.sorted_set_add(attendees_key, attendee.id, epoch(datetime.utcnow()))
+        self.db.expire(attendees_key, timedelta(days=8))
+
+        # add to the users current events list
+        self.add_to_user_events(user)
+
+        # TODO record event messages
+
+    def remove_from_user_attending(self, user, attendee):
+        # add to the users view of who is attending
+        self.db.sorted_set_remove(user_attendees_key(user, self), attendee.id)
+        # add to the users current events list
+        self.add_to_user_events(user, remove_empty=True)
+
+        # TODO delete event messages
 
     def remove_index(self):
         super(Event, self).remove_index()
@@ -138,7 +155,7 @@ class EventAttendee(WigoModel):
         group = event.group
 
         # check if the user is switching events for today
-        current_event_id = user.attending
+        current_event_id = user.get_attending_id()
         if current_event_id and current_event_id != event.id:
             EventAttendee({'event_id': current_event_id, 'user_id': user.id}).delete()
 
@@ -151,7 +168,7 @@ class EventAttendee(WigoModel):
 
         # now update the users view of the events
         # record the exact event the user is currently attending
-        user.attending = event
+        user.set_attending(event)
 
         # record current user as an attendee
         attendees_key = user_attendees_key(user, event)
@@ -166,15 +183,7 @@ class EventAttendee(WigoModel):
         for friend_id in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             if friend.is_invited(event):
-                # add to the users view of who is attending
-                attendees_key = user_attendees_key(friend, event)
-                self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
-                self.db.expire(attendees_key, timedelta(days=8))
-
-                # add to the users current events list
-                event.add_to_user_events(friend)
-
-                # TODO record event messages
+                event.add_to_user_attending(friend, user)
 
     def remove_index(self):
         super(EventAttendee, self).remove_index()
@@ -194,12 +203,7 @@ class EventAttendee(WigoModel):
 
         for friend_id in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
-            # add to the users view of who is attending
-            self.db.sorted_set_remove(user_attendees_key(friend, event), user.id)
-            # add to the users current events list
-            event.add_to_user_events(friend, remove_empty=True)
-
-            # TODO delete event messages
+            event.remove_from_user_attending(friend, user)
 
 
 class EventMessage(WigoPersistentModel):

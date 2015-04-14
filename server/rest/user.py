@@ -94,6 +94,20 @@ def setup_user_resources(api):
             return {'success': True}
 
 
+    @api.route('/api/users/<user_id>/friends/<int:friend_id>')
+    class DeleteFriendListResource(WigoResource):
+        model = Friend
+
+        @wigo_user_token_required
+        def delete(self, user_id, friend_id):
+            friend = Friend()
+            friend.user_id = g.user.id
+            friend.friend_id = friend_id
+            friend.delete()
+
+            return {'success': True}
+
+
     @api.route('/api/users/<user_id>/friend_requests')
     class FriendRequestsListResource(FriendsListResource):
         def get_friends_query(self, user_id):
@@ -101,24 +115,23 @@ def setup_user_resources(api):
             return self.select(User).user(user).friend_requests()
 
 
-    @api.route('/api/users/<user_id>/invites')
+    @api.route('/api/events/<int:event_id>/invites')
     class InviteListResource(WigoResource):
         model = Invite
 
         @wigo_user_token_required
         @api.expect(api.model('Invite', {
             'invited_id': fields.Integer(description='User to invite', required=True),
-            'event_id': fields.Integer(description='Event to invite user to', required=True)
         }))
         @api.response(200, 'Success', model=Invite.to_doc_model(api))
         @api.response(403, 'Not friends or not attending')
-        def post(self, user_id):
+        def post(self, event_id):
             invite = Invite()
             invite.user_id = g.user.id
             invite.invited_id = self.get_id(request.json.get('invited_id'))
-            invite.event_id = self.get_id(request.json.get('event_id'))
+            invite.event_id = event_id
             invite.save()
-            return self.serialize_list(Invite, [invite], 1)
+            return {'success': True}
 
         @wigo_user_token_required
         def delete(self, user_id):
@@ -137,7 +150,7 @@ def setup_user_resources(api):
         def post(self, user_id):
             tap = Tap()
             tap.user_id = g.user.id
-            tap.tapped_id = request.json.get('tapped_id')
+            tap.tapped_id = self.get_id(request.json.get('tapped_id'))
             tap.save()
             return self.serialize_list(Tap, [tap], 1)
 
@@ -148,7 +161,7 @@ def setup_user_resources(api):
         def delete(self, user_id):
             tap = Tap()
             tap.user_id = g.user.id
-            tap.tapped_id = request.json.get('tapped_id')
+            tap.tapped_id = self.get_id(request.json.get('tapped_id'))
             tap.delete()
 
             return {'success': True}

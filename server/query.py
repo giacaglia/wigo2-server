@@ -1,9 +1,7 @@
 from __future__ import absolute_import
 
 import math
-from itertools import chain
 from datetime import datetime, timedelta
-from geodis.city import City
 from server.models import Dated, user_eventmessages_key, skey, user_attendees_key, DoesNotExist
 from server.models.event import EventMessage, EventAttendee, Event
 from server.models.group import Group
@@ -251,14 +249,16 @@ class SelectQuery(object):
                 key = self.db.user_eventmessages_key(self._user, self._event)
             else:
                 key = skey(self._event, 'messages')
+            return self.__get_page(key)
         elif self._model_class == EventAttendee:
             if self._user:
-                key = self.db.user_attendees_key(self._user, self._event)
+                key = user_attendees_key(self._user, self._event)
             else:
                 key = skey(self._event, 'attendees')
+            return self.model_class(User).key(key).execute()
         else:
             raise ValueError('Invalid query')
-        return self.__get_page(key)
+
 
     def __get_by_events(self):
         start = (self._page - 1) * self._limit

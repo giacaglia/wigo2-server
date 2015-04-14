@@ -95,17 +95,15 @@ class User(WigoPersistentModel):
     def is_active(self):
         return self.status == 'active'
 
-    @property
-    def attending(self):
+    def get_attending_id(self):
         event_id = self.db.get(skey(self, 'current_attending'))
         return int(event_id) if event_id else None
 
-    @attending.setter
-    def attending(self, event):
+    def set_attending(self, event):
         self.db.set(skey(self, 'current_attending'), event.id, event.expires - datetime.utcnow())
 
     def is_attending(self, event):
-        return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id) is not None
+        return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id)
 
     def is_friend(self, friend):
         return self.db.sorted_set_is_member(skey(self, 'friends'), friend.id)
@@ -115,6 +113,8 @@ class User(WigoPersistentModel):
 
     def is_invited(self, event):
         if event.privacy == 'public':
+            return True
+        if self.id == event.owner_id:
             return True
         if self.is_attending(event):
             return True
@@ -147,12 +147,25 @@ class Friend(WigoModel):
 
     def index(self):
         super(Friend, self).index()
+        from server.models.event import Event
 
         if self.accepted:
             self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, self.friend_id)
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, self.user_id)
             self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friend_requests'), self.user_id)
+
+            user_event_id = self.user.get_attending_id()
+            if user_event_id:
+                user_event = Event.find(user_event_id)
+                if self.friend.is_invited(user_event):
+                    user_event.add_to_user_attending(self.friend, self.user)
+
+            friend_event_id = self.friend.get_attending_id()
+            if friend_event_id:
+                friend_event = Event.find(friend_event_id)
+                if self.user.is_invited(friend_event):
+                    friend_event.add_to_user_attending(self.user, self.friend)
         else:
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
@@ -160,10 +173,22 @@ class Friend(WigoModel):
 
     def remove_index(self):
         super(Friend, self).remove_index()
+        from server.models.event import Event
+
         self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
         self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.friend_id, 'friend_requests'), self.user_id)
+
+        user_event_id = self.user.get_attending_id()
+        if user_event_id:
+            user_event = Event.find(user_event_id)
+            user_event.remove_from_user_attending(self.friend, self.user)
+
+        friend_event_id = self.friend.get_attending_id()
+        if friend_event_id:
+            friend_event = Event.find(friend_event_id)
+            friend_event.remove_from_user_attending(self.user, self.friend)
 
 
 class Tap(WigoModel):
@@ -228,19 +253,13 @@ class Invite(WigoModel):
         self.db.expire(invited_key, timedelta(days=8))
 
         # make sure i am seeing all my friends attending now
-        attendees_key = user_attendees_key(invited, event)
         for friend_id in self.db.sorted_set_iter(skey(invited, 'friends')):
             friend = User.find(friend_id)
             if friend.is_attending(event):
-                self.db.sorted_set_add(attendees_key, friend.id, 1)
-
-        self.db.expire(attendees_key, timedelta(days=8))
-
-        # mark this as an event the user can see
-        self.add_to_user_events(invited, event)
+                event.add_to_user_attending(invited, friend)
 
     def delete(self):
-        raise NotImplementedError()
+        pass
 
 
 class Notification(WigoModel):
@@ -262,7 +281,7 @@ class Notification(WigoModel):
         self.clean_old(skey(self.user, 'notifications'))
 
     def delete(self):
-        raise NotImplementedError()
+        pass
 
 
 class Message(WigoPersistentModel):

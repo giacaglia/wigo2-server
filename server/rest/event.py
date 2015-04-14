@@ -59,7 +59,7 @@ def setup_event_resources(api):
                 'event_id': event_id
             }).save()
 
-            return self.serialize_list(EventAttendee, [attendee], 1)
+            return {'success': True}
 
         @wigo_user_token_required
         def delete(self, event_id):

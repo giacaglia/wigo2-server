@@ -214,21 +214,20 @@ class WigoModel(Model):
         # save id'd objects
         if hasattr(self, 'id'):
             self.check_id()
-            ttl = self.ttl()
-
-            if isinstance(ttl, timedelta):
-                self.db.set(skey(self), self.to_json(), ttl)
-            else:
-                self.db.set(skey(self), self.to_json())
-
-            self.db.sorted_set_add(skey(self.__class__), self.id, self.id)
+            self.db.set(skey(self), self.to_json(), self.ttl())
+            self.db.sorted_set_add(skey(self.__class__), self.id, epoch(self.created))
+            self.clean_old(skey(self.__class__))
 
         try:
             self.index()
             post_model_save.send(self, instance=self, created=created)
             return self
         except:
-            self.delete()  # clean up on failure
+            try:
+                self.delete()  # clean up on failure
+            except:
+                logger.exception('error cleaning up')
+
             raise
 
     def index(self):
@@ -260,7 +259,7 @@ class WigoModel(Model):
                     existing = self.db.get(k)
                     if existing and int(existing) != self.id:
                         raise IntegrityException('Unique contraint violation')
-                    self.db.set(k, self.id)
+                    self.db.set(k, self.id, self.ttl())
 
     def delete(self):
         if hasattr(self, 'id'):

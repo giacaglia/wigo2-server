@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from server.models.group import Group
 
 from server.models.user import User
-from tests import client, api_post
+from tests import client, api_post, api_delete
 
 
 def test_update_user():
@@ -64,3 +64,9 @@ def test_friends():
 
         assert 1 == User.select().user(user1).friends().count()
         assert 0 == User.select().user(user1).friend_requests().count()
+
+        # remove friendship
+        resp = api_delete(c, user2, '/api/users/me/friends/{}'.format(user1.id))
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        assert 0 == User.select().user(user1).friends().count()
+        assert 0 == User.select().user(user2).friends().count()

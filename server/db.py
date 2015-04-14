@@ -52,7 +52,7 @@ class WigoDB(object):
     def expire(self, key, expires):
         raise NotImplementedError()
 
-    def set_add(self, key, value, score):
+    def set_add(self, key, value):
         raise NotImplementedError()
 
     def set_is_member(self, key, value):
@@ -152,11 +152,11 @@ class WigoRedisDB(WigoDB):
     def expire(self, key, expires):
         return self.redis.expire(key, expires)
 
-    def set_add(self, key, value, score):
+    def set_add(self, key, value):
         return self.redis.sadd(key, self.encode(value))
 
     def set_is_member(self, key, value):
-        return self.redis.zscore(key, self.encode(value)) is not None
+        return self.redis.sismember(key, self.encode(value))
 
     def get_set_size(self, key):
         return self.redis.scard(key)

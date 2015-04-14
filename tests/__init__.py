@@ -15,6 +15,7 @@ Configuration.CELERY_ALWAYS_EAGER = True
 
 NEXT_ID = 1
 
+
 @contextmanager
 def client():
     logging.getLogger('wigo').setLevel(level=logging.ERROR)
@@ -27,10 +28,12 @@ def client():
 
         wigo_db.redis.flushdb()
 
-        def zscan_iter(key):
-            count, records = wigo_db.redis.zscan(key)
-            for record in records:
-                yield 0, record
+        def zscan_iter(name, match=None, count=None):
+            cursor = '0'
+            while cursor != 0:
+                cursor, data = wigo_db.redis.zscan(name, cursor=cursor, match=match, count=count)
+                for item in data:
+                    yield item
 
         wigo_db.redis.zscan_iter = zscan_iter
 
@@ -82,33 +85,40 @@ def client():
             yield client
 
 
-def api_get(client, user, url, api_version='2.0.0', lat=None, lon=None):
+def get_headers(user, api_version='2.0.0', lat=None, lon=None):
     from config import Configuration
 
     headers = {'X-Wigo-API-Key': Configuration.API_KEY,
                'X-Wigo-API-Version': api_version,
                'Content-Type': 'application/json'}
-
     if user:
         headers['X-Wigo-User-Key'] = user.key
-
     if lat and lon:
         headers['Geolocation'] = 'geo:{},{}'.format(lat, lon)
+    return headers
 
+
+def make_friends(c, user1, user2):
+    resp = api_post(c, user1, '/api/users/me/friends', {'friend_id': user2.id})
+    assert resp.status_code == 200, 'oops {}'.format(resp.data)
+    resp = api_post(c, user2, '/api/users/me/friends', {'friend_id': user1.id})
+    assert resp.status_code == 200, 'oops {}'.format(resp.data)
+
+
+def create_event(c, user, title, privacy='public'):
+    return api_post(c, user, '/api/events/', {'name': title, 'privacy': privacy})
+
+
+def api_get(client, user, url, api_version='2.0.0', lat=None, lon=None):
+    headers = get_headers(user, api_version, lat, lon)
     return client.get(url, headers=headers)
 
 
 def api_post(client, user, url, data, api_version='2.0.0', lat=None, lon=None):
-    from config import Configuration
-
-    headers = {'X-Wigo-API-Key': Configuration.API_KEY,
-               'X-Wigo-API-Version': api_version,
-               'Content-Type': 'application/json'}
-
-    if user:
-        headers['X-Wigo-User-Key'] = user.key
-
-    if lat and lon:
-        headers['Geolocation'] = 'geo:{},{}'.format(lat, lon)
-
+    headers = get_headers(user, api_version, lat, lon)
     return client.post(url, data=ujson.dumps(data), headers=headers)
+
+
+def api_delete(client, user, url, api_version='2.0.0', lat=None, lon=None):
+    headers = get_headers(user, api_version, lat, lon)
+    return client.delete(url, headers=headers)
