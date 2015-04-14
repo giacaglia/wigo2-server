@@ -18,7 +18,8 @@ NEXT_ID = 1
 
 @contextmanager
 def client():
-    logging.getLogger('wigo').setLevel(level=logging.ERROR)
+    logging.getLogger().setLevel(level=logging.FATAL)
+    logging.getLogger('wigo').setLevel(level=logging.FATAL)
 
     with patch('redis.Redis', mock_redis_client):
         from server.web import app

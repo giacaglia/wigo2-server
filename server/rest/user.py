@@ -196,6 +196,9 @@ def setup_user_resources(api):
         def post(self, model_id):
             return super(MessageResource, self).post(model_id)
 
+        def delete(self, model_id):
+            abort(501, message='Not implemented')
+
     @api.route('/api/conversations/')
     class ConversationsResource(WigoResource):
         model = Message
@@ -216,3 +219,9 @@ def setup_user_resources(api):
             with_user = User.find(with_user_id)
             count, instances = self.select().user(g.user).to_user(with_user).execute()
             return self.serialize_list(self.model, instances, count)
+
+        @wigo_user_token_required
+        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        def delete(self, with_user_id):
+            Message.delete_conversation(g.user, User.find(with_user_id))
+            return {'success': True}

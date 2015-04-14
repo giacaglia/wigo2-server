@@ -299,7 +299,6 @@ class Message(WigoPersistentModel):
             raise ValidationException('Not friends')
         return super(Message, self).save()
 
-
     def index(self):
         super(Message, self).index()
 

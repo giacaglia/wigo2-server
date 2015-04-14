@@ -105,3 +105,46 @@ def test_messages():
         assert len(data['objects']) == 2
         assert data['objects'][0]['message'] == 't2'
         assert data['objects'][1]['message'] == 't1'
+
+        resp = api_get(c, user2, '/api/conversations')
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 1
+        assert data['objects'][0]['message'] == 't2'
+
+        resp = api_get(c, user2, '/api/conversations/{}'.format(user1.id))
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 2
+        assert data['objects'][0]['message'] == 't2'
+        assert data['objects'][1]['message'] == 't1'
+
+        resp = api_delete(c, user1, '/api/messages/{}'.format(data['objects'][0]['id']))
+        assert resp.status_code == 501, 'oops {}'.format(resp.data)
+
+        # delete the conversation with user2
+        resp = api_delete(c, user1, '/api/conversations/{}'.format(user2.id))
+
+        # user 1 shouldn't see it anymore
+        resp = api_get(c, user1, '/api/conversations')
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 0
+
+        resp = api_get(c, user1, '/api/conversations/{}'.format(user2.id))
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 0
+
+        # but user 2 still should
+        resp = api_get(c, user2, '/api/conversations')
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 1
+
+        resp = api_get(c, user2, '/api/conversations/{}'.format(user1.id))
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 2
+        assert data['objects'][0]['message'] == 't2'
+        assert data['objects'][1]['message'] == 't1'
