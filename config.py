@@ -38,7 +38,7 @@ class Configuration(object):
     REDIS_QUEUES_URL = os.environ.get('REDIS_QUEUES_URL', REDIS_URL)
 
     DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://wigo:4090ejsAdff3@localhost/wigo')
-    RDBMS_REPLICATE = ENVIRONMENT != 'test'
+    RDBMS_REPLICATE = os.environ.get('RDBMS_REPLICATE', 'true' if ENVIRONMENT != 'test' else 'false') == 'true'
 
     MAIL_SERVER = 'smtp.sendgrid.net'
     MAIL_USERNAME = os.environ.get('SENDGRID_USERNAME', None)
