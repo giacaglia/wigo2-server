@@ -9,6 +9,7 @@ from clize import clize
 from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
 from flask.ext.security.utils import encrypt_password
+from flask.ext.sslify import SSLify
 from schematics.exceptions import ModelValidationError
 
 from config import Configuration
@@ -16,7 +17,7 @@ from flask import Flask, render_template, g, request, jsonify
 from flask.ext import restplus
 from flask.ext.admin import Admin
 from flask.ext.compress import Compress
-from flask.ext.security import Security, login_required
+from flask.ext.security import Security
 from flask.ext.wtf import CsrfProtect
 import logconfig
 from server import ApiSessionInterface
@@ -40,11 +41,12 @@ logconfig.configure(Configuration.ENVIRONMENT)
 
 logger = logging.getLogger('wigo.web')
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='server/templates')
 app.url_map.strict_slashes = False
 app.session_interface = ApiSessionInterface()
 app.config.from_object(Configuration)
 
+SSLify(app)
 Compress(app)
 csrf_protect = CsrfProtect(app)
 
@@ -74,20 +76,6 @@ admin.add_view(NotificationView(Notification))
 admin.add_view(ConfigView(Config))
 
 wire_notifications()
-
-
-@app.route('/docs/', endpoint='docs')
-def swagger_ui():
-    return apidoc.ui_for(api)
-
-
-app.register_blueprint(apidoc.apidoc)
-
-
-@app.route('/')
-@login_required
-def home():
-    return render_template('index.html')
 
 
 @app.before_first_request
@@ -137,6 +125,26 @@ def setup_request():
                     g.group = group
             except DoesNotExist:
                 logger.info('could not resolve group from geo')
+
+
+@app.after_request
+def after_request(response):
+    if 'Cache-Control' not in response.headers:
+        response.headers.add('Cache-Control', 'max-age=0, must-revalidate')
+    return response
+
+
+@app.route('/home')
+def wigo_home():
+    return render_template('index.html')
+
+
+@app.route('/docs/', endpoint='docs')
+def swagger_ui():
+    return apidoc.ui_for(api)
+
+
+app.register_blueprint(apidoc.apidoc)
 
 
 @app.route('/api/app/startup')
