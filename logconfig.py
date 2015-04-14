@@ -46,9 +46,6 @@ def configure(env):
             },
             'blade': {
                 'level': 'DEBUG' if env in ('dev', 'test') else 'INFO',
-            },
-            'peewee': {
-                'level': 'DEBUG' if env in ('dev', 'test') else 'INFO',
             }
         }
     })

@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import cPickle
 from contextlib import contextmanager
 
 import ujson
@@ -9,8 +10,9 @@ from peewee import DoesNotExist, SQL
 from datetime import datetime, timedelta
 from urlparse import urlparse
 from redis import Redis
+from redis_shard.shard import RedisShardAPI
 from config import Configuration
-from server.rdbms import DataStrings, DataExpires, DataSets, DataSortedSets
+from server.rdbms import DataStrings, DataExpires, DataSets, DataSortedSets, DataIntSortedSets, DataIntSets
 
 
 class WigoDB(object):
@@ -36,7 +38,17 @@ class WigoDB(object):
 
         raise Exception('couldnt find an available random code in redis, up to 50chars?')
 
-    def set(self, key, value, expires=None):
+    def get_data_type(self, dt, value=None):
+        if dt is not None:
+            if dt == 'int' or isinstance(dt, type):
+                return dt
+            else:
+                raise ValueError('Invalid data type')
+        if value is not None:
+            return int if isinstance(value, (int, long)) else None
+        return int
+
+    def set(self, key, value, expires=None, long_term_expires=None):
         raise NotImplementedError()
 
     def set_if_missing(self, key, value):
@@ -51,49 +63,49 @@ class WigoDB(object):
     def delete(self, key):
         raise NotImplementedError()
 
-    def expire(self, key, expires):
+    def expire(self, key, expires, long_term_expires=None):
         raise NotImplementedError()
 
-    def set_add(self, key, value):
+    def set_add(self, key, value, dt=None):
         raise NotImplementedError()
 
-    def set_is_member(self, key, value):
+    def set_is_member(self, key, value, dt=None):
         raise NotImplementedError()
 
-    def get_set_size(self, key):
+    def get_set_size(self, key, dt=None):
         raise NotImplementedError()
 
-    def set_remove(self, key, value):
+    def set_remove(self, key, value, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_add(self, key, value, score):
+    def sorted_set_add(self, key, value, score, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_is_member(self, key, value):
+    def sorted_set_is_member(self, key, value, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_iter(self, key):
+    def sorted_set_iter(self, key, dt=None):
         raise NotImplementedError()
 
-    def get_sorted_set_size(self, key):
+    def get_sorted_set_size(self, key, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_remove(self, key, value):
+    def sorted_set_remove(self, key, value, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_remove_by_score(self, key, min, max):
+    def sorted_set_remove_by_score(self, key, min, max, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_range(self, key, start, end):
+    def sorted_set_range(self, key, start, end, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_rrange(self, key, start, end):
+    def sorted_set_rrange(self, key, start, end, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10):
+    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10):
+    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, dt=None):
         raise NotImplementedError()
 
 
@@ -115,43 +127,55 @@ class WigoRedisDB(WigoDB):
     def gen_id(self):
         return self.gen_id_script()
 
-    def encode(self, value):
-        return msgpack.packb(value)
+    def encode(self, value, dt):
+        dt = self.get_data_type(dt, value)
+        if dt == int:
+            return int(value)
+        else:
+            return msgpack.packb(value)
 
-    def decode(self, value):
+    def decode(self, value, dt):
         if value is None:
             return value
-        if hasattr(value, '__iter__'):
-            return [self.decode(v) for v in value]
-        else:
-            return msgpack.unpackb(value)
 
-    def set(self, key, value, expires=None):
-        if expires:
-            result = self.redis.setex(key, self.encode(value), expires)
+        dt = self.get_data_type(dt)
+        if hasattr(value, '__iter__'):
+            return [self.decode(v, dt) for v in value]
         else:
-            result = self.redis.set(key, self.encode(value))
+            if dt == int:
+                return int(value)
+            else:
+                return msgpack.unpackb(value)
+
+    def set(self, key, value, expires=None, long_term_expires=None):
+        if isinstance(expires, datetime):
+            expires = expires - datetime.utcnow()
+
+        if expires:
+            result = self.redis.setex(key, self.encode(value, dict), expires)
+        else:
+            result = self.redis.set(key, self.encode(value, dict))
 
         if self.queued_db:
-            self.queued_db.set(key, value, expires)
+            self.queued_db.set(key, value, expires, long_term_expires)
 
         return result
 
     def get(self, key):
         value = self.redis.get(key)
         if value:
-            value = self.decode(value)
+            value = self.decode(value, dict)
         return value
 
     def set_if_missing(self, key, value):
-        result = self.redis.setnx(key, self.encode(value))
+        result = self.redis.setnx(key, self.encode(value, dict))
         if self.queued_db:
             self.queued_db.set_if_missing(key, value)
         return result
 
     def mget(self, keys):
         values = self.redis.mget(keys)
-        return self.decode(values)
+        return self.decode(values, dict)
 
     def delete(self, key):
         result = self.redis.delete(key)
@@ -159,69 +183,69 @@ class WigoRedisDB(WigoDB):
             self.queued_db.delete(key)
         return result
 
-    def expire(self, key, expires):
+    def expire(self, key, expires, long_term_expires=None):
+        if isinstance(expires, datetime):
+            expires = expires - datetime.utcnow()
         result = self.redis.expire(key, expires)
-        if self.queued_db:
-            self.queued_db.expire(key)
+        if self.queued_db and long_term_expires:
+            self.queued_db.expire(key, expires, long_term_expires)
         return result
 
-    def set_add(self, key, value):
-        result = self.redis.sadd(key, self.encode(value))
+    def set_add(self, key, value, dt=None):
+        result = self.redis.sadd(key, self.encode(value, dt))
         if self.queued_db:
             self.queued_db.set_add(key, value)
         return result
 
-    def set_is_member(self, key, value):
-        return self.redis.sismember(key, self.encode(value))
+    def set_is_member(self, key, value, dt=None):
+        return self.redis.sismember(key, self.encode(value, dt))
 
-    def get_set_size(self, key):
+    def get_set_size(self, key, dt=None):
         return self.redis.scard(key)
 
-    def set_remove(self, key, value):
-        result = self.redis.srem(key, self.encode(value))
+    def set_remove(self, key, value, dt=None):
+        result = self.redis.srem(key, self.encode(value, dt))
         if self.queued_db:
             self.queued_db.set_remove(key, value)
         return result
 
-    def sorted_set_add(self, key, value, score):
-        result = self.redis.zadd(key, self.encode(value), score)
+    def sorted_set_add(self, key, value, score, dt=None):
+        result = self.redis.zadd(key, self.encode(value, dt), score)
         if self.queued_db:
             self.queued_db.sorted_set_add(key, value, score)
         return result
 
-    def sorted_set_is_member(self, key, value):
-        return self.redis.zscore(key, self.encode(value)) is not None
+    def sorted_set_is_member(self, key, value, dt=None):
+        return self.redis.zscore(key, self.encode(value, dt)) is not None
 
-    def sorted_set_iter(self, key):
+    def sorted_set_iter(self, key, dt=None):
         for item, score in self.redis.zscan_iter(key):
-            yield self.decode(item)
+            yield self.decode(item, dt), score
 
-    def get_sorted_set_size(self, key):
+    def get_sorted_set_size(self, key, dt=None):
         return self.redis.zcard(key)
 
-    def sorted_set_range(self, key, start, end):
-        return self.decode(self.redis.zrange(key, start, end))
+    def sorted_set_range(self, key, start, end, dt=None):
+        return self.decode(self.redis.zrange(key, start, end), dt)
 
-    def sorted_set_rrange(self, key, start, end):
-        return self.decode(self.redis.zrevrange(key, start, end))
+    def sorted_set_rrange(self, key, start, end, dt=None):
+        return self.decode(self.redis.zrevrange(key, start, end), dt)
 
-    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10):
-        return self.decode(self.redis.zrangebyscore(key, min, max, start, limit))
+    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, dt=None):
+        return self.decode(self.redis.zrangebyscore(key, min, max, start, limit), dt)
 
-    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10):
-        return self.decode(self.redis.zrevrangebyscore(key, max, min, start, limit))
+    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, dt=None):
+        return self.decode(self.redis.zrevrangebyscore(key, max, min, start, limit), dt)
 
-    def sorted_set_remove(self, key, value):
-        result = self.redis.zrem(key, self.encode(value))
+    def sorted_set_remove(self, key, value, dt=None):
+        result = self.redis.zrem(key, self.encode(value, dt))
         if self.queued_db:
             self.queued_db.sorted_set_remove(key, value)
         return result
 
-    def sorted_set_remove_by_score(self, key, min, max):
-        result = self.redis.zremrangebyscore(key, min, max)
-        if self.queued_db:
-            self.queued_db.sorted_set_remove_by_score(key, min, max)
-        return result
+    def sorted_set_remove_by_score(self, key, min, max, dt=None):
+        # don't replicate remove by score to long term storage
+        return self.redis.zremrangebyscore(key, min, max)
 
 
 # noinspection PyAbstractClass
@@ -231,64 +255,65 @@ class WigoQueuedDB(WigoDB):
         self.redis = redis
 
     def queue(self, cmd):
-        self.redis.lpush('db:queue:commands', ujson.dumps(cmd))
+        self.redis.lpush('db:queue:commands', cPickle.dumps(cmd))
 
-    def set(self, key, value, expires=None):
-        self.queue(('set', key, value, expires))
+    def set(self, key, value, expires=None, long_term_expires=None):
+        self.queue(('set', key, value, expires, long_term_expires))
+
+    def expire(self, key, expires, long_term_expires=None):
+        self.queue(('expire', key, expires, long_term_expires))
 
     def delete(self, key):
         self.queue(('delete', key))
 
-    def sorted_set_remove(self, key, value):
-        self.queue(('sorted_set_remove', key, value))
+    def set_add(self, key, value, dt=None):
+        self.queue(('set_add', key, value, 'int' if dt == 'int' else None))
 
-    def set_add(self, key, value):
-        self.queue(('set_add', key, value))
+    def set_remove(self, key, value, dt=None):
+        self.queue(('set_remove', key, value, 'int' if dt == 'int' else None))
 
-    def set_remove(self, key, value):
-        self.queue(('set_remove', key, value))
+    def sorted_set_add(self, key, value, score, dt=None):
+        self.queue(('sorted_set_add', key, value, score, 'int' if dt == 'int' else None))
 
-    def sorted_set_add(self, key, value, score):
-        self.queue(('sorted_set_add', key, value, score))
-
-    def expire(self, key, expires):
-        self.queue(('expire', key, expires))
+    def sorted_set_remove(self, key, value, dt=None):
+        self.queue(('sorted_set_remove', key, value, 'int' if dt == 'int' else None))
 
     def set_if_missing(self, key, value):
         self.queue(('set_if_missing', key, value))
 
-    def sorted_set_remove_by_score(self, key, min, max):
-        self.queue(('sorted_set_remove_by_score', key, min, max))
+    def sorted_set_remove_by_score(self, key, min, max, dt=None):
+        self.queue(('sorted_set_remove_by_score', key, min, max, 'int' if dt == 'int' else None))
 
 
 class WigoRdbms(WigoDB):
     def gen_id(self):
         raise NotImplementedError()
 
-    def set(self, key, value, expires=None):
+    def set(self, key, value, expires=None, long_term_expires=None):
         if not value:
             return
 
-        if isinstance(expires, timedelta):
-            expires = datetime.utcnow() + expires
+        if isinstance(long_term_expires, timedelta):
+            long_term_expires = datetime.utcnow() + long_term_expires
 
         try:
             ds = DataStrings.get(key=key)
             ds.value = value
+            ds.modified = datetime.utcnow()
             ds.save()
         except DoesNotExist:
             DataStrings.create(key=key, value=value)
 
         try:
             ds = DataExpires.get(key=key)
-            if not expires:
+            if not long_term_expires:
                 ds.delete_instance()
             else:
-                ds.expires = expires
+                ds.expires = long_term_expires
                 ds.save()
         except DoesNotExist:
             if expires:
-                DataExpires.create(key=key, expires=expires)
+                DataExpires.create(key=key, expires=long_term_expires)
 
     def get(self, key):
         row = DataStrings.select_non_expired(DataStrings.value).where(
@@ -312,98 +337,137 @@ class WigoRdbms(WigoDB):
     def delete(self, key):
         DataStrings.delete().where(key=key).execute()
         DataSets.delete().where(key=key).execute()
+        DataIntSets.delete().where(key=key).execute()
         DataSortedSets.delete().where(key=key).execute()
+        DataIntSortedSets.delete().where(key=key).execute()
         DataExpires.delete().where(key=key).execute()
 
-    def expire(self, key, expires):
-        DataExpires.update(expires=expires).where(DataExpires.key == key).execute()
+    def expire(self, key, expires, long_term_expires=None):
+        if isinstance(long_term_expires, timedelta):
+            long_term_expires = datetime.utcnow() + long_term_expires
 
-    def set_add(self, key, value):
-        if not self.set_is_member(key, value):
-            DataSets.create(key=key, value=value)
+        try:
+            existing = DataExpires.get(key=key)
+            existing.expires = long_term_expires
+            existing.modified = datetime.utcnow()
+            existing.save()
+        except DoesNotExist:
+            DataExpires.create(key=key, expires=long_term_expires, modified=datetime.utcnow())
 
-    def set_is_member(self, key, value):
-        return DataSets.select_non_expired().where(
-            DataSets.key == key, DataSets.value == value
+    def get_set_type(self, dt, value=None):
+        dt = self.get_data_type(dt, value)
+        return DataIntSets if dt == int else DataSets
+
+    def set_add(self, key, value, dt=None):
+        stype = self.get_set_type(dt, value)
+        if not self.set_is_member(key, value, dt):
+            stype.create(key=key, value=value)
+
+    def set_is_member(self, key, value, dt=None):
+        stype = self.get_set_type(dt, value)
+        return stype.select_non_expired().where(
+            stype.key == key, stype.value == value
         ).exists()
 
-    def get_set_size(self, key):
-        return DataSets.select_non_expired().where(DataSets.key == key).count()
+    def get_set_size(self, key, dt=None):
+        stype = self.get_set_type(dt)
+        return stype.select_non_expired().where(stype.key == key).count()
 
-    def set_remove(self, key, value):
-        return DataSets.delete().where(
-            DataSets.key == key, DataSets.value == value
+    def set_remove(self, key, value, dt=None):
+        stype = self.get_set_type(dt)
+        return stype.delete().where(
+            stype.key == key, stype.value == value
         ).execute()
 
-    def sorted_set_add(self, key, value, score):
-        if not self.sorted_set_is_member(key, value):
-            DataSortedSets.create(key=key, value=value, score=score)
+    def get_sorted_set_type(self, dt, value=None):
+        dt = self.get_data_type(dt, value)
+        return DataIntSortedSets if dt == int else DataSortedSets
+
+    def sorted_set_add(self, key, value, score, dt=None):
+        if score == 'inf':
+            score = 10000000.0
+
+        stype = self.get_sorted_set_type(dt, value)
+        if not self.sorted_set_is_member(key, value, dt):
+            stype.create(key=key, value=value, score=score)
         else:
-            DataSortedSets.update(score=score).where(
-                DataSortedSets.key == key, DataSortedSets.value == value
+            stype.update(score=score).where(
+                stype.key == key,
+                stype.value == value,
+                stype.modified == datetime.utcnow()
             ).execute()
 
-    def sorted_set_is_member(self, key, value):
-        return DataSortedSets.select_non_expired().where(
-            DataSortedSets.key == key,
-            DataSortedSets.value == value,
+    def sorted_set_is_member(self, key, value, dt=None):
+        stype = self.get_sorted_set_type(dt, value)
+        return stype.select_non_expired().where(
+            stype.key == key,
+            stype.value == value,
         ).exists()
 
-    def sorted_set_iter(self, key):
-        query = DataSortedSets.select_non_expired(DataSortedSets.value).where(
-            DataSortedSets.key == key
-        ).order_by(DataSortedSets.score.asc()).tuples()
+    def sorted_set_iter(self, key, dt=None):
+        stype = self.get_sorted_set_type(dt)
+
+        query = stype.select_non_expired(stype.value, stype.score).where(
+            stype.key == key
+        ).order_by(stype.score.asc()).tuples()
 
         for row in query:
-            yield row[0]
+            yield row[0], row[1]
 
-    def get_sorted_set_size(self, key):
-        return DataSortedSets.select().where(DataSortedSets.key == key).count()
+    def get_sorted_set_size(self, key, dt=None):
+        stype = self.get_sorted_set_type(dt)
+        return stype.select().where(stype.key == key).count()
 
-    def sorted_set_range(self, key, start, end):
-        return DataSortedSets.select().where(
-            DataSortedSets.key == key,
-            DataSortedSets.score >= start,
-            DataSortedSets.score <= end
-        ).order_by(DataSortedSets.score.asc())
+    def sorted_set_range(self, key, start, end, dt=None):
+        stype = self.get_sorted_set_type(dt)
+        return stype.select().where(
+            stype.key == key,
+            stype.score >= start,
+            stype.score <= end
+        ).order_by(stype.score.asc())
 
-    def sorted_set_rrange(self, key, start, end):
-        return [v[0] for v in DataSortedSets.select(DataSortedSets.value).where(
-            DataSortedSets.key == key,
-            DataSortedSets.score >= min,
-            DataSortedSets.score <= max
-        ).order_by(DataSortedSets.score.asc()).offset(start).limit(end - start)]
+    def sorted_set_rrange(self, key, start, end, dt=None):
+        stype = self.get_sorted_set_type(dt)
+        return [v[0] for v in stype.select(stype.value).where(
+            stype.key == key,
+            stype.score >= min,
+            stype.score <= max
+        ).order_by(stype.score.asc()).offset(start).limit(end - start)]
 
-    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10):
+    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, dt=None):
+        stype = self.get_sorted_set_type(dt)
         min = get_range_val(min)
         max = get_range_val(max)
-        return [v[0] for v in DataSortedSets.select(DataSortedSets.value).where(
-            DataSortedSets.key == key,
-            DataSortedSets.score >= min,
-            DataSortedSets.score <= max
-        ).order_by(DataSortedSets.score.asc()).offset(start).limit(limit).tuples()]
+        return [v[0] for v in stype.select(stype.value).where(
+            stype.key == key,
+            stype.score >= min,
+            stype.score <= max
+        ).order_by(stype.score.asc()).offset(start).limit(limit).tuples()]
 
-    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10):
+    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, dt=None):
+        stype = self.get_sorted_set_type(dt)
         min = get_range_val(min)
         max = get_range_val(max)
-        return [v[0] for v in DataSortedSets.select(DataSortedSets.value).where(
-            DataSortedSets.key == key,
-            DataSortedSets.score >= min,
-            DataSortedSets.score <= max
-        ).order_by(DataSortedSets.score.desc()).offset(start).limit(limit).tuples()]
+        return [v[0] for v in stype.select(stype.value).where(
+            stype.key == key,
+            stype.score >= min,
+            stype.score <= max
+        ).order_by(stype.score.desc()).offset(start).limit(limit).tuples()]
 
-    def sorted_set_remove(self, key, value):
-        return DataSortedSets.delete().where(
-            DataSortedSets.key == key, DataSortedSets.value == value
+    def sorted_set_remove(self, key, value, dt=None):
+        stype = self.get_sorted_set_type(dt, value)
+        return stype.delete().where(
+            stype.key == key, stype.value == value
         ).execute()
 
-    def sorted_set_remove_by_score(self, key, min, max):
+    def sorted_set_remove_by_score(self, key, min, max, dt=None):
+        stype = self.get_sorted_set_type(dt)
         min = get_range_val(min)
         max = get_range_val(max)
-        DataSortedSets.delete().where(
-            DataSortedSets.key == key,
-            DataSortedSets.score >= min,
-            DataSortedSets.score <= max
+        stype.delete().where(
+            stype.key == key,
+            stype.score >= min,
+            stype.score <= max
         ).execute()
 
 
@@ -429,5 +493,5 @@ def rate_limit(self, key, expires):
 
 redis_url = urlparse(Configuration.REDIS_URL)
 redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
-wigo_db = WigoRedisDB(redis, WigoQueuedDB(redis) if Configuration.ENVIRONMENT != 'test' else None)
+wigo_db = WigoRedisDB(redis, WigoQueuedDB(redis) if Configuration.RDBMS_REPLICATE else None)
 wigo_rdbms = WigoRdbms()

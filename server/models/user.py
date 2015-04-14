@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from flask.ext.security.core import _security
 from flask.ext.security.utils import md5
@@ -100,7 +100,7 @@ class User(WigoPersistentModel):
         return int(event_id) if event_id else None
 
     def set_attending(self, event):
-        self.db.set(skey(self, 'current_attending'), event.id, event.expires - datetime.utcnow())
+        self.db.set(skey(self, 'current_attending'), event.id, event.expires, event.expires)
 
     def is_attending(self, event):
         return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id)
@@ -169,7 +169,10 @@ class Friend(WigoModel):
         else:
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
-            self.db.sorted_set_add(skey('user', self.friend_id, 'friend_requests'), self.user_id, epoch(self.created))
+            friend_requests_key = skey('user', self.friend_id, 'friend_requests')
+            self.db.sorted_set_add(friend_requests_key, self.user_id, epoch(self.created))
+            # clean out old friend requests
+            self.clean_old(friend_requests_key, timedelta(days=30))
 
     def remove_index(self):
         super(Friend, self).remove_index()
@@ -195,9 +198,6 @@ class Tap(WigoModel):
     user_id = LongType(required=True)
     tapped_id = LongType(required=True)
 
-    def ttl(self):
-        return timedelta(days=8)
-
     @property
     @memoize('tapped_id')
     def tapped(self):
@@ -210,8 +210,9 @@ class Tap(WigoModel):
 
     def index(self):
         super(Tap, self).index()
-        self.db.sorted_set_add(skey('user', self.user_id, 'tapped'), self.tapped_id, epoch(self.expires))
-        self.clean_old(skey('user', self.user_id, 'tapped'))
+        tapped_key = skey('user', self.user_id, 'tapped')
+        self.db.sorted_set_add(tapped_key, self.tapped_id, epoch(self.expires))
+        self.db.expire(tapped_key, self.expires)
 
     def remove_index(self):
         super(Tap, self).remove_index()
@@ -250,10 +251,10 @@ class Invite(WigoModel):
 
         invited_key = skey(event, 'invited')
         self.db.set_add(invited_key, invited.id)
-        self.db.expire(invited_key, timedelta(days=8))
+        self.db.expire(invited_key, event.expires)
 
         # make sure i am seeing all my friends attending now
-        for friend_id in self.db.sorted_set_iter(skey(invited, 'friends')):
+        for friend_id, score in self.db.sorted_set_iter(skey(invited, 'friends')):
             friend = User.find(friend_id)
             if friend.is_attending(event):
                 event.add_to_user_attending(invited, friend)
@@ -277,7 +278,7 @@ class Notification(WigoModel):
         return User.find(self.from_user_id)
 
     def index(self):
-        self.db.sorted_set_add(skey(self.user, 'notifications'), self.to_json(), epoch(self.created))
+        self.db.sorted_set_add(skey(self.user, 'notifications'), self.to_json(), epoch(self.created), dt=dict)
         self.clean_old(skey(self.user, 'notifications'))
 
     def delete(self):

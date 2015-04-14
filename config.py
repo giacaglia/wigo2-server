@@ -21,6 +21,8 @@ class Configuration(object):
 
     DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://wigo:4090ejsAdff3@localhost/wigo')
 
+    RDBMS_REPLICATE = ENVIRONMENT not in ('test', 'dev')
+
     MAIL_SERVER = 'smtp.sendgrid.net'
     MAIL_USERNAME = os.environ.get('SENDGRID_USERNAME', None)
     MAIL_PASSWORD = os.environ.get('SENDGRID_PASSWORD', None)

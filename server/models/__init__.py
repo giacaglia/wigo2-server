@@ -258,7 +258,7 @@ class WigoModel(Model):
                     k = skey('index', self.__class__, field, value)
                     existing = self.db.get(k)
                     if existing and int(existing) != self.id:
-                        raise IntegrityException('Unique contraint violation')
+                        raise IntegrityException('Unique contraint violation, field={}'.format(field))
                     self.db.set(k, self.id, self.ttl())
 
     def delete(self):
@@ -285,8 +285,9 @@ class WigoModel(Model):
             if value:
                 self.db.delete(skey('index', self.__class__, field, value))
 
-    def clean_old(self, key):
-        ttl = self.ttl()
+    def clean_old(self, key, ttl=None):
+        if ttl is None:
+            ttl = self.ttl()
         if isinstance(ttl, timedelta):
             up_to = datetime.utcnow() - ttl
             self.db.sorted_set_remove_by_score(key, 0, epoch(up_to))

@@ -2,8 +2,7 @@ from __future__ import absolute_import
 from flask import g, request
 from flask.ext.restful import abort
 
-from server.db import wigo_db
-from server.models import AlreadyExistsException, DoesNotExist
+from server.models import DoesNotExist
 from server.models.event import Event, EventMessage, EventAttendee
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource
 from server.security import wigo_user_token_required
@@ -29,6 +28,9 @@ def setup_event_resources(api):
         @api.response(200, 'Success', model=Event.to_doc_model(api))
         def post(self, model_id):
             return super(EventResource, self).post(model_id)
+
+        def delete(self, model_id):
+            abort(501, message='Not implemented')
 
     @api.route('/api/events/')
     class EventListResource(WigoDbListResource):

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import logging
-import ujson
+import cPickle
 import logconfig
 
 from redis import ReadOnlyError
@@ -45,7 +45,7 @@ def start(debug=False):
                 if command:
                     found_something = True
                     logger.debug('running sync command {}'.format(command))
-                    parsed = ujson.loads(command)
+                    parsed = cPickle.loads(command)
                     fn = getattr(wigo_rdbms, parsed[0])
                     with db.transaction():
                         fn(*parsed[1:])

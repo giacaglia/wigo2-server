@@ -73,7 +73,9 @@ class Event(WigoPersistentModel, Dated):
             if existing_event and existing_event.id != self.id:
                 raise AlreadyExistsException(existing_event)
 
-            self.db.set(skey(group, Event, Event.event_key(self.name)), self.id)
+            event_name_key = skey(group, Event, Event.event_key(self.name))
+            self.db.set(event_name_key, self.id, self.expires, self.expires)
+
             events_key = skey('group', self.group_id, 'events')
             attendees_key = skey(self, 'attendees')
             num_attending = self.db.get_sorted_set_size(attendees_key)
@@ -103,10 +105,14 @@ class Event(WigoPersistentModel, Dated):
         self.db.sorted_set_add(attendees_key, attendee.id, epoch(datetime.utcnow()))
         self.db.expire(attendees_key, timedelta(days=8))
 
+        # add the attendees photos to the users view
+        emessages_key = user_eventmessages_key(user, self)
+        for message_id, score in self.db.sorted_set_iter(user_eventmessages_key(attendee, self)):
+            self.db.sorted_set_add(emessages_key, message_id, score)
+        self.db.expire(emessages_key, timedelta(days=8))
+
         # add to the users current events list
         self.add_to_user_events(user)
-
-        # TODO record event messages
 
     def remove_from_user_attending(self, user, attendee):
         # add to the users view of who is attending
@@ -114,13 +120,13 @@ class Event(WigoPersistentModel, Dated):
         # add to the users current events list
         self.add_to_user_events(user, remove_empty=True)
 
-        # TODO delete event messages
-
     def remove_index(self):
         super(Event, self).remove_index()
         group = self.group
+
         self.db.sorted_set_remove(skey(group, 'events'), self.id)
         self.db.delete(skey(self, 'attendees'))
+        self.db.delete(skey(self, 'messages'))
 
         existing_event = self.find(group=group, name=self.name)
         if existing_event and existing_event.id == self.id:
@@ -178,9 +184,7 @@ class EventAttendee(WigoModel):
         # record the event into the events the user can see, as the most important one
         event.add_to_user_events(user)
 
-        # TODO record event messages
-
-        for friend_id in self.db.sorted_set_iter(skey(user, 'friends')):
+        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             if friend.is_invited(event):
                 event.add_to_user_attending(friend, user)
@@ -199,9 +203,7 @@ class EventAttendee(WigoModel):
         self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
         event.add_to_user_events(user, remove_empty=True)
 
-        # TODO delete event messages
-
-        for friend_id in self.db.sorted_set_iter(skey(user, 'friends')):
+        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             event.remove_from_user_attending(friend, user)
 
@@ -230,16 +232,20 @@ class EventMessage(WigoPersistentModel):
         user = self.user
         event = self.event
 
-        if user.privacy == 'public':
-            messages_key = skey(event, 'messages')
-            self.db.sorted_set_add(messages_key, self.id, epoch(self.created))
-            self.db.expire(messages_key, timedelta(days=8))
+        emessages_key = user_eventmessages_key(user, event)
+        self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
+        self.db.expire(emessages_key, timedelta(days=8))
 
-        for friend_id in self.db.sorted_set_iter(skey(user, 'friends')):
+        if user.privacy == 'public':
+            emessages_key = skey(event, 'messages')
+            self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
+            self.db.expire(emessages_key, timedelta(days=8))
+
+        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
-            messages_key = user_eventmessages_key(friend, event)
-            self.db.sorted_set_add(messages_key, self.id, epoch(self.created))
-            self.db.expire(messages_key, timedelta(days=8))
+            emessages_key = user_eventmessages_key(friend, event)
+            self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
+            self.db.expire(emessages_key, timedelta(days=8))
 
     def remove_index(self):
         super(EventMessage, self).remove_index()
@@ -249,7 +255,7 @@ class EventMessage(WigoPersistentModel):
         messages_key = skey(event, 'messages')
         self.db.sorted_set_remove(messages_key, self.id)
 
-        for friend_id in self.db.sorted_set_iter(skey(user, 'friends')):
+        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             self.db.sorted_set_remove(user_eventmessages_key(friend, event), user.id)
 
