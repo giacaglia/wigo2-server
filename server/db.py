@@ -511,6 +511,11 @@ def rate_limit(self, key, expires):
             redis.setex(key, True, expires - datetime.datetime.utcnow())
 
 
+redis_url = urlparse(Configuration.REDIS_URL)
+redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+wigo_queued_db = WigoQueuedDB(redis) if Configuration.RDBMS_REPLICATE else None
+wigo_rdbms = WigoRdbms()
+
 if Configuration.ENVIRONMENT != 'test':
     servers = []
     for index, redis_url in enumerate(Configuration.REDIS_URLS):
@@ -522,10 +527,8 @@ if Configuration.ENVIRONMENT != 'test':
             'password': parsed.password
         })
 
-    redis = RedisShardAPI(servers, hash_method='md5')
+    sharded_redis = RedisShardAPI(servers, hash_method='md5')
+    wigo_db = WigoRedisDB(sharded_redis, wigo_queued_db)
 else:
-    redis_url = urlparse(Configuration.REDIS_URL)
-    redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+    wigo_db = WigoRedisDB(redis, wigo_queued_db)
 
-wigo_db = WigoRedisDB(redis, WigoQueuedDB(redis) if Configuration.RDBMS_REPLICATE else None)
-wigo_rdbms = WigoRdbms()

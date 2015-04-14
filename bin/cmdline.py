@@ -53,9 +53,44 @@ def deploy():
 @clize
 def initialize():
     from server.rdbms import db, DataStrings, DataSets, DataSortedSets, DataExpires, DataIntSets, DataIntSortedSets
+    from server.db import redis
+    from geodis.city import City
 
     db.create_tables([DataStrings, DataSets, DataIntSets,
                       DataSortedSets, DataIntSortedSets, DataExpires], safe=True)
+
+    redis.delete(City.getGeohashIndexKey())
+
+    with open('data/wigo_cities.json') as f:
+        pipe = redis.pipeline()
+        for line in f:
+            try:
+                row = [x.encode('utf-8') for x in ujson.loads(line)]
+                print 'importing {}'.format(row[7])
+
+                loc = City(
+                    continentId=row[0],
+                    continent=row[1],
+                    countryId=row[2],
+                    country=row[3],
+                    stateId=row[4],
+                    state=row[5],
+                    cityId=row[6],
+                    name=row[7],
+                    lat=float(row[8]),
+                    lon=float(row[9]),
+                    aliases=row[10],
+                    population=int(row[11])
+                )
+
+                loc.save(pipe)
+
+            except Exception, e:
+                logging.exception("Could not import line %s: %s", line, e)
+                return
+
+    pipe.execute()
+
 
 
 @clize
