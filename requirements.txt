@@ -24,6 +24,7 @@ py-bcrypt==0.4
 pybloom==1.1
 pytz==2015.2
 redis==2.10.3
+redis-shard==0.3.0
 repoze.lru==0.6
 requests==2.6.0
 requests-oauthlib==0.4.2
