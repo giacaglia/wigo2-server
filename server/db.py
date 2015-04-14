@@ -514,7 +514,7 @@ def rate_limit(self, key, expires):
 if Configuration.ENVIRONMENT != 'test':
     servers = []
     for index, redis_url in enumerate(Configuration.REDIS_URLS):
-        parsed = urlparse(Configuration.REDIS_URL)
+        parsed = urlparse(redis_url)
         servers.append({
             'name': 'redis_{}'.format(index),
             'host': parsed.hostname,
