@@ -68,7 +68,7 @@ class DataIntSets(DataItem):
 class DataSortedSets(DataItem):
     class Meta:
         database = db
-        db_table = 'data_int_sorted_sets'
+        db_table = 'data_sorted_sets'
         primary_key = CompositeKey('key', 'value')
         indexes = (
             (('key', 'score'), False),
@@ -83,7 +83,7 @@ class DataSortedSets(DataItem):
 class DataIntSortedSets(DataItem):
     class Meta:
         database = db
-        db_table = 'data_sorted_sets'
+        db_table = 'data_int_sorted_sets'
         primary_key = CompositeKey('key', 'value')
         indexes = (
             (('key', 'score'), False),

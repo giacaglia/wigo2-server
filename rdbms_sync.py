@@ -22,6 +22,7 @@ def start(debug=False):
     bh = BreakHandler()
     bh.enable()
     logger.info('draining command queue')
+    num_run = 0
 
     while True:
         try:
@@ -44,14 +45,19 @@ def start(debug=False):
             else:
                 if command:
                     found_something = True
-                    logger.debug('running sync command {}'.format(command))
                     parsed = cPickle.loads(command)
                     fn = getattr(wigo_rdbms, parsed[0])
                     with db.transaction():
                         fn(*parsed[1:])
                     redis.rpop('db:queue:commands')
+                    num_run += 1
+
+                    if (num_run % 500) == 0:
+                        logger.debug('{} sync commands completed'.format(num_run))
 
             if not found_something:
+                logger.debug('{} sync commands completed, resetting count'.format(num_run))
+                num_run = 0
                 sleep(5)
 
         except Exception, e:

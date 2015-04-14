@@ -1,7 +1,21 @@
 from __future__ import absolute_import
 
 import os
-import urlparse
+
+
+def parse_env_list(prefix):
+    index = 1
+    values = []
+    while True:
+        value = os.environ.get('{}_{}'.format(prefix, index), None)
+        if value:
+            values.append(value)
+            index += 1
+        else:
+            break
+
+    return values
+
 
 class Configuration(object):
     ENVIRONMENT = os.environ.get('WIGO_ENV', 'dev')
@@ -16,12 +30,14 @@ class Configuration(object):
     WIGO_API_HOST = os.environ.get('WIGO_API_HOST', WIGO_WEB_HOST.replace('verify', 'api'))
 
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-    REDIS_ANALYTICS_URL = os.environ.get('REDIS_ANALYTICS_URL', REDIS_URL)
+    REDIS_URLS = parse_env_list('REDIS_URL')
+    if not REDIS_URLS:
+        REDIS_URLS.append(REDIS_URL)
+
     REDIS_QUEUES_URL = os.environ.get('REDIS_QUEUES_URL', REDIS_URL)
 
     DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://wigo:4090ejsAdff3@localhost/wigo')
-
-    RDBMS_REPLICATE = ENVIRONMENT not in ('test', 'dev')
+    RDBMS_REPLICATE = ENVIRONMENT != 'test'
 
     MAIL_SERVER = 'smtp.sendgrid.net'
     MAIL_USERNAME = os.environ.get('SENDGRID_USERNAME', None)

@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import cPickle
 from contextlib import contextmanager
+from random import randint
 
 import ujson
 import msgpack
@@ -115,14 +116,30 @@ class WigoRedisDB(WigoDB):
         self.redis = redis
         self.queued_db = queued_db
 
-        self.gen_id_script = self.redis.register_script("""
+        ID_SCRIPT = """
             local epoch = 1288834974657
             local seq = tonumber(redis.call('INCR', 'sequence')) % 4096
             local node = tonumber(redis.call('GET', 'node_id')) % 1024
             local time = redis.call('TIME')
             local time41 = ((tonumber(time[1]) * 1000) + (tonumber(time[2]) / 1000)) - epoch
             return (time41 * (2 ^ 22)) + (node * (2 ^ 12)) + seq
-        """)
+        """
+
+        # if dealing with the shard api, the script needs to be registered on each instance
+        if isinstance(redis, RedisShardAPI):
+            gen_id_scripts = []
+            for name, conn in redis.connections.items():
+                name, index = name.split('_')
+                conn.setnx('node_id', int(index) + 1)
+                gen_id_scripts.append(conn.register_script(ID_SCRIPT))
+
+            def gen_id():
+                script = gen_id_scripts[randint(0, len(gen_id_scripts) - 1)]
+                return script()
+
+            self.gen_id_script = gen_id
+        else:
+            self.gen_id_script = self.redis.register_script(ID_SCRIPT)
 
     def gen_id(self):
         return self.gen_id_script()
@@ -149,7 +166,10 @@ class WigoRedisDB(WigoDB):
 
     def set(self, key, value, expires=None, long_term_expires=None):
         if isinstance(expires, datetime):
-            expires = expires - datetime.utcnow()
+            if expires < datetime.utcnow():
+                expires = timedelta(days=8)
+            else:
+                expires = expires - datetime.utcnow()
 
         if expires:
             result = self.redis.setex(key, self.encode(value, dict), expires)
@@ -273,16 +293,16 @@ class WigoQueuedDB(WigoDB):
         self.queue(('set_remove', key, value, 'int' if dt == 'int' else None))
 
     def sorted_set_add(self, key, value, score, dt=None):
-        self.queue(('sorted_set_add', key, value, score, 'int' if dt == 'int' else None))
+        self.queue(('sorted_set_add', key, value, score, 'int' if dt == int else None))
 
     def sorted_set_remove(self, key, value, dt=None):
-        self.queue(('sorted_set_remove', key, value, 'int' if dt == 'int' else None))
+        self.queue(('sorted_set_remove', key, value, 'int' if dt == int else None))
 
     def set_if_missing(self, key, value):
         self.queue(('set_if_missing', key, value))
 
     def sorted_set_remove_by_score(self, key, min, max, dt=None):
-        self.queue(('sorted_set_remove_by_score', key, min, max, 'int' if dt == 'int' else None))
+        self.queue(('sorted_set_remove_by_score', key, min, max, 'int' if dt == int else None))
 
 
 class WigoRdbms(WigoDB):
@@ -335,12 +355,12 @@ class WigoRdbms(WigoDB):
         return values
 
     def delete(self, key):
-        DataStrings.delete().where(key=key).execute()
-        DataSets.delete().where(key=key).execute()
-        DataIntSets.delete().where(key=key).execute()
-        DataSortedSets.delete().where(key=key).execute()
-        DataIntSortedSets.delete().where(key=key).execute()
-        DataExpires.delete().where(key=key).execute()
+        DataStrings.delete().where(DataStrings.key == key).execute()
+        DataSets.delete().where(DataSets.key == key).execute()
+        DataIntSets.delete().where(DataIntSets.key == key).execute()
+        DataSortedSets.delete().where(DataSortedSets.key == key).execute()
+        DataIntSortedSets.delete().where(DataIntSortedSets.key == key).execute()
+        DataExpires.delete().where(DataExpires.key == key).execute()
 
     def expire(self, key, expires, long_term_expires=None):
         if isinstance(long_term_expires, timedelta):
@@ -491,7 +511,21 @@ def rate_limit(self, key, expires):
             redis.setex(key, True, expires - datetime.datetime.utcnow())
 
 
-redis_url = urlparse(Configuration.REDIS_URL)
-redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+if Configuration.ENVIRONMENT != 'test':
+    servers = []
+    for index, redis_url in enumerate(Configuration.REDIS_URLS):
+        parsed = urlparse(Configuration.REDIS_URL)
+        servers.append({
+            'name': 'redis_{}'.format(index),
+            'host': parsed.hostname,
+            'port': parsed.port,
+            'password': parsed.password
+        })
+
+    redis = RedisShardAPI(servers, hash_method='md5')
+else:
+    redis_url = urlparse(Configuration.REDIS_URL)
+    redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+
 wigo_db = WigoRedisDB(redis, WigoQueuedDB(redis) if Configuration.RDBMS_REPLICATE else None)
 wigo_rdbms = WigoRdbms()
