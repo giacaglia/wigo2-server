@@ -166,6 +166,18 @@ def setup_user_resources(api):
 
             return {'success': True}
 
+    @api.route('/api/messages/')
+    class MessageListResource(WigoDbListResource):
+        model = Message
+
+        def get(self):
+            raise NotImplementedError()
+
+        @api.expect(Message.to_doc_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        def post(self):
+            return super(MessageListResource, self).post()
+
     @api.route('/api/messages/<int:model_id>')
     class MessageResource(WigoDbResource):
         model = Message
@@ -174,15 +186,15 @@ def setup_user_resources(api):
         def get(self, model_id):
             return super(MessageResource, self).get(model_id)
 
-        @api.expect(Message.to_doc_model(api))
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
-        def post(self, model_id):
-            return super(MessageResource, self).post(model_id)
-
         def check_get(self, message):
             super(MessageResource, self).check_get(message)
             if message.user_id != g.user.id:
                 abort(403, message='Can only view your own messages')
+
+        @api.expect(Message.to_doc_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        def post(self, model_id):
+            return super(MessageResource, self).post(model_id)
 
     @api.route('/api/conversations/')
     class ConversationsResource(WigoResource):
@@ -194,12 +206,7 @@ def setup_user_resources(api):
             count, instances = self.select().user(g.user).execute()
             return self.serialize_list(self.model, instances, count)
 
-        @api.expect(Message.to_doc_model(api))
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
-        def post(self):
-            return super(ConversationsResource, self).post()
-
-    @api.route('/api/conversations/<int:with_user>')
+    @api.route('/api/conversations/<int:with_user_id>')
     class ConversationWithUserResource(WigoResource):
         model = Message
 

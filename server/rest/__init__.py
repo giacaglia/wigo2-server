@@ -198,6 +198,12 @@ class WigoDbListResource(WigoResource):
         if 'modified' in data:
             del data['modified']
 
+        # remove blacklisted fields
+        role = self.model._options.roles.get('www')
+        for field in role:
+            if field in data:
+                del data[field]
+
         instance = self.model(data)
 
         if 'group_id' in self.model.fields and g.group:

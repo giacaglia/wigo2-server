@@ -1,8 +1,9 @@
 from __future__ import absolute_import
+import ujson
 from server.models.group import Group
 
 from server.models.user import User
-from tests import client, api_post, api_delete
+from tests import client, api_post, api_delete, make_friends, api_get
 
 
 def test_update_user():
@@ -70,3 +71,37 @@ def test_friends():
         assert resp.status_code == 200, 'oops {}'.format(resp.data)
         assert 0 == User.select().user(user1).friends().count()
         assert 0 == User.select().user(user2).friends().count()
+
+
+def test_messages():
+    with client() as c:
+        user1 = User.find(key='test')
+        user2 = User.find(key='test2')
+
+        make_friends(c, user1, user2)
+
+        resp = api_post(c, user1, '/api/messages', {'to_user_id': user2.id, 'message': 't1'})
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+
+        resp = api_get(c, user1, '/api/conversations')
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 1
+        assert data['objects'][0]['message'] == 't1'
+
+        # post another message
+        resp = api_post(c, user1, '/api/messages', {'to_user_id': user2.id, 'message': 't2'})
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+
+        resp = api_get(c, user1, '/api/conversations')
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 1
+        assert data['objects'][0]['message'] == 't2'
+
+        resp = api_get(c, user1, '/api/conversations/{}'.format(user2.id))
+        assert resp.status_code == 200, 'oops {}'.format(resp.data)
+        data = ujson.loads(resp.data)
+        assert len(data['objects']) == 2
+        assert data['objects'][0]['message'] == 't2'
+        assert data['objects'][1]['message'] == 't1'

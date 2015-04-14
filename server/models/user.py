@@ -287,12 +287,18 @@ class Notification(WigoModel):
 class Message(WigoPersistentModel):
     user_id = LongType(required=True)
     to_user_id = LongType(required=True)
-    message = LongType(required=True)
+    message = StringType(required=True)
 
     @property
     @memoize('to_user_id')
     def to_user(self):
         return User.find(self.to_user_id)
+
+    def save(self):
+        if not self.user.is_friend(self.to_user):
+            raise ValidationException('Not friends')
+        return super(Message, self).save()
+
 
     def index(self):
         super(Message, self).index()
