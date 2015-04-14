@@ -34,6 +34,8 @@ def setup_register_resources(api):
             'email': fields.String,
             'timezone': fields.String
         }))
+        @api.response(200, 'Success', model=User.to_doc_model(api))
+        @api.response(400, 'Bad post data, or account already exists')
         def post(self):
             data = request.json
 
