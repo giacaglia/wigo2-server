@@ -25,6 +25,13 @@ def deploy():
 
 
 @clize
+def create_tables():
+    from server.rdbms import db, DataStrings, DataSets, DataSortedSets, DataExpires
+
+    db.create_tables([DataStrings, DataSets, DataSortedSets, DataExpires], safe=True)
+
+
+@clize
 def import_old_db():
     logconfig.configure('dev')
     Configuration.CAPTURE_IMAGES = False

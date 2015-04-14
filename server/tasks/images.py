@@ -12,7 +12,7 @@ from PIL import Image
 from config import Configuration
 from server.db import wigo_db
 from server.models.user import User
-from server.worker import celery
+from worker import celery
 
 
 saving_images = threading.local()

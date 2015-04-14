@@ -6,7 +6,7 @@ from server.db import wigo_db
 from server.models.user import User
 from sendgrid import SendGridClient, Mail
 from jinja2 import Environment, PackageLoader, Template
-from server.worker import celery
+from worker import celery
 
 logger = get_task_logger(__name__)
 

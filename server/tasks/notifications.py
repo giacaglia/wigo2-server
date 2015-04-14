@@ -1,10 +1,10 @@
 from __future__ import absolute_import
 
-from server.db import wigo_db, rate_limit
+from server.db import rate_limit
 from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage
 from server.models.user import User, Notification
-from server.worker import celery
+from worker import celery
 
 
 @celery.task(max_retries=10, default_retry_delay=10)

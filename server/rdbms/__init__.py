@@ -72,7 +72,3 @@ class DataExpires(Model):
 
     key = TextField(primary_key=True, null=False)
     expires = DateTimeField(null=False, index=True)
-
-
-# create the tables if missing
-db.create_tables([DataStrings, DataSets, DataSortedSets, DataExpires], safe=True)

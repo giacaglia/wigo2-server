@@ -98,9 +98,10 @@ class WigoDB(object):
 
 
 class WigoRedisDB(WigoDB):
-    def __init__(self, redis):
+    def __init__(self, redis, queued_db=None):
         super(WigoRedisDB, self).__init__()
         self.redis = redis
+        self.queued_db = queued_db
 
         self.gen_id_script = self.redis.register_script("""
             local epoch = 1288834974657
@@ -126,11 +127,15 @@ class WigoRedisDB(WigoDB):
             return msgpack.unpackb(value)
 
     def set(self, key, value, expires=None):
-        value = self.encode(value)
         if expires:
-            return self.redis.setex(key, value, expires)
+            result = self.redis.setex(key, self.encode(value), expires)
         else:
-            return self.redis.set(key, value)
+            result = self.redis.set(key, self.encode(value))
+
+        if self.queued_db:
+            self.queued_db.set(key, value, expires)
+
+        return result
 
     def get(self, key):
         value = self.redis.get(key)
@@ -139,20 +144,32 @@ class WigoRedisDB(WigoDB):
         return value
 
     def set_if_missing(self, key, value):
-        return self.redis.setnx(key, self.encode(value))
+        result = self.redis.setnx(key, self.encode(value))
+        if self.queued_db:
+            self.queued_db.set_if_missing(key, value)
+        return result
 
     def mget(self, keys):
         values = self.redis.mget(keys)
         return self.decode(values)
 
     def delete(self, key):
-        return self.redis.delete(key)
+        result = self.redis.delete(key)
+        if self.queued_db:
+            self.queued_db.delete(key)
+        return result
 
     def expire(self, key, expires):
-        return self.redis.expire(key, expires)
+        result = self.redis.expire(key, expires)
+        if self.queued_db:
+            self.queued_db.expire(key)
+        return result
 
     def set_add(self, key, value):
-        return self.redis.sadd(key, self.encode(value))
+        result = self.redis.sadd(key, self.encode(value))
+        if self.queued_db:
+            self.queued_db.set_add(key, value)
+        return result
 
     def set_is_member(self, key, value):
         return self.redis.sismember(key, self.encode(value))
@@ -161,10 +178,16 @@ class WigoRedisDB(WigoDB):
         return self.redis.scard(key)
 
     def set_remove(self, key, value):
-        return self.redis.srem(key, self.encode(value))
+        result = self.redis.srem(key, self.encode(value))
+        if self.queued_db:
+            self.queued_db.set_remove(key, value)
+        return result
 
     def sorted_set_add(self, key, value, score):
-        return self.redis.zadd(key, self.encode(value), score)
+        result = self.redis.zadd(key, self.encode(value), score)
+        if self.queued_db:
+            self.queued_db.sorted_set_add(key, value, score)
+        return result
 
     def sorted_set_is_member(self, key, value):
         return self.redis.zscore(key, self.encode(value)) is not None
@@ -189,10 +212,53 @@ class WigoRedisDB(WigoDB):
         return self.decode(self.redis.zrevrangebyscore(key, max, min, start, limit))
 
     def sorted_set_remove(self, key, value):
-        return self.redis.zrem(key, self.encode(value))
+        result = self.redis.zrem(key, self.encode(value))
+        if self.queued_db:
+            self.queued_db.sorted_set_remove(key, value)
+        return result
 
     def sorted_set_remove_by_score(self, key, min, max):
-        return self.redis.zremrangebyscore(key, min, max)
+        result = self.redis.zremrangebyscore(key, min, max)
+        if self.queued_db:
+            self.queued_db.sorted_set_remove_by_score(key, min, max)
+        return result
+
+
+# noinspection PyAbstractClass
+class WigoQueuedDB(WigoDB):
+    def __init__(self, redis):
+        super(WigoQueuedDB, self).__init__()
+        self.redis = redis
+
+    def queue(self, cmd):
+        self.redis.lpush('db:queue:commands', ujson.dumps(cmd))
+
+    def set(self, key, value, expires=None):
+        self.queue(('set', key, value, expires))
+
+    def delete(self, key):
+        self.queue(('delete', key))
+
+    def sorted_set_remove(self, key, value):
+        self.queue(('sorted_set_remove', key, value))
+
+    def set_add(self, key, value):
+        self.queue(('set_add', key, value))
+
+    def set_remove(self, key, value):
+        self.queue(('set_remove', key, value))
+
+    def sorted_set_add(self, key, value, score):
+        self.queue(('sorted_set_add', key, value, score))
+
+    def expire(self, key, expires):
+        self.queue(('expire', key, expires))
+
+    def set_if_missing(self, key, value):
+        self.queue(('set_if_missing', key, value))
+
+    def sorted_set_remove_by_score(self, key, min, max):
+        self.queue(('sorted_set_remove_by_score', key, min, max))
 
 
 class WigoRdbms(WigoDB):
@@ -200,6 +266,9 @@ class WigoRdbms(WigoDB):
         raise NotImplementedError()
 
     def set(self, key, value, expires=None):
+        if not value:
+            return
+
         if isinstance(expires, timedelta):
             expires = datetime.utcnow() + expires
 
@@ -346,7 +415,7 @@ def get_range_val(val):
 
 @contextmanager
 def rate_limit(self, key, expires):
-    if Configuration.ENVIRONMENT == 'dev':
+    if Configuration.ENVIRONMENT in ('dev', 'test'):
         yield False
     else:
         if not key.startswith('rate_limit:'):
@@ -360,5 +429,5 @@ def rate_limit(self, key, expires):
 
 redis_url = urlparse(Configuration.REDIS_URL)
 redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
-wigo_db = WigoRedisDB(redis)
+wigo_db = WigoRedisDB(redis, WigoQueuedDB(redis) if Configuration.ENVIRONMENT != 'test' else None)
 wigo_rdbms = WigoRdbms()

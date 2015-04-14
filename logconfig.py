@@ -42,13 +42,13 @@ def configure(env):
         },
         'loggers': {
             'wigo': {
-                'level': 'DEBUG' if env == 'dev' else 'INFO',
+                'level': 'DEBUG' if env in ('dev', 'test') else 'INFO',
             },
             'blade': {
-                'level': 'DEBUG' if env == 'dev' else 'INFO',
+                'level': 'DEBUG' if env in ('dev', 'test') else 'INFO',
             },
             'peewee': {
-                'level': 'DEBUG' if env == 'dev' else 'INFO',
+                'level': 'DEBUG' if env in ('dev', 'test') else 'INFO',
             }
         }
     })

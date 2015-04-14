@@ -10,6 +10,7 @@ from config import Configuration
 from server.models.user import User
 
 
+Configuration.ENVIRONMENT = 'test'
 Configuration.PUSH_ENABLED = False
 Configuration.CELERY_ALWAYS_EAGER = True
 
