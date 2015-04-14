@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import json
+from flask.ext.admin.model.filters import BaseFilter
 
 from wtforms.widgets import TextArea
 from flask import flash, redirect, url_for
@@ -13,7 +14,6 @@ from wtforms import Form, StringField, BooleanField, SelectField, IntegerField, 
 from flask_admin.form.fields import DateTimeField
 from wtforms.validators import Optional, DataRequired
 from server.models import JsonType
-from server.db import wigo_db
 
 
 class RedisModelView(BaseModelView):
@@ -96,7 +96,15 @@ class RedisModelView(BaseModelView):
         return MyForm
 
     def get_list(self, page, sort_field, sort_desc, search, filters):
-        return self.model.select().limit(self.page_size).page(page+1).execute()
+        query = self.model.select().limit(self.page_size).page(page+1)
+
+        # Filters
+        if self._filters:
+            for flt, flt_name, value in filters:
+                f = self._filters[flt]
+                query = f.apply(query, flt_name, value)
+
+        return query.execute()
 
     def get_one(self, id):
         return self.model.find(id)
@@ -106,6 +114,9 @@ class RedisModelView(BaseModelView):
 
     def scaffold_sortable_columns(self):
         return []
+
+    def scaffold_filters(self, name):
+        return [RedisEqualsModelFilter(name)]
 
     def get_pk_value(self, model):
         return model.id
@@ -119,7 +130,18 @@ class RedisModelView(BaseModelView):
             self.model.find(id).delete()
 
 
+class RedisEqualsModelFilter(BaseFilter):
+    # noinspection PyMethodOverriding
+    def apply(self, query, name, value):
+        return query.where(name, value)
+
+    def operation(self):
+        return gettext('equals')
+
+
 class UserModelView(RedisModelView):
+    column_filters = ('username', 'email', 'facebook_id')
+
     def scaffold_list_columns(self):
         return ['id', 'group_id', 'username', 'created']
 
@@ -146,11 +168,15 @@ class EmailForm(Form):
 
 
 class GroupModelView(RedisModelView):
+    column_filters = ('code', 'name', 'city_id')
+
     def scaffold_list_columns(self):
         return ['id', 'name', 'created']
 
 
 class EventModelView(RedisModelView):
+    column_filters = ('group',)
+
     def scaffold_list_columns(self):
         return ['id', 'group_id', 'name', 'created']
 

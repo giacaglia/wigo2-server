@@ -30,7 +30,7 @@ class SelectQuery(object):
         self._max = None
         self._lat = None
         self._lon = None
-        self._where = set()
+        self._where = {}
 
     def clone(self):
         clone = SelectQuery(self._model_class)
@@ -47,7 +47,7 @@ class SelectQuery(object):
         clone._to_user = self._to_user
         clone._friends = self._friends
         clone._friend_requests = self._friend_requests
-        clone._where = set(self._where)
+        clone._where = dict(self._where)
         clone._min = self._min
         clone._max = self._max
         clone._lat = self._lat
@@ -134,7 +134,7 @@ class SelectQuery(object):
 
     @returns_clone
     def where(self, field, value):
-        self._where.add((field, value))
+        self._where[field] = value
 
     def count(self):
         count, results = self.execute()
@@ -235,13 +235,10 @@ class SelectQuery(object):
             return count, Message.find(message_ids)
 
     def __filtered(self):
-        for field, value in self._where:
-            model_id = self.db.get(skey(self._model_class, field, value))
-            if model_id:
-                instance = self._model_class.find(model_id)
-                if instance:
-                    return 1, [instance]
-            return 0, []
+        instance = self._model_class.find(**self._where)
+        if instance:
+            return 1, [instance]
+        return 0, []
 
     def __get_by_event(self):
         if self._model_class == EventMessage:
