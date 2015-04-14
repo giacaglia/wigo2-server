@@ -22,7 +22,7 @@ class User(WigoPersistentModel):
     indexes = (('group', 'group_id'),)
 
     class Options:
-        roles = {'www': blacklist('facebook_token', 'key', 'status', 'role',
+        roles = {'www': blacklist('facebook_token', 'key', 'status', 'role', 'group_id', 'user_id',
                                   'exchange_token', 'email_validated_status', 'password')}
         serialize_when_none = False
 

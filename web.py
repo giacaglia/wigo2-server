@@ -113,9 +113,12 @@ def setup_request():
         if parsed_geo.scheme == 'geo':
             lat, long = parsed_geo.path.split(',')
             g.latitude, g.longitude = float(lat), float(long)
-            group = Group.find(lat=g.latitude, lon=g.longitude)
-            if group:
-                g.group = group
+            try:
+                group = Group.find(lat=g.latitude, lon=g.longitude)
+                if group:
+                    g.group = group
+            except DoesNotExist:
+                logger.info('could not resolve group from geo')
 
 
 @app.route('/api/app/startup')
