@@ -46,6 +46,9 @@ def configure(env):
             },
             'blade': {
                 'level': 'DEBUG' if env == 'dev' else 'INFO',
+            },
+            'peewee': {
+                'level': 'DEBUG' if env == 'dev' else 'INFO',
             }
         }
     })

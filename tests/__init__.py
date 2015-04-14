@@ -16,6 +16,7 @@ Configuration.CELERY_ALWAYS_EAGER = True
 NEXT_ID = 1
 
 
+
 @contextmanager
 def client():
     logging.getLogger().setLevel(level=logging.FATAL)

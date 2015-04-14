@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import sys
 import os
+from playhouse.dataset import DataSet
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -28,7 +29,7 @@ def import_old_db():
     logconfig.configure('dev')
     Configuration.CAPTURE_IMAGES = False
 
-    from server.rdbms import rdbms
+    rdbms = DataSet(Configuration.DATABASE_URL)
 
     num_saved = 0
     groups = rdbms['group']
