@@ -29,6 +29,7 @@ def client():
         from server.models.group import Group
         from geodis.city import City
 
+        app.debug = True
         wigo_db.redis.flushdb()
 
         def zscan_iter(name, match=None, count=None):

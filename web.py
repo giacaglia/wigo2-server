@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from urlparse import urlparse
 from clize import clize
-from flask.ext.bcrypt import Bcrypt, generate_password_hash
+from flask.ext.bcrypt import generate_password_hash
 from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
 from flask.ext.sslify import SSLify
@@ -39,8 +39,8 @@ logconfig.configure(Configuration.ENVIRONMENT)
 logger = logging.getLogger('wigo.web')
 
 app = Flask(__name__, template_folder='server/templates')
-app.config.from_object(Configuration)
 app.url_map.strict_slashes = False
+app.config.from_object(Configuration)
 app.session_interface = ApiSessionInterface()
 
 SSLify(app)
