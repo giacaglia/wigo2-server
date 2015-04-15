@@ -1,29 +1,30 @@
 from __future__ import absolute_import
+
 import json
 from flask.ext.admin import AdminIndexView
 from flask.ext.admin.model.filters import BaseFilter
-from flask.ext.login import current_user
+from flask.ext.bcrypt import generate_password_hash
 
 from wtforms.widgets import TextArea
-from flask import flash, redirect, url_for, current_app
+from flask import flash, redirect, url_for
 from flask.ext.admin.actions import action
 from flask.ext.admin.babel import gettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
 from flask.ext.admin.model.fields import ListEditableFieldList
-from flask.ext.security.utils import encrypt_password
 from schematics.types import StringType, BooleanType, DateTimeType, NumberType, FloatType
 from wtforms import Form, StringField, BooleanField, SelectField, IntegerField, FloatField, TextAreaField
 from flask_admin.form.fields import DateTimeField
 from wtforms.validators import Optional, DataRequired
 from server.models import JsonType
+from server.security import check_basic_auth, authenticate
 
 
 class WigoAdminIndexView(AdminIndexView):
     def is_accessible(self):
-        return current_user.is_authenticated() and current_user.role == 'admin'
+        return check_basic_auth()
 
     def inaccessible_callback(self, name, **kwargs):
-        return current_app.login_manager.unauthorized()
+        return authenticate()
 
 
 class RedisModelView(BaseModelView):
@@ -33,10 +34,10 @@ class RedisModelView(BaseModelView):
                                              menu_icon_type, menu_icon_value)
 
     def is_accessible(self):
-        return current_user.is_authenticated() and current_user.role == 'admin'
+        return check_basic_auth()
 
     def inaccessible_callback(self, name, **kwargs):
-        return current_app.login_manager.unauthorized()
+        return authenticate()
 
     def scaffold_list_form(self, custom_fieldlist=ListEditableFieldList, validators=None):
         pass
@@ -166,7 +167,7 @@ class UserModelView(RedisModelView):
         password = form.password.data
         updated = super(UserModelView, self).update_model(form, model)
         if password != existing_password:
-            model.password = encrypt_password(password)
+            model.password = generate_password_hash(password)
             model.save()
         return updated
 

@@ -3,8 +3,6 @@ from __future__ import absolute_import
 from uuid import uuid4
 from datetime import timedelta
 
-from flask.ext.security.core import _security
-from flask.ext.security.utils import md5
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key
@@ -78,16 +76,6 @@ class User(WigoPersistentModel):
             return self.first_name
         else:
             return self.username
-
-    def get_auth_token(self):
-        data = [str(self.id), md5(self.password)]
-        return _security.remember_token_serializer.dumps(data)
-
-    def is_anonymous(self):
-        return False
-
-    def is_authenticated(self):
-        return True
 
     def get_id(self):
         return self.id

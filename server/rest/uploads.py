@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 from flask import g, request, jsonify
 from config import Configuration
 from server.models.event import EventMessage
-from server.security import wigo_user_token_required
+from server.security import user_token_required
 
 logger = logging.getLogger('wigo.web.uploads')
 
@@ -50,7 +50,7 @@ def setup_upload_routes(app):
             logger.error('error creating thumbnail for {ids}, {error}'.format(ids=failed_ids, error=errors))
             return jsonify(success=False)
 
-    @wigo_user_token_required
+    @user_token_required
     @app.route('/api/uploads/videos/')
     def get_video_upload_location():
         user = g.user
@@ -65,7 +65,7 @@ def setup_upload_routes(app):
         return jsonify(video=video_form_args, thumbnail=thumbnail_form_args)
 
 
-    @wigo_user_token_required
+    @user_token_required
     @app.route('/api/uploads/photos/')
     def get_photo_upload_location():
         user = g.user
@@ -82,7 +82,7 @@ def setup_upload_routes(app):
             return jsonify(photo_form_args)
 
 
-    @wigo_user_token_required
+    @user_token_required
     @app.route('/api/uploads/photos/', methods=['POST'])
     def upload_photo():
         multipart_file = request.files.get('file')

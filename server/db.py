@@ -26,7 +26,7 @@ class WigoDB(object):
             return ujson.loads(json)
         return None
 
-    def get_new_code(self, data, ttl=864000):
+    def get_new_code(self, data, ttl=2592000):
         size = 12
         while size < 50:
             code = shortuuid.ShortUUID().random(length=size)

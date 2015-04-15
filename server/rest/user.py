@@ -6,7 +6,7 @@ from flask.ext.restplus import fields
 
 from server.models.user import User, Friend, Tap, Invite, Message
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource
-from server.security import wigo_user_token_required
+from server.security import user_token_required
 
 
 # noinspection PyUnresolvedReferences
@@ -61,13 +61,13 @@ def setup_user_resources(api):
             user = User.find(self.get_id(user_id))
             return self.setup_query(self.select(User).user(user).friends())
 
-        @wigo_user_token_required
+        @user_token_required
         @api.response(200, 'Success', model=User.to_doc_list_model(api))
         def get(self, user_id):
             count, friends = self.get_friends_query(user_id).execute()
             return self.serialize_list(User, friends, count)
 
-        @wigo_user_token_required
+        @user_token_required
         @api.expect(api.model('NewFriend', {
             'friend_id': fields.Integer(description='User to connect with', required=True)
         }))
@@ -79,7 +79,7 @@ def setup_user_resources(api):
             friend.save()
             return {'success': True}
 
-        @wigo_user_token_required
+        @user_token_required
         @api.expect(api.model('DeleteFriend', {
             'friend_id': fields.Integer(description='User to removing connection with', required=True)
         }))
@@ -99,7 +99,7 @@ def setup_user_resources(api):
     class DeleteFriendListResource(WigoResource):
         model = Friend
 
-        @wigo_user_token_required
+        @user_token_required
         def delete(self, user_id, friend_id):
             friend = Friend()
             friend.user_id = g.user.id
@@ -120,7 +120,7 @@ def setup_user_resources(api):
     class InviteListResource(WigoResource):
         model = Invite
 
-        @wigo_user_token_required
+        @user_token_required
         @api.expect(api.model('NewInvite', {
             'invited_id': fields.Integer(description='User to invite', required=True),
         }))
@@ -134,7 +134,7 @@ def setup_user_resources(api):
             invite.save()
             return {'success': True}
 
-        @wigo_user_token_required
+        @user_token_required
         def delete(self, user_id):
             abort(501, message='Not implemented')
 
@@ -142,7 +142,7 @@ def setup_user_resources(api):
     class TapListResource(WigoResource):
         model = Tap
 
-        @wigo_user_token_required
+        @user_token_required
         @api.expect(api.model('NewTap', {
             'tapped_id': fields.Integer(description='User to tap', required=True)
         }))
@@ -155,7 +155,7 @@ def setup_user_resources(api):
             tap.save()
             return {'success': True}
 
-        @wigo_user_token_required
+        @user_token_required
         @api.expect(api.model('UnTap', {
             'tapped_id': fields.Integer(description='User to untap', required=True)
         }))
@@ -204,7 +204,7 @@ def setup_user_resources(api):
     class ConversationsResource(WigoResource):
         model = Message
 
-        @wigo_user_token_required
+        @user_token_required
         @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def get(self):
             count, instances = self.select().user(g.user).execute()
@@ -214,14 +214,14 @@ def setup_user_resources(api):
     class ConversationWithUserResource(WigoResource):
         model = Message
 
-        @wigo_user_token_required
+        @user_token_required
         @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def get(self, with_user_id):
             with_user = User.find(with_user_id)
             count, instances = self.select().user(g.user).to_user(with_user).execute()
             return self.serialize_list(self.model, instances, count)
 
-        @wigo_user_token_required
+        @user_token_required
         @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def delete(self, with_user_id):
             Message.delete_conversation(g.user, User.find(with_user_id))

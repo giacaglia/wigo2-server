@@ -12,7 +12,7 @@ from server.models import AlreadyExistsException
 from server.models.event import EventMessage, Event
 from server.models.group import Group
 from server.models.user import User
-from server.security import wigo_user_token_required
+from server.security import user_token_required
 
 
 class WigoResource(Resource):
@@ -120,13 +120,13 @@ class WigoDbResource(WigoResource):
     def check_get(self, instance):
         pass
 
-    @wigo_user_token_required
+    @user_token_required
     def get(self, model_id):
         instance = self.model.find(self.get_id(model_id))
         self.check_get(instance)
         return self.serialize_list(self.model, [instance], 1)
 
-    @wigo_user_token_required
+    @user_token_required
     def post(self, model_id):
         data = request.json
         instance = self.edit(model_id, data)
@@ -167,7 +167,7 @@ class WigoDbResource(WigoResource):
 
         return instance
 
-    @wigo_user_token_required
+    @user_token_required
     def delete(self, model_id):
         instance = self.model.find(self.get_id(model_id))
         self.check_edit(instance)
@@ -176,12 +176,12 @@ class WigoDbResource(WigoResource):
 
 
 class WigoDbListResource(WigoResource):
-    @wigo_user_token_required
+    @user_token_required
     def get(self):
         count, instances = self.setup_query(self.model.select()).execute()
         return self.serialize_list(self.model, instances, count)
 
-    @wigo_user_token_required
+    @user_token_required
     def post(self):
         instance = self.create(request.json)
         try:

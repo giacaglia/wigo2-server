@@ -6,9 +6,9 @@ import logging
 from datetime import datetime
 from urlparse import urlparse
 from clize import clize
+from flask.ext.bcrypt import Bcrypt, generate_password_hash
 from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
-from flask.ext.security.utils import encrypt_password
 from flask.ext.sslify import SSLify
 from schematics.exceptions import ModelValidationError
 
@@ -17,8 +17,6 @@ from flask import Flask, render_template, g, request, jsonify
 from flask.ext import restplus
 from flask.ext.admin import Admin
 from flask.ext.compress import Compress
-from flask.ext.security import Security
-from flask.ext.wtf import CsrfProtect
 import logconfig
 from server import ApiSessionInterface
 from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, MessageView, EventModelView, \
@@ -33,7 +31,6 @@ from server.tasks.notifications import wire_notifications
 from server.rest.register import setup_register_resources
 from server.rest.user import setup_user_resources
 from server.rest.event import setup_event_resources
-from server.security import WigoDbUserDatastore
 from utils import ValidationException, SecurityException
 
 
@@ -42,20 +39,15 @@ logconfig.configure(Configuration.ENVIRONMENT)
 logger = logging.getLogger('wigo.web')
 
 app = Flask(__name__, template_folder='server/templates')
+app.config.from_object(Configuration)
 app.url_map.strict_slashes = False
 app.session_interface = ApiSessionInterface()
-app.config.from_object(Configuration)
 
 SSLify(app)
 Compress(app)
-csrf_protect = CsrfProtect(app)
-
-user_datastore = WigoDbUserDatastore()
-security = Security(app, user_datastore)
 
 api = restplus.Api(
     app, ui=False, title='Wigo API', catch_all_404s=True,
-    decorators=[csrf_protect.exempt],
     errors={
         'UnknownTimeZoneError': {
             'message': 'Unknown timezone', 'status': 400
@@ -83,12 +75,12 @@ def setup_web_app():
     try:
         user = User.find(username='admin')
         user.role = 'admin'
-        user.password = encrypt_password(Configuration.ADMIN_PASSWORD)
+        user.password = generate_password_hash(Configuration.ADMIN_PASSWORD)
         user.save()
     except DoesNotExist:
         User({
             'username': 'admin',
-            'password': encrypt_password(Configuration.ADMIN_PASSWORD),
+            'password': generate_password_hash(Configuration.ADMIN_PASSWORD),
             'email': 'jason@wigo.us',
             'role': 'admin'
         }).save()

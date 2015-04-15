@@ -5,7 +5,7 @@ from flask.ext.restful import abort
 from server.models import DoesNotExist
 from server.models.event import Event, EventMessage, EventAttendee
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource
-from server.security import wigo_user_token_required
+from server.security import user_token_required
 
 
 # noinspection PyUnresolvedReferences
@@ -36,7 +36,7 @@ def setup_event_resources(api):
     class EventListResource(WigoDbListResource):
         model = Event
 
-        @wigo_user_token_required
+        @user_token_required
         @api.response(200, 'Success', model=Event.to_doc_list_model(api))
         def get(self):
             count, instances = self.select().group(g.group).execute()
@@ -52,7 +52,7 @@ def setup_event_resources(api):
     class EventAttendeeListResource(WigoResource):
         model = EventAttendee
 
-        @wigo_user_token_required
+        @user_token_required
         @api.expect(EventAttendee.to_doc_list_model(api))
         @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
         def post(self, event_id):
@@ -63,7 +63,7 @@ def setup_event_resources(api):
 
             return {'success': True}
 
-        @wigo_user_token_required
+        @user_token_required
         def delete(self, event_id):
             EventAttendee({
                 'user_id': g.user.id,
@@ -97,7 +97,7 @@ def setup_event_resources(api):
     class EventMessageListResource(WigoDbListResource):
         model = EventMessage
 
-        @wigo_user_token_required
+        @user_token_required
         @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
         def get(self):
             event_id = int(request.args.get('event', 0))
