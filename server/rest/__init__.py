@@ -103,8 +103,11 @@ class WigoResource(Resource):
     def annotate_list(self, model_class, objects):
         if model_class == Event:
             alimit = int(request.args.get('attendees_limit', 5))
-            mlimit = int(request.args.get('message_limit', 5))
-            return Event.annotate_list(objects, alimit, mlimit)
+            mlimit = int(request.args.get('messages_limit', 5))
+
+            context = g.user if '/users/' in request.path else None
+
+            return Event.annotate_list(objects, context, alimit, mlimit)
         return objects
 
     def serialize_object(self, obj):
@@ -117,11 +120,12 @@ class WigoResource(Resource):
                 'meta': {
                     'total': count,
                 },
-                'objects': [{'$ref': 'User:{}'.format(u.id)} for u in attendees]
+                'objects': [{'$ref': 'User:{}'.format(u.id)} for u in attendees if u]
             }
             if count > len(attendees):
-                prim['attendees']['next'] = '/api/events/{}/attendees?' \
-                                            'page=2&limit={}'.format(obj.id, request.args.get('attendees_limit', 5))
+                path = ('/api/users/me/events/{}/attendees' if '/users/' in request.path
+                        else '/api/events/{}/attendees').format(obj.id)
+                prim['attendees']['meta']['next'] = '{}?page=2&limit={}'.format(path, request.args.get('attendees_limit', 5))
 
         if hasattr(obj, 'messages'):
             count = obj.messages[0]
@@ -130,11 +134,12 @@ class WigoResource(Resource):
                 'meta': {
                     'total': count,
                 },
-                'objects': [{'$ref': 'EventMessage:{}'.format(u.id)} for u in messages]
+                'objects': [{'$ref': 'EventMessage:{}'.format(m.id)} for m in messages if m]
             }
             if count > len(messages):
-                prim['messages']['next'] = '/api/events/{}/messages?' \
-                                           'page=2&limit={}'.format(obj.id, request.args.get('messages_limit', 5))
+                path = ('/api/users/me/events/{}/messages' if '/users/' in request.path
+                        else '/api/events/{}/messages').format(obj.id)
+                prim['messages']['meta']['next'] = '{}?page=2&limit={}'.format(path, request.args.get('messages_limit', 5))
 
         return prim
 
@@ -150,12 +155,14 @@ class WigoResource(Resource):
             'meta': {
                 'total': count,
             },
-            'objects'.format(model_class.__name__.lower()): [self.serialize_object(i) for i in objects]
+            'objects'.format(model_class.__name__.lower()): [self.serialize_object(i) for i in objects if i]
         }
 
         def resolve_nested(objects, nested, resolved):
             nested_ids = defaultdict(set)
             for o in objects:
+                if o is None:
+                    continue
                 if getattr(o, 'group_id', None):
                     nested_ids[Group].add(o.group_id)
                 if getattr(o, 'user_id', None):
@@ -165,9 +172,9 @@ class WigoResource(Resource):
                 if getattr(o, 'message_id', None):
                     nested_ids[EventMessage].add(o.message_id)
                 if getattr(o, 'attendees', None):
-                    nested_ids[User].update((u.id for u in o.attendees[1]))
+                    nested_ids[User].update((u.id for u in o.attendees[1] if u))
                 if getattr(o, 'messages', None):
-                    nested_ids[EventMessage].update((m.id for m in o.messages[1]))
+                    nested_ids[EventMessage].update((m.id for m in o.messages[1] if m))
 
             if nested_ids:
                 for nested_type, nested_ids in nested_ids.items():

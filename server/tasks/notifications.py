@@ -38,9 +38,9 @@ def notify_on_eventmessage(self, message_id):
 def create_notification(sender, instance, created):
     if not created:
         return
-
-    if isinstance(instance, EventMessage):
-        notify_on_eventmessage.delay(message_id=instance.id)
+    #
+    # if isinstance(instance, EventMessage):
+    #     notify_on_eventmessage.delay(message_id=instance.id)
 
 
 def wire_notifications():

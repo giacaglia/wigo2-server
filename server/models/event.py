@@ -142,11 +142,12 @@ class Event(WigoPersistentModel, Dated):
             self.db.delete(skey(group, Event, Event.event_key(self.name)))
 
     @classmethod
-    def annotate_list(cls, events, attendees_limit=5, messages_limit=5):
-        count, attendees_by_event = EventAttendee.select().events(events).limit(attendees_limit).execute()
+    def annotate_list(cls, events, user, attendees_limit=5, messages_limit=5):
+        count, attendees_by_event = EventAttendee.select().events(events).user(user).limit(attendees_limit).execute()
         for event, attendees in zip(events, attendees_by_event):
             event.attendees = attendees
-        count, messages_by_event = EventMessage.select().events(events).limit(messages_limit).execute()
+
+        count, messages_by_event = EventMessage.select().events(events).user(user).limit(messages_limit).execute()
         for event, messages in zip(events, messages_by_event):
             event.messages = messages
         return events
@@ -222,7 +223,7 @@ class EventAttendee(WigoModel):
 
 class EventMessage(WigoPersistentModel):
     class Options:
-        roles = {'www': blacklist('vote_boost')}
+        roles = {'www': blacklist('vote_boost', 'user_id')}
         serialize_when_none = False
 
     event_id = LongType(required=True)
