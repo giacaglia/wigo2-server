@@ -30,7 +30,7 @@ class Configuration(object):
     WEB_HOST = os.environ.get('WEB_HOST', 'localhost:5000')
     API_HOST = os.environ.get('API_HOST', WEB_HOST.replace('verify', 'api'))
 
-    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+    REDIS_URL = os.environ.get('REDIS_URL', os.environ.get('REDISCLOUD_URL', 'redis://localhost:6379'))
     REDIS_URLS = parse_env_list('REDIS_URL')
     if not REDIS_URLS:
         REDIS_URLS.append(REDIS_URL)

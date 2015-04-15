@@ -16,4 +16,3 @@ workspace.xml
 .env
 .coverage
 dump.rdb
-data
