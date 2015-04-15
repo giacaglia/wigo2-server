@@ -37,7 +37,7 @@ def setup_register_resources(api):
         @api.response(200, 'Success', model=User.to_doc_list_model(api))
         @api.response(400, 'Bad post data, or account already exists')
         def post(self):
-            data = request.json
+            data = request.get_json()
 
             if not data:
                 abort(400, message='No data posted')

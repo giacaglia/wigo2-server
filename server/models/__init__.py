@@ -37,7 +37,7 @@ class WigoModel(Model):
     modified = DateTimeType(default=datetime.utcnow)
 
     class Options:
-        roles = {'www': blacklist('group_id', 'user_id', 'owner_id', 'event_id')}
+        roles = {'www': blacklist('group_id', 'user_id', 'owner_id')}
         serialize_when_none = False
 
     def __init__(self, raw_data=None, deserialize_mapping=None, strict=False):

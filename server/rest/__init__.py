@@ -7,7 +7,6 @@ import math
 from flask import g, request
 from flask.ext.restful import Resource, abort
 from werkzeug.urls import url_encode
-from server.db import wigo_db
 from server.models import AlreadyExistsException
 from server.models.event import EventMessage, Event
 from server.models.group import Group
@@ -37,13 +36,75 @@ class WigoResource(Resource):
     def get_id(self, user_id):
         return g.user.id if user_id == 'me' else int(user_id)
 
+    def check_get(self, instance):
+        pass
+
+    def clean_data(self, data):
+        data = dict(data)
+
+        if 'created' in data:
+            del data['created']
+        if 'modified' in data:
+            del data['modified']
+
+        # remove blacklisted fields
+        role = self.model._options.roles.get('www')
+        for field in role:
+            if field in data:
+                del data[field]
+
+        return data
+
+    def check_edit(self, instance):
+        if hasattr(instance, 'user_id') and g.user.id != instance.user_id:
+            abort(403, message='Security error')
+        if hasattr(instance, 'owner_id') and g.user.id != instance.owner_id:
+            abort(403, message='Security error')
+
+    def check_create(self, data):
+        pass
+
+    def edit(self, model_id, data):
+        data = dict(data)
+
+        instance = self.model.find(self.get_id(model_id))
+        self.check_edit(instance)
+
+        # can't change created/modified
+        data = self.clean_data(data)
+        for key, value in data.items():
+            setattr(instance, key, value)
+
+        for key in data.keys():
+            if '_id' in key:
+                del data[key]
+
+        instance.save()
+        return instance
+
+    def create(self, data):
+        self.check_create(data)
+        data = self.clean_data(data)
+        instance = self.model(data)
+
+        if 'group_id' in self.model.fields and g.group:
+            instance.group_id = g.group.id
+        if 'user_id' in self.model.fields and g.user:
+            instance.user_id = g.user.id
+        if 'owner_id' in self.model.fields and g.user:
+            instance.owner_id = g.user.id
+
+        instance.save()
+        return instance
+
     def annotate_object(self, object):
         return object
 
     def annotate_list(self, model_class, objects):
         if model_class == Event:
-            limit = int(request.args.get('attendees_limit', 5))
-            return Event.annotate_list(objects, limit)
+            alimit = int(request.args.get('attendees_limit', 5))
+            mlimit = int(request.args.get('message_limit', 5))
+            return Event.annotate_list(objects, alimit, mlimit)
         return objects
 
     def serialize_object(self, obj):
@@ -117,9 +178,6 @@ class WigoResource(Resource):
 
 
 class WigoDbResource(WigoResource):
-    def check_get(self, instance):
-        pass
-
     @user_token_required
     def get(self, model_id):
         instance = self.model.find(self.get_id(model_id))
@@ -128,44 +186,9 @@ class WigoDbResource(WigoResource):
 
     @user_token_required
     def post(self, model_id):
-        data = request.json
+        data = request.get_json()
         instance = self.edit(model_id, data)
-        instance.save()
         return self.serialize_list(self.model, [instance], 1)
-
-    def check_edit(self, instance):
-        if hasattr(instance, 'user_id') and g.user.id != instance.user_id:
-            abort(403, message='Security error')
-        if hasattr(instance, 'owner_id') and g.user.id != instance.owner_id:
-            abort(403, message='Security error')
-
-    def edit(self, model_id, data):
-        instance = self.model.find(self.get_id(model_id))
-        self.check_edit(instance)
-
-        # can't change created/modified
-        if 'created' in data:
-            del data['created']
-        if 'modified' in data:
-            del data['modified']
-
-        # no updates to ids
-        for key in data.keys():
-            if '_id' in key:
-                del data[key]
-
-        # remove blacklisted fields
-        role = self.model._options.roles.get('www')
-        for field in role:
-            if field in data:
-                del data[field]
-
-        for key, value in data.items():
-            setattr(instance, key, value)
-
-        instance.validate()
-
-        return instance
 
     @user_token_required
     def delete(self, model_id):
@@ -183,37 +206,8 @@ class WigoDbListResource(WigoResource):
 
     @user_token_required
     def post(self):
-        instance = self.create(request.json)
         try:
-            instance.save()
+            instance = self.create(request.get_json())
             return self.serialize_list(self.model, [instance], 1)
         except AlreadyExistsException, e:
             return self.serialize_list(self.model, [e.instance], 1)
-
-    def check_create(self, data):
-        pass
-
-    def create(self, data):
-        self.check_create(data)
-
-        if 'created' in data:
-            del data['created']
-        if 'modified' in data:
-            del data['modified']
-
-        # remove blacklisted fields
-        role = self.model._options.roles.get('www')
-        for field in role:
-            if field in data:
-                del data[field]
-
-        instance = self.model(data)
-
-        if 'group_id' in self.model.fields and g.group:
-            instance.group_id = g.group.id
-        if 'user_id' in self.model.fields and g.user:
-            instance.user_id = g.user.id
-        if 'owner_id' in self.model.fields and g.user:
-            instance.owner_id = g.user.id
-
-        return instance

@@ -1,8 +1,9 @@
 from __future__ import absolute_import
 import logging
+from rq.decorators import job
 
 from config import Configuration
-from server.db import wigo_db
+from server.db import wigo_db, redis
 from server.models.user import User
 from sendgrid import SendGridClient, Mail
 from jinja2 import Environment, PackageLoader, Template
@@ -10,10 +11,12 @@ from jinja2 import Environment, PackageLoader, Template
 
 logger = logging.getLogger('wigo.web')
 
+
 def create_sendgrid():
     return SendGridClient(Configuration.MAIL_USERNAME, Configuration.MAIL_PASSWORD, raise_errors=True)
 
 
+@job('email', connection=redis, timeout=5)
 def send_email_verification(user_id, resend=False):
     if not Configuration.PUSH_ENABLED:
         return

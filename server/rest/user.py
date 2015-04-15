@@ -25,11 +25,6 @@ def setup_user_resources(api):
         def post(self, model_id):
             return super(UserResource, self).post(model_id)
 
-        def edit(self, model_id, data):
-            if User.username.name in data:
-                del data[User.username.name]
-            return super(UserResource, self).edit(model_id, data)
-
         def check_edit(self, user):
             super(UserResource, self).check_edit(user)
             if not user.id == g.user.id:
@@ -75,7 +70,7 @@ def setup_user_resources(api):
         def post(self, user_id):
             friend = Friend()
             friend.user_id = g.user.id
-            friend.friend_id = self.get_id(request.json.get('friend_id'))
+            friend.friend_id = self.get_id(request.get_json().get('friend_id'))
             friend.save()
             return {'success': True}
 
@@ -89,7 +84,7 @@ def setup_user_resources(api):
 
             friend = Friend()
             friend.user_id = g.user.id
-            friend.friend_id = self.get_id(request.json.get('friend_id'))
+            friend.friend_id = self.get_id(request.get_json().get('friend_id'))
             friend.delete()
 
             return {'success': True}
@@ -150,7 +145,7 @@ def setup_user_resources(api):
         def post(self, event_id):
             invite = Invite()
             invite.user_id = g.user.id
-            invite.invited_id = self.get_id(request.json.get('invited_id'))
+            invite.invited_id = self.get_id(request.get_json().get('invited_id'))
             invite.event_id = event_id
             invite.save()
             return {'success': True}
@@ -169,7 +164,7 @@ def setup_user_resources(api):
         def post(self, user_id):
             tap = Tap()
             tap.user_id = g.user.id
-            tap.tapped_id = self.get_id(request.json.get('tapped_id'))
+            tap.tapped_id = self.get_id(request.get_json().get('tapped_id'))
             tap.save()
             return {'success': True}
 
@@ -181,7 +176,7 @@ def setup_user_resources(api):
         def delete(self, user_id, friend_id):
             tap = Tap()
             tap.user_id = g.user.id
-            tap.tapped_id = self.get_id(request.json.get('tapped_id'))
+            tap.tapped_id = self.get_id(request.get_json().get('tapped_id'))
             tap.delete()
 
             return {'success': True}

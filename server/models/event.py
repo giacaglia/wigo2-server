@@ -133,10 +133,13 @@ class Event(WigoPersistentModel, Dated):
             self.db.delete(skey(group, Event, Event.event_key(self.name)))
 
     @classmethod
-    def annotate_list(cls, events, limit=5):
-        count, attendees_by_event = EventAttendee.select().events(events).limit(limit).execute()
+    def annotate_list(cls, events, attendees_limit=5, messages_limit=5):
+        count, attendees_by_event = EventAttendee.select().events(events).limit(attendees_limit).execute()
         for event, attendees in zip(events, attendees_by_event):
             event.attendees = attendees
+        count, messages_by_event = EventMessage.select().events(events).limit(messages_limit).execute()
+        for event, messages in zip(events, messages_by_event):
+            event.messages = messages
         return events
 
 

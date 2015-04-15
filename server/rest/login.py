@@ -27,7 +27,7 @@ def setup_login_resources(api):
         @api.response(400, 'Bad post data, or account already exists')
         @api.response(403, 'Security error')
         def post(self):
-            data = request.json
+            data = request.get_json()
 
             facebook_id = data.get('facebook_id')
             facebook_token = data.get('facebook_access_token')

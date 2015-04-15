@@ -30,7 +30,7 @@ def user_token_required(fn):
         if g.user:
             return fn(*args, **kwargs)
         else:
-            return _get_unauthorized_response()
+            abort(403, message='Unauthorized')
 
     return decorated
 

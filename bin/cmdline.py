@@ -138,6 +138,7 @@ def import_old_db(groups=False, users=False, friends=False):
     num_saved = 0
 
     if users:
+        boston = Group.find(code='boston')
         for dbuser in users_table.find(email_validated=True, group=1):
             properties = dbuser.get('properties')
             if isinstance(properties, dict) and 'images' in properties:
@@ -153,7 +154,7 @@ def import_old_db(groups=False, users=False, friends=False):
             user = User(dbuser)
 
             try:
-                user.group_id = dbuser['group']
+                user.group_id = boston.id
                 user.facebook_id = dbuser['facebook']
                 user.facebook_token = assoc['service_token']
                 user.facebook_token_expires = assoc['service_token_expires']

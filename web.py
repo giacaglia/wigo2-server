@@ -11,7 +11,7 @@ from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
 from flask.ext.sslify import SSLify
 from schematics.exceptions import ModelValidationError
-
+from rq_dashboard import RQDashboard
 from config import Configuration
 from flask import Flask, render_template, g, request, jsonify
 from flask.ext import restplus
@@ -27,6 +27,7 @@ from server.models.event import Event
 from server.models.group import Group
 from server.models import Config, DoesNotExist
 from server.rest.login import setup_login_resources
+from server.security import check_basic_auth
 from server.tasks.notifications import wire_notifications
 from server.rest.register import setup_register_resources
 from server.rest.user import setup_user_resources
@@ -45,6 +46,7 @@ app.session_interface = ApiSessionInterface()
 
 SSLify(app)
 Compress(app)
+RQDashboard(app, '/admin/rq', check_basic_auth)
 
 api = restplus.Api(
     app, ui=False, title='Wigo API', catch_all_404s=True,
