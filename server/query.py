@@ -235,9 +235,12 @@ class SelectQuery(object):
             return count, Message.find(message_ids)
 
     def __filtered(self):
-        instance = self._model_class.find(**self._where)
-        if instance:
-            return 1, [instance]
+        try:
+            instance = self._model_class.find(**self._where)
+            if instance:
+                return 1, [instance]
+        except DoesNotExist:
+            pass
         return 0, []
 
     def __get_by_event(self):
