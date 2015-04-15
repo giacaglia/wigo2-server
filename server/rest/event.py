@@ -96,6 +96,14 @@ def setup_event_resources(api):
 
         @user_token_required
         def delete(self, event_id):
+            abort(501, message='Not implemented')
+
+    @api.route('/api/events/<int:event_id>/attendees/<user_id>')
+    class DeleteAttendeeResource(WigoResource):
+        model = Friend
+
+        @user_token_required
+        def delete(self, event_id, user_id):
             EventAttendee({
                 'user_id': g.user.id,
                 'event_id': event_id
