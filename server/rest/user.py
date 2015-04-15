@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
-from server.db import wigo_db
 
 from server.models.user import User, Friend, Tap, Invite, Message
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource
@@ -121,6 +120,7 @@ def setup_user_resources(api):
 
 
     @api.route('/api/users/<user_id>/friends/common/<int:with_user_id>')
+    @api.response(200, 'Success', model=User.to_doc_list_model(api))
     class FriendsInCommonResource(WigoResource):
         model = Friend
 
