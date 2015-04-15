@@ -144,12 +144,14 @@ class Event(WigoPersistentModel, Dated):
     @classmethod
     def annotate_list(cls, events, user, attendees_limit=5, messages_limit=5):
         count, attendees_by_event = EventAttendee.select().events(events).user(user).limit(attendees_limit).execute()
-        for event, attendees in zip(events, attendees_by_event):
-            event.attendees = attendees
+        if count:
+            for event, attendees in zip(events, attendees_by_event):
+                event.attendees = attendees
 
         count, messages_by_event = EventMessage.select().events(events).user(user).limit(messages_limit).execute()
-        for event, messages in zip(events, messages_by_event):
-            event.messages = messages
+        if count:
+            for event, messages in zip(events, messages_by_event):
+                event.messages = messages
         return events
 
 
