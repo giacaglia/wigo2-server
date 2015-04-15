@@ -15,12 +15,12 @@ def setup_user_resources(api):
     class UserResource(WigoDbResource):
         model = User
 
-        @api.response(200, 'Success', model=User.to_doc_model(api))
+        @api.response(200, 'Success', model=User.to_doc_list_model(api))
         def get(self, model_id):
             return super(UserResource, self).get(model_id)
 
-        @api.expect(User.to_doc_model(api))
-        @api.response(200, 'Success', model=User.to_doc_model(api))
+        @api.expect(User.to_doc_list_model(api))
+        @api.response(200, 'Success', model=User.to_doc_list_model(api))
         @api.response(403, 'If trying to edit another user')
         def post(self, model_id):
             return super(UserResource, self).post(model_id)
@@ -44,7 +44,7 @@ def setup_user_resources(api):
     class UserListResource(WigoDbListResource):
         model = User
 
-        @api.response(200, 'Success', model=User.to_doc_model(api))
+        @api.response(200, 'Success', model=User.to_doc_list_model(api))
         def get(self):
             return super(UserListResource, self).get()
 
@@ -62,7 +62,7 @@ def setup_user_resources(api):
             return self.setup_query(self.select(User).user(user).friends())
 
         @wigo_user_token_required
-        @api.response(200, 'Success', model=User.to_doc_model(api))
+        @api.response(200, 'Success', model=User.to_doc_list_model(api))
         def get(self, user_id):
             count, friends = self.get_friends_query(user_id).execute()
             return self.serialize_list(User, friends, count)
@@ -124,7 +124,7 @@ def setup_user_resources(api):
         @api.expect(api.model('NewInvite', {
             'invited_id': fields.Integer(description='User to invite', required=True),
         }))
-        @api.response(200, 'Success', model=Invite.to_doc_model(api))
+        @api.response(200, 'Success')
         @api.response(403, 'Not friends or not attending')
         def post(self, event_id):
             invite = Invite()
@@ -146,14 +146,14 @@ def setup_user_resources(api):
         @api.expect(api.model('NewTap', {
             'tapped_id': fields.Integer(description='User to tap', required=True)
         }))
-        @api.response(200, 'Success', model=Tap.to_doc_model(api))
+        @api.response(200, 'Success')
         @api.response(403, 'Not friends')
         def post(self, user_id):
             tap = Tap()
             tap.user_id = g.user.id
             tap.tapped_id = self.get_id(request.json.get('tapped_id'))
             tap.save()
-            return self.serialize_list(Tap, [tap], 1)
+            return {'success': True}
 
         @wigo_user_token_required
         @api.expect(api.model('UnTap', {
@@ -174,8 +174,8 @@ def setup_user_resources(api):
         def get(self):
             raise NotImplementedError()
 
-        @api.expect(Message.to_doc_model(api))
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        @api.expect(Message.to_doc_list_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def post(self):
             return super(MessageListResource, self).post()
 
@@ -183,7 +183,7 @@ def setup_user_resources(api):
     class MessageResource(WigoDbResource):
         model = Message
 
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def get(self, model_id):
             return super(MessageResource, self).get(model_id)
 
@@ -192,8 +192,8 @@ def setup_user_resources(api):
             if message.user_id != g.user.id:
                 abort(403, message='Can only view your own messages')
 
-        @api.expect(Message.to_doc_model(api))
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        @api.expect(Message.to_doc_list_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def post(self, model_id):
             return super(MessageResource, self).post(model_id)
 
@@ -205,7 +205,7 @@ def setup_user_resources(api):
         model = Message
 
         @wigo_user_token_required
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def get(self):
             count, instances = self.select().user(g.user).execute()
             return self.serialize_list(self.model, instances, count)
@@ -215,14 +215,14 @@ def setup_user_resources(api):
         model = Message
 
         @wigo_user_token_required
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def get(self, with_user_id):
             with_user = User.find(with_user_id)
             count, instances = self.select().user(g.user).to_user(with_user).execute()
             return self.serialize_list(self.model, instances, count)
 
         @wigo_user_token_required
-        @api.response(200, 'Success', model=Message.to_doc_model(api))
+        @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def delete(self, with_user_id):
             Message.delete_conversation(g.user, User.find(with_user_id))
             return {'success': True}

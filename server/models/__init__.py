@@ -297,6 +297,9 @@ class WigoModel(Model):
 
     @classmethod
     def to_doc_model(cls, api):
+        model = api.models.get(cls.__name__)
+        if model:
+            return model
         fields = {}
         for field in cls.fields.values():
             if field.name in ('created', 'modified', 'id'):
@@ -314,6 +317,27 @@ class WigoModel(Model):
             elif isinstance(field, JsonType):
                 fields[field.name] = docfields.Arbitrary
         return api.model(cls.__name__, fields)
+
+    @classmethod
+    def to_doc_list_model(cls, api):
+        model_name = '{}List'.format(cls.__name__)
+        model = api.models.get(model_name)
+        if model:
+            return model
+
+        meta = api.models.get('Meta')
+        if not meta:
+            meta = api.model('Meta', {
+                'total': docfields.Integer,
+                'previous': docfields.Url(required=False),
+                'next': docfields.Url(required=False),
+            })
+
+        return api.model('{}List'.format(cls.__name__), {
+            'meta': docfields.Nested(meta),
+            'objects': docfields.Nested(cls.to_doc_model(api), as_list=True),
+            'include': docfields.Nested(WigoModel.to_doc_model(api), as_list=True),
+        })
 
 
 class WigoPersistentModel(WigoModel):

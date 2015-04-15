@@ -23,7 +23,7 @@ def setup_login_resources(api):
             'facebook_access_token_expires': fields.Integer,
             'email': fields.String
         }))
-        @api.response(200, 'Success', model=User.to_doc_model(api))
+        @api.response(200, 'Success', model=User.to_doc_list_model(api))
         @api.response(400, 'Bad post data, or account already exists')
         @api.response(403, 'Security error')
         def post(self):

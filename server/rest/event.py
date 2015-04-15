@@ -15,7 +15,7 @@ def setup_event_resources(api):
     class EventResource(WigoDbResource):
         model = Event
 
-        @api.response(200, 'Success', model=Event.to_doc_model(api))
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
         def get(self, model_id):
             return super(EventResource, self).get(model_id)
 
@@ -24,8 +24,8 @@ def setup_event_resources(api):
             if not g.user.is_invited(event):
                 abort(403, message='Not invited to event')
 
-        @api.expect(Event.to_doc_model(api))
-        @api.response(200, 'Success', model=Event.to_doc_model(api))
+        @api.expect(Event.to_doc_list_model(api))
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
         def post(self, model_id):
             return super(EventResource, self).post(model_id)
 
@@ -37,13 +37,13 @@ def setup_event_resources(api):
         model = Event
 
         @wigo_user_token_required
-        @api.response(200, 'Success', model=Event.to_doc_model(api))
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
         def get(self):
             count, instances = self.select().group(g.group).execute()
             return self.serialize_list(self.model, instances, count)
 
-        @api.expect(Event.to_doc_model(api))
-        @api.response(200, 'Success', model=Event.to_doc_model(api))
+        @api.expect(Event.to_doc_list_model(api))
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
         def post(self):
             return super(EventListResource, self).post()
 
@@ -53,8 +53,8 @@ def setup_event_resources(api):
         model = EventAttendee
 
         @wigo_user_token_required
-        @api.expect(EventAttendee.to_doc_model(api))
-        @api.response(200, 'Success', model=EventAttendee.to_doc_model(api))
+        @api.expect(EventAttendee.to_doc_list_model(api))
+        @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
         def post(self, event_id):
             attendee = EventAttendee({
                 'user_id': g.user.id,
@@ -77,12 +77,12 @@ def setup_event_resources(api):
     class EventMessageResource(WigoDbResource):
         model = EventMessage
 
-        @api.response(200, 'Success', model=EventMessage.to_doc_model(api))
+        @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
         def get(self, model_id):
             return super(EventMessageResource, self).get(model_id)
 
-        @api.expect(EventMessage.to_doc_model(api))
-        @api.response(200, 'Success', model=EventMessage.to_doc_model(api))
+        @api.expect(EventMessage.to_doc_list_model(api))
+        @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
         def post(self, model_id):
             return super(EventMessageResource, self).post(model_id)
 
@@ -98,7 +98,7 @@ def setup_event_resources(api):
         model = EventMessage
 
         @wigo_user_token_required
-        @api.response(200, 'Success', model=EventMessage.to_doc_model(api))
+        @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
         def get(self):
             event_id = int(request.args.get('event', 0))
             if event_id:
@@ -112,7 +112,7 @@ def setup_event_resources(api):
             else:
                 raise DoesNotExist()
 
-        @api.expect(EventMessage.to_doc_model(api))
+        @api.expect(EventMessage.to_doc_list_model(api))
         def post(self):
             return super(EventMessageListResource, self).post()
 
