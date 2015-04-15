@@ -100,7 +100,7 @@ def setup_event_resources(api):
 
     @api.route('/api/events/<int:event_id>/attendees/<user_id>')
     class DeleteAttendeeResource(WigoResource):
-        model = Friend
+        model = EventAttendee
 
         @user_token_required
         def delete(self, event_id, user_id):
