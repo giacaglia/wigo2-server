@@ -1,21 +1,19 @@
 from __future__ import absolute_import
+import logging
 
-from celery.utils.log import get_task_logger
 from config import Configuration
 from server.db import wigo_db
 from server.models.user import User
 from sendgrid import SendGridClient, Mail
 from jinja2 import Environment, PackageLoader, Template
-from worker import celery
 
-logger = get_task_logger(__name__)
 
+logger = logging.getLogger('wigo.web')
 
 def create_sendgrid():
     return SendGridClient(Configuration.MAIL_USERNAME, Configuration.MAIL_PASSWORD, raise_errors=True)
 
 
-@celery.task(max_retries=10, default_retry_delay=10)
 def send_email_verification(user_id, resend=False):
     if not Configuration.PUSH_ENABLED:
         return
@@ -69,7 +67,6 @@ def send_email_verification(user_id, resend=False):
     logger.info('sent verification email to "%s"' % user.email)
 
 
-@celery.task
 def send_custom_email(user, subject, category, html, text, template_params=None):
     sendgrid = create_sendgrid()
 

@@ -4,10 +4,8 @@ from server.db import rate_limit
 from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage
 from server.models.user import User, Notification
-from worker import celery
 
 
-@celery.task(max_retries=10, default_retry_delay=10)
 def notify_on_eventmessage(self, message_id):
     try:
         message = EventMessage.find(message_id)

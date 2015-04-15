@@ -10,15 +10,12 @@ import requests
 from StringIO import StringIO
 from PIL import Image
 from config import Configuration
-from server.db import wigo_db
 from server.models.user import User
-from worker import celery
 
 
 saving_images = threading.local()
 
 
-@celery.task(max_retries=10, default_retry_delay=10)
 def save_images(user_id):
     cache = {}
 
