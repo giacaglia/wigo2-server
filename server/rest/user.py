@@ -59,7 +59,7 @@ def setup_user_resources(api):
 
         def get_friends_query(self, user_id):
             user = User.find(self.get_id(user_id))
-            return self.select(User).user(user).friends()
+            return self.setup_query(self.select(User).user(user).friends())
 
         @wigo_user_token_required
         @api.response(200, 'Success', model=User.to_doc_model(api))
@@ -71,7 +71,7 @@ def setup_user_resources(api):
         @api.expect(api.model('NewFriend', {
             'friend_id': fields.Integer(description='User to connect with', required=True)
         }))
-        @api.response(200, 'Success', model=Friend.to_doc_model(api))
+        @api.response(200, 'Success')
         def post(self, user_id):
             friend = Friend()
             friend.user_id = g.user.id
@@ -83,6 +83,7 @@ def setup_user_resources(api):
         @api.expect(api.model('DeleteFriend', {
             'friend_id': fields.Integer(description='User to removing connection with', required=True)
         }))
+        @api.response(200, 'Success')
         def delete(self, user_id):
             user = g.user
 
@@ -112,7 +113,7 @@ def setup_user_resources(api):
     class FriendRequestsListResource(FriendsListResource):
         def get_friends_query(self, user_id):
             user = User.find(self.get_id(user_id))
-            return self.select(User).user(user).friend_requests()
+            return self.setup_query(self.select(User).user(user).friend_requests())
 
 
     @api.route('/api/events/<int:event_id>/invites')

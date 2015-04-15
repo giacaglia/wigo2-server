@@ -20,7 +20,7 @@ class WigoResource(Resource):
 
     def select(self, model=None):
         model = model if model else self.model
-        query = model.select().page(self.get_page()).limit(self.get_limit())
+        query = self.setup_query(model.select())
         if request.args.get('ordering') == 'asc':
             query = query.order('asc')
         return query
@@ -30,6 +30,9 @@ class WigoResource(Resource):
 
     def get_limit(self):
         return int(request.args.get('limit', 15))
+
+    def setup_query(self, query):
+        return query.page(self.get_page()).limit(self.get_limit())
 
     def get_id(self, user_id):
         return g.user.id if user_id == 'me' else int(user_id)
@@ -175,7 +178,7 @@ class WigoDbResource(WigoResource):
 class WigoDbListResource(WigoResource):
     @wigo_user_token_required
     def get(self):
-        count, instances = self.model.select().page(self.get_page()).limit(self.get_limit()).execute()
+        count, instances = self.setup_query(self.model.select()).execute()
         return self.serialize_list(self.model, instances, count)
 
     @wigo_user_token_required
