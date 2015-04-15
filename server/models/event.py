@@ -18,6 +18,15 @@ class Event(WigoPersistentModel, Dated):
     privacy = StringType(choices=('public', 'private'), required=True, default='public')
     tags = ListType(StringType)
 
+    def validate(self, partial=False, strict=False):
+        if self.id is None and self.privacy == 'public':
+            # for new events make sure there is an existing event with the same name
+            existing_event = self.find(group=self.group, name=self.name)
+            if existing_event and existing_event.id != self.id:
+                raise AlreadyExistsException(existing_event)
+
+        return super(Event, self).validate(partial, strict)
+
     @classmethod
     def find(cls, *args, **kwargs):
         if 'name' in kwargs:
@@ -67,22 +76,22 @@ class Event(WigoPersistentModel, Dated):
 
     def add_to_global_events(self, remove_empty=False):
         group = self.group
+        events_key = skey('group', self.group_id, 'events')
+        attendees_key = skey(self, 'attendees')
+        event_name_key = skey(group, Event, Event.event_key(self.name))
+        existing_event = self.find(group=group, name=self.name)
 
         if self.privacy == 'public':
-            existing_event = self.find(group=group, name=self.name)
-            if existing_event and existing_event.id != self.id:
-                raise AlreadyExistsException(existing_event)
-
-            event_name_key = skey(group, Event, Event.event_key(self.name))
             self.db.set(event_name_key, self.id, self.expires, self.expires)
-
-            events_key = skey('group', self.group_id, 'events')
-            attendees_key = skey(self, 'attendees')
             num_attending = self.db.get_sorted_set_size(attendees_key)
             if remove_empty and (self.owner_id is not None and num_attending == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, num_attending))
+        else:
+            if existing_event and existing_event.id == self.id:
+                self.db.delete(event_name_key)
+            self.db.sorted_set_remove(events_key, self.id)
 
     def add_to_user_events(self, user, remove_empty=False):
         events_key = skey(user.group, user, 'events')

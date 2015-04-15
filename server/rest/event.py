@@ -9,6 +9,32 @@ from server.security import user_token_required
 
 # noinspection PyUnresolvedReferences
 def setup_event_resources(api):
+    @api.route('/api/events/')
+    class EventListResource(WigoDbListResource):
+        model = Event
+
+        @user_token_required
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
+        def get(self):
+            count, instances = self.select().group(g.group).execute()
+            return self.serialize_list(self.model, instances, count)
+
+        @user_token_required
+        @api.expect(Event.to_doc_list_model(api))
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
+        def post(self):
+            return super(EventListResource, self).post()
+
+        def handle_already_exists_exception(self, e):
+            event = e.instance
+            if g.user.is_invited(event) and not g.user.is_attending(event):
+                EventAttendee({
+                    'user_id': g.user.id,
+                    'event_id': e.instance.id
+                }).save()
+            return super(EventListResource, self).handle_already_exists_exception(e)
+
+
     @api.route('/api/events/<int:model_id>')
     @api.response(403, 'If not invited')
     class EventResource(WigoDbResource):
@@ -34,21 +60,6 @@ def setup_event_resources(api):
         def delete(self, model_id):
             abort(501, message='Not implemented')
 
-    @api.route('/api/events/')
-    class EventListResource(WigoDbListResource):
-        model = Event
-
-        @user_token_required
-        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
-        def get(self):
-            count, instances = self.select().group(g.group).execute()
-            return self.serialize_list(self.model, instances, count)
-
-        @user_token_required
-        @api.expect(Event.to_doc_list_model(api))
-        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
-        def post(self):
-            return super(EventListResource, self).post()
 
     @api.route('/api/users/<user_id>/events/')
     class UserEventListResource(WigoResource):

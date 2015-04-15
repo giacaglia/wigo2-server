@@ -13,6 +13,7 @@ from urlparse import urlparse
 from redis import Redis
 from config import Configuration
 from server.rdbms import DataStrings, DataExpires, DataSets, DataSortedSets, DataIntSortedSets, DataIntSets
+from redis_shard.shard import RedisShardAPI
 
 
 class WigoDB(object):
@@ -531,8 +532,6 @@ if Configuration.ENVIRONMENT != 'test':
     shard.SHARD_METHODS = set(shard.SHARD_METHODS)
     shard.SHARD_METHODS.add('zscan')
     shard.SHARD_METHODS.add('zscan_iter')
-
-    from redis_shard.shard import RedisShardAPI
 
     sharded_redis = RedisShardAPI(servers, hash_method='md5')
     wigo_db = WigoRedisDB(sharded_redis, wigo_queued_db)

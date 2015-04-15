@@ -210,4 +210,7 @@ class WigoDbListResource(WigoResource):
             instance = self.create(request.get_json())
             return self.serialize_list(self.model, [instance], 1)
         except AlreadyExistsException, e:
-            return self.serialize_list(self.model, [e.instance], 1)
+            return self.handle_already_exists_exception(e)
+
+    def handle_already_exists_exception(self, e):
+        return self.serialize_list(self.model, [e.instance], 1)
