@@ -134,6 +134,7 @@ def after_request(response):
     if g.user:
         response.headers.add('X-Wigo-User-ID', g.user.id)
     if g.group:
+        response.headers.add('X-Wigo-Group', g.group.code)
         response.headers.add('X-Wigo-Group-ID', g.group.id)
         response.headers.add('X-Wigo-City-ID', g.group.city_id)
     return response
