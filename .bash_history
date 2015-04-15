@@ -1,2 +1,1 @@
-pip install -r requirements.txt -r requirements.dev.txt
-python bin/cmdline.py hourly_maintenance
+python bin/cmdline.py initialize --import-cities

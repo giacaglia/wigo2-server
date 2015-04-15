@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 import sys
 import os
-from flask.ext.security.utils import encrypt_password
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+import re
 import logging
 import logconfig
 import ujson
@@ -13,7 +13,7 @@ from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
 from config import Configuration
 from clize import run, clize
-from server.models import IntegrityException
+from server.models import IntegrityException, DoesNotExist
 from server.models.group import Group
 from server.models.user import User, Friend
 
@@ -85,6 +85,18 @@ def initialize(create_tables=False, import_cities=False):
                     )
 
                     loc.save(pipe)
+
+                    try:
+                        Group.find(city_id=loc.cityId)
+                    except DoesNotExist:
+                        Group({
+                            'name': loc.name,
+                            'code': re.sub(r'([^\s\w]|_)+', '_', loc.name.lower()),
+                            'latitude': loc.lat,
+                            'longitude': loc.lon,
+                            'city_id': loc.cityId,
+                            'verified': True
+                        }).save()
 
                 except Exception, e:
                     logging.exception("Could not import line %s: %s", line, e)
