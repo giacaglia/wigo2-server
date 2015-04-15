@@ -131,6 +131,11 @@ def setup_request():
 def after_request(response):
     if 'Cache-Control' not in response.headers:
         response.headers.add('Cache-Control', 'max-age=0, must-revalidate')
+    if g.user:
+        response.headers.add('X-Wigo-User-ID', g.user.id)
+    if g.group:
+        response.headers.add('X-Wigo-Group-ID', g.group.id)
+        response.headers.add('X-Wigo-City-ID', g.group.city_id)
     return response
 
 
