@@ -96,7 +96,7 @@ def setup_user_resources(api):
 
 
     @api.route('/api/users/<user_id>/friends/<int:friend_id>')
-    class DeleteFriendListResource(WigoResource):
+    class DeleteFriendResource(WigoResource):
         model = Friend
 
         @user_token_required
@@ -134,9 +134,6 @@ def setup_user_resources(api):
             invite.save()
             return {'success': True}
 
-        @user_token_required
-        def delete(self, user_id):
-            abort(501, message='Not implemented')
 
     @api.route('/api/users/<user_id>/taps')
     class TapListResource(WigoResource):
@@ -155,17 +152,19 @@ def setup_user_resources(api):
             tap.save()
             return {'success': True}
 
+    @api.route('/api/users/<user_id>/taps/<int:tapped_id>')
+    class DeleteTapResource(WigoResource):
+        model = Friend
+
         @user_token_required
-        @api.expect(api.model('UnTap', {
-            'tapped_id': fields.Integer(description='User to untap', required=True)
-        }))
-        def delete(self, user_id):
+        def delete(self, user_id, friend_id):
             tap = Tap()
             tap.user_id = g.user.id
             tap.tapped_id = self.get_id(request.json.get('tapped_id'))
             tap.delete()
 
             return {'success': True}
+
 
     @api.route('/api/messages/')
     class MessageListResource(WigoDbListResource):
@@ -178,6 +177,7 @@ def setup_user_resources(api):
         @api.response(200, 'Success', model=Message.to_doc_list_model(api))
         def post(self):
             return super(MessageListResource, self).post()
+
 
     @api.route('/api/messages/<int:model_id>')
     class MessageResource(WigoDbResource):
@@ -199,6 +199,7 @@ def setup_user_resources(api):
 
         def delete(self, model_id):
             abort(501, message='Not implemented')
+
 
     @api.route('/api/conversations/')
     class ConversationsResource(WigoResource):
