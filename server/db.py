@@ -11,7 +11,6 @@ from peewee import DoesNotExist, SQL
 from datetime import datetime, timedelta
 from urlparse import urlparse
 from redis import Redis
-from redis_shard.shard import RedisShardAPI
 from config import Configuration
 from server.rdbms import DataStrings, DataExpires, DataSets, DataSortedSets, DataIntSortedSets, DataIntSets
 
@@ -526,6 +525,14 @@ if Configuration.ENVIRONMENT != 'test':
             'port': parsed.port,
             'password': parsed.password
         })
+
+    from redis_shard import shard
+
+    shard.SHARD_METHODS = set(shard.SHARD_METHODS)
+    shard.SHARD_METHODS.add('zscan')
+    shard.SHARD_METHODS.add('zscan_iter')
+
+    from redis_shard.shard import RedisShardAPI
 
     sharded_redis = RedisShardAPI(servers, hash_method='md5')
     wigo_db = WigoRedisDB(sharded_redis, wigo_queued_db)
