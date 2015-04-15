@@ -71,6 +71,7 @@ def setup_event_resources(api):
             count, instances = self.select().user(g.user).execute()
             return self.serialize_list(self.model, instances, count)
 
+
     @api.route('/api/events/<int:event_id>/attendees')
     @api.response(403, 'If not invited')
     class EventAttendeeListResource(WigoResource):
@@ -98,7 +99,9 @@ def setup_event_resources(api):
         def delete(self, event_id):
             abort(501, message='Not implemented')
 
+
     @api.route('/api/events/<int:event_id>/attendees/<user_id>')
+    @api.response(200, 'Success')
     class DeleteAttendeeResource(WigoResource):
         model = EventAttendee
 
@@ -110,6 +113,7 @@ def setup_event_resources(api):
             }).delete()
 
             return {'success': True}
+
 
     @api.route('/api/users/<user_id>/events/<int:event_id>/attendees')
     @api.response(403, 'If not invited')
@@ -124,6 +128,7 @@ def setup_event_resources(api):
                 abort(403, message='Not invited to event')
             count, instances = self.select().user(g.user).event(event).execute()
             return self.serialize_list(self.model, instances, count)
+
 
     @api.route('/api/events/<int:event_id>/messages')
     @api.response(403, 'If not invited to event')
@@ -146,6 +151,7 @@ def setup_event_resources(api):
             data['event_id'] = event_id
             message = self.create(data)
             return self.serialize_list(self.model, [message], 1)
+
 
     @api.route('/api/events/<int:event_id>/messages/<int:message_id>')
     @api.response(403, 'If not invited to event')

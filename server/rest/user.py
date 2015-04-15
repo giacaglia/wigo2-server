@@ -95,6 +95,7 @@ def setup_user_resources(api):
         model = Friend
 
         @user_token_required
+        @api.response(200, 'Success')
         def delete(self, user_id, friend_id):
             friend = Friend()
             friend.user_id = g.user.id
@@ -173,6 +174,7 @@ def setup_user_resources(api):
         model = Friend
 
         @user_token_required
+        @api.response(200, 'Success')
         def delete(self, user_id, friend_id):
             tap = Tap()
             tap.user_id = g.user.id

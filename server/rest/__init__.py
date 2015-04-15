@@ -109,6 +109,7 @@ class WigoResource(Resource):
 
     def serialize_object(self, obj):
         prim = obj.to_primitive(role='www')
+
         if hasattr(obj, 'attendees'):
             count = obj.attendees[0]
             attendees = obj.attendees[1]
@@ -116,11 +117,24 @@ class WigoResource(Resource):
                 'meta': {
                     'total': count,
                 },
-                'users': [{'$ref': 'User:{}'.format(u.id)} for u in attendees]
+                'objects': [{'$ref': 'User:{}'.format(u.id)} for u in attendees]
             }
             if count > len(attendees):
                 prim['attendees']['next'] = '/api/events/{}/attendees?' \
                                             'page=2&limit={}'.format(obj.id, request.args.get('attendees_limit', 5))
+
+        if hasattr(obj, 'messages'):
+            count = obj.messages[0]
+            messages = obj.messages[1]
+            prim['messages'] = {
+                'meta': {
+                    'total': count,
+                },
+                'objects': [{'$ref': 'EventMessage:{}'.format(u.id)} for u in messages]
+            }
+            if count > len(messages):
+                prim['messages']['next'] = '/api/events/{}/messages?' \
+                                           'page=2&limit={}'.format(obj.id, request.args.get('messages_limit', 5))
 
         return prim
 
@@ -152,6 +166,8 @@ class WigoResource(Resource):
                     nested_ids[EventMessage].add(o.message_id)
                 if getattr(o, 'attendees', None):
                     nested_ids[User].update((u.id for u in o.attendees[1]))
+                if getattr(o, 'messages', None):
+                    nested_ids[EventMessage].update((m.id for m in o.messages[1]))
 
             if nested_ids:
                 for nested_type, nested_ids in nested_ids.items():
