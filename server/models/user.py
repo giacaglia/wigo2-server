@@ -108,6 +108,13 @@ class User(WigoPersistentModel):
             return True
         return self.db.set_is_member(skey(event, 'invited'), self.id)
 
+    def get_friend_ids_in_common(self, with_user_id):
+        from server.db import wigo_db
+
+        friend_ids = set(wigo_db.sorted_set_rrange(skey(self, 'friends'), 0, -1))
+        with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', with_user_id, 'friends'), 0, -1))
+        return friend_ids & with_friend_ids
+
     def save(self):
         super(User, self).save()
 
