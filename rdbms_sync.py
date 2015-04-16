@@ -58,8 +58,9 @@ def start(debug=False):
                         logger.info('{} sync commands completed'.format(num_run))
 
             if not found_something:
-                logger.info('{} sync commands completed, resetting count'.format(num_run))
-                num_run = 0
+                if num_run > 0:
+                    logger.info('{} sync commands completed, resetting count'.format(num_run))
+                    num_run = 0
                 sleep(5)
 
         except Exception, e:
