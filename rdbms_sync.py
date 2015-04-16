@@ -1,8 +1,11 @@
 from __future__ import absolute_import
 
+import logconfig
+
+logconfig.configure(Configuration.ENVIRONMENT)
+
 import logging
 import cPickle
-import logconfig
 
 from redis import ReadOnlyError
 from time import sleep
@@ -16,7 +19,6 @@ from utils import BreakHandler
 
 @clize
 def start(debug=False):
-    logconfig.configure(Configuration.ENVIRONMENT)
     logger = logging.getLogger('wigo.rdbms.sync')
 
     bh = BreakHandler()

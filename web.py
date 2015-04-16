@@ -1,10 +1,12 @@
 from __future__ import absolute_import
 
+import logconfig
+
+logconfig.configure(Configuration.ENVIRONMENT)
+
 import os
 import ujson
 import logging
-
-logconfig.configure(Configuration.ENVIRONMENT)
 
 from datetime import datetime
 from urlparse import urlparse
@@ -20,7 +22,6 @@ from flask import Flask, render_template, g, request, jsonify
 from flask.ext import restplus
 from flask.ext.admin import Admin
 from flask.ext.compress import Compress
-import logconfig
 from server import ApiSessionInterface
 from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, MessageView, EventModelView, \
     WigoAdminIndexView
