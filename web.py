@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
-from server.rest.uploads import setup_upload_routes
+from server.rest.uploads import setup_upload_routes, wire_uploads
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -74,6 +74,7 @@ admin.add_view(NotificationView(Notification))
 admin.add_view(ConfigView(Config))
 
 wire_notifications()
+wire_uploads()
 
 
 @app.before_first_request

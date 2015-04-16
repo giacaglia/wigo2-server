@@ -201,7 +201,7 @@ def process_eventmessage_image(message_id):
                      'for event message {id}, {error}'.format(id=message.id, error=resp.content))
 
 
-def wire_notifications():
+def wire_uploads():
     def on_model_save(sender, instance, created):
         if isinstance(instance, EventMessage):
             process_eventmessage_image.delay(instance.id)
