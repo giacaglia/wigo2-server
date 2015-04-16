@@ -479,7 +479,8 @@ def skey(*keys):
         key_list = key_list[2:]
 
     if key_list:
-        return key_str + ':' + ':'.join(key_list)
+        joined_keys = ':'.join(key_list)
+        return (key_str + ':' + joined_keys) if key_str else joined_keys
     else:
         return key_str
 
