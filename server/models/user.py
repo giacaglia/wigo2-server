@@ -5,6 +5,7 @@ from datetime import timedelta, datetime
 
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
+from schematics.types.serializable import serializable
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key
 from utils import epoch, ValidationException, memoize
 
@@ -95,6 +96,9 @@ class User(WigoPersistentModel):
 
     def is_friend(self, friend):
         return self.db.sorted_set_is_member(skey(self, 'friends'), friend.id)
+
+    def is_blocked(self, user):
+        return False
 
     def is_friend_requested(self, friend):
         return self.db.sorted_set_is_member(skey(friend, 'friend_requests'), self.id)
@@ -267,6 +271,9 @@ class Notification(WigoModel):
     user_id = LongType(required=True)
     type = StringType(required=True)
     from_user_id = LongType()
+    navigate = StringType(required=True)
+    message = StringType(required=True)
+
     properties = JsonType()
 
     def ttl(self):
@@ -276,6 +283,10 @@ class Notification(WigoModel):
     @memoize('from_user_id')
     def from_user(self):
         return User.find(self.from_user_id)
+
+    @serializable(serialized_name='from_user', serialize_when_none=False)
+    def user_ref(self):
+        return self.ref_field(User, 'from_user_id')
 
     def index(self):
         self.db.sorted_set_add(skey(self.user, 'notifications'), self.to_json(),

@@ -15,7 +15,6 @@ import logging
 from datetime import datetime
 from urlparse import urlparse
 from clize import clize
-from flask.ext.bcrypt import generate_password_hash
 from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
 from flask.ext.sslify import SSLify
