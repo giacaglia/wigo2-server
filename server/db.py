@@ -15,6 +15,8 @@ from config import Configuration
 from server.rdbms import DataStrings, DataExpires, DataSets, DataSortedSets, DataIntSortedSets, DataIntSets
 from redis_shard.shard import RedisShardAPI
 
+logger = logging.getLogger('wigo.db')
+
 
 class WigoDB(object):
     def gen_id(self):
@@ -115,6 +117,9 @@ class WigoRedisDB(WigoDB):
         super(WigoRedisDB, self).__init__()
         self.redis = redis
         self.queued_db = queued_db
+
+        if self.queued_db:
+            logger.info('enabling rdbms redis replication')
 
         ID_SCRIPT = """
             local epoch = 1288834974657
