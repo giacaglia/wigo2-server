@@ -70,6 +70,7 @@ def send_email_verification(user_id, resend=False):
     logger.info('sent verification email to "%s"' % user.email)
 
 
+@job('email', connection=redis, timeout=5)
 def send_custom_email(user, subject, category, html, text, template_params=None):
     sendgrid = create_sendgrid()
 

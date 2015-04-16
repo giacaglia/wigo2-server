@@ -94,7 +94,6 @@ class Configuration(object):
     PARSE_ENTERPRISE_REST_KEY = os.environ.get('PARSE_ENTERPRISE_REST_KEY', None)
 
     BLITLINE_APPLICATION_ID = os.environ.get('BLITLINE_APPLICATION_ID', '')
-    BLITLINE_URL = os.environ.get('BLITLINE_URL', '')
 
     PAPERTRAIL_API_TOKEN = os.environ.get('PAPERTRAIL_API_TOKEN', 'BG2MGQF1cinTAHhRZiFe')
     PUSH_ENABLED = os.environ.get('PUSH_ENABLED', 'true') == 'true'

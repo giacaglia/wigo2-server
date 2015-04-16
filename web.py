@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
+from server.rest.uploads import setup_upload_routes
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -62,6 +63,7 @@ setup_login_resources(api)
 setup_register_resources(api)
 setup_user_resources(api)
 setup_event_resources(api)
+setup_upload_routes(app)
 
 admin = Admin(app, name='Wigo', index_view=WigoAdminIndexView())
 admin.add_view(UserModelView(User))

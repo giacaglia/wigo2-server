@@ -9,13 +9,16 @@ from boto.s3.connection import S3Connection
 import requests
 from StringIO import StringIO
 from PIL import Image
+from rq.decorators import job
 from config import Configuration
+from server.db import redis
 from server.models.user import User
 
 
 saving_images = threading.local()
 
 
+@job('email', connection=redis, timeout=5)
 def save_images(user_id):
     cache = {}
 
