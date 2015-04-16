@@ -55,10 +55,10 @@ def start(debug=False):
                     num_run += 1
 
                     if (num_run % 500) == 0:
-                        logger.debug('{} sync commands completed'.format(num_run))
+                        logger.info('{} sync commands completed'.format(num_run))
 
             if not found_something:
-                logger.debug('{} sync commands completed, resetting count'.format(num_run))
+                logger.info('{} sync commands completed, resetting count'.format(num_run))
                 num_run = 0
                 sleep(5)
 
