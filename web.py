@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logconfig
+from config import Configuration
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -17,7 +18,6 @@ from flask.ext.restplus import apidoc
 from flask.ext.sslify import SSLify
 from schematics.exceptions import ModelValidationError
 from rq_dashboard import RQDashboard
-from config import Configuration
 from flask import Flask, render_template, g, request, jsonify
 from flask.ext import restplus
 from flask.ext.admin import Admin

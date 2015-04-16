@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logconfig
+from config import Configuration
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -10,7 +11,6 @@ import cPickle
 from redis import ReadOnlyError
 from time import sleep
 from clize import clize, run
-from config import Configuration
 
 from server.db import redis, wigo_rdbms
 from server.rdbms import db
