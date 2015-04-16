@@ -115,14 +115,6 @@ class User(WigoPersistentModel):
         with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', with_user_id, 'friends'), 0, -1))
         return friend_ids & with_friend_ids
 
-    def save(self):
-        super(User, self).save()
-
-        from server.tasks.images import needs_images_saved, save_images
-
-        if needs_images_saved(self):
-            save_images.delay(user_id=self.id)
-
 
 class Friend(WigoModel):
     user_id = LongType(required=True)
