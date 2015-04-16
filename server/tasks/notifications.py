@@ -117,7 +117,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
 
     notification = Notification({
         'user_id': invited_id,
-        'type': 'tap',
+        'type': 'invite',
         'from_user_id': inviter_id,
         'navigate': '/events/{}'.format(event_id),
         'message': message_text
