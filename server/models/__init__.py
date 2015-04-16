@@ -219,9 +219,9 @@ class WigoModel(Model):
                 self.db.sorted_set_add(skey(self.__class__), self.id, epoch(self.created))
                 self.clean_old(skey(self.__class__))
 
-                self.index()
-                post_model_save.send(self, instance=self, created=created)
-                return self
+            self.index()
+            post_model_save.send(self, instance=self, created=created)
+            return self
         except:
             try:
                 self.delete()  # clean up on failure
