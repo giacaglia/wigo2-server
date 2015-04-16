@@ -32,7 +32,7 @@ from server.models.event import Event
 from server.models.group import Group
 from server.models import Config, DoesNotExist
 from server.rest.login import setup_login_resources
-from server.security import check_basic_auth
+from server.security import check_basic_auth, setup_user_by_token
 from server.tasks.notifications import wire_notifications
 from server.rest.register import setup_register_resources
 from server.rest.user import setup_user_resources
@@ -111,6 +111,8 @@ def setup_request():
         pass
     elif request.path.startswith('/api') and api_key != app.config['API_KEY']:
         abort(403, message='Bad API key')
+
+    setup_user_by_token()
 
     geolocation = request.headers.get('Geolocation')
     if geolocation:

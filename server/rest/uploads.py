@@ -39,6 +39,21 @@ def setup_upload_routes(app):
 
 
     @user_token_required
+    @app.route('/api/uploads/videos/')
+    def get_video_upload_location():
+        user = g.user
+        filename = request.args.get('filename')
+        if not filename:
+            filename = 'video.mp4'
+
+        path_id = uuid4().hex
+        video_form_args = get_upload_location(user, 'video/mp4', filename, path_id)
+        thumbnail_form_args = get_upload_location(user, 'image/jpeg', 'thumbnail.jpg', path_id)
+
+        return jsonify(video=video_form_args, thumbnail=thumbnail_form_args)
+
+
+    @user_token_required
     @app.route('/api/uploads/photos/', methods=['POST'])
     def upload_photo():
         multipart_file = request.files.get('file')
@@ -99,21 +114,6 @@ def setup_upload_routes(app):
             failed_ids = data.get('failed_image_identifiers')
             logger.error('error creating thumbnail for {ids}, {error}'.format(ids=failed_ids, error=errors))
             return jsonify(success=False)
-
-
-    @user_token_required
-    @app.route('/api/uploads/videos/')
-    def get_video_upload_location():
-        user = g.user
-        filename = request.args.get('filename')
-        if not filename:
-            filename = 'video.mp4'
-
-        path_id = uuid4().hex
-        video_form_args = get_upload_location(user, 'video/mp4', filename, path_id)
-        thumbnail_form_args = get_upload_location(user, 'image/jpeg', 'thumbnail.jpg', path_id)
-
-        return jsonify(video=video_form_args, thumbnail=thumbnail_form_args)
 
 
 def get_upload_location(user, mime_type, filename, path_id=None):

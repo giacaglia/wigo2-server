@@ -12,27 +12,31 @@ from server.models.group import Group
 def user_token_required(fn):
     @wraps(fn)
     def decorated(*args, **kwargs):
-        if g.user is None:
-            g.user = None
-
-            user_token = request.headers.get('X-Wigo-User-Key')
-            try:
-                g.user = User.find(key=user_token)
-                if g.group:
-                    if g.user.group_id != g.group.id:
-                        g.user.group_id = g.group.id
-                        g.user.save()
-                elif g.user.group_id:
-                    g.group = Group.find(g.user.group_id)
-            except DoesNotExist:
-                abort(404, message='No user found for key')
-
-        if g.user:
+        user = getattr(g, 'user', None)
+        if user is None:
+            setup_user_by_token()
+            user = getattr(g, 'user', None)
+        if user:
             return fn(*args, **kwargs)
         else:
             abort(403, message='Unauthorized')
-
     return decorated
+
+
+def setup_user_by_token():
+    user_token = request.headers.get('X-Wigo-User-Key')
+    if user_token:
+        try:
+            g.user = User.find(key=user_token)
+            existing_group = getattr(g, 'group', None)
+            if existing_group:
+                if g.user.group_id != existing_group.id:
+                    g.user.group_id = existing_group.id
+                    g.user.save()
+            elif g.user.group_id:
+                g.group = Group.find(g.user.group_id)
+        except DoesNotExist:
+            pass
 
 
 def check_auth(username, password):
@@ -60,4 +64,5 @@ def requires_auth(f):
         if not check_basic_auth():
             return authenticate()
         return f(*args, **kwargs)
+
     return decorated
