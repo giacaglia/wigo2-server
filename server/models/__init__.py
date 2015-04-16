@@ -198,7 +198,7 @@ class WigoModel(Model):
         if kwargs:
             for kwarg in kwargs:
                 if kwarg in cls.unique_indexes:
-                    model_id = wigo_db.get(skey('index', cls, kwarg, kwargs.get(kwarg)))
+                    model_id = wigo_db.get(skey(cls, kwargs.get(kwarg), kwarg, 'index'))
                     if model_id:
                         return cls.find(model_id)
 
@@ -222,6 +222,7 @@ class WigoModel(Model):
             self.index()
             post_model_save.send(self, instance=self, created=created)
             return self
+
         except:
             try:
                 self.delete()  # clean up on failure
@@ -237,25 +238,25 @@ class WigoModel(Model):
                 if self.is_changed(field):
                     old_value = self.get_old_value(field)
                     if old_value:
-                        self.db.sorted_set_remove(skey('index', name, old_value), self.id)
+                        self.db.sorted_set_remove(skey(name, old_value, 'index'), self.id)
 
                 value = getattr(self, field, None)
                 if value is not None:
-                    self.db.sorted_set_add(skey('index', name, value), self.id, epoch(self.created))
-                    self.clean_old(skey('index', name, value))
+                    self.db.sorted_set_add(skey(name, value, 'index'), self.id, epoch(self.created))
+                    self.clean_old(skey(name, value, 'index'))
 
             # process unique indexes
             for field in self.__class__.unique_indexes:
                 if self.is_changed(field):
                     old_value = self.get_old_value(field)
-                    old_key = skey('index', self.__class__, field, old_value)
+                    old_key = skey(self.__class__, old_value, field, 'index')
                     old_indexed = self.db.get(old_key)
                     if old_indexed and int(old_indexed) == self.id:
-                        self.db.delete(skey('index', self.__class__, field, old_value))
+                        self.db.delete(old_key)
 
                 value = getattr(self, field, None)
                 if value is not None:
-                    k = skey('index', self.__class__, field, value)
+                    k = skey(self.__class__, value, field, 'index')
                     existing = self.db.get(k)
                     if existing and int(existing) != self.id:
                         raise IntegrityException('Unique contraint violation, field={}'.format(field))
@@ -275,7 +276,7 @@ class WigoModel(Model):
             value = getattr(self, field, None)
             if value:
                 try:
-                    self.db.sorted_set_remove(skey('index', name, value), self.id)
+                    self.db.sorted_set_remove(skey(name, value, 'index'), self.id)
                 except:
                     pass
 
@@ -283,7 +284,7 @@ class WigoModel(Model):
         for field in self.__class__.unique_indexes:
             value = getattr(self, field, None)
             if value:
-                self.db.delete(skey('index', self.__class__, field, value))
+                self.db.delete(skey(self.__class__, value, field, 'index'))
 
     def clean_old(self, key, ttl=None):
         if ttl is None:
@@ -459,19 +460,28 @@ def skey(*keys):
     key_list = []
     for key in keys:
         if key is True:
-            key = 'true'
+            key_list.append('true')
         elif key is False:
-            key = 'false'
+            key_list.append('false')
         elif key is None:
-            key = 'null'
+            key_list.append('null')
         elif isinstance(key, Model):
-            key = '{}:{}'.format(key.__class__.__name__.lower(), str(key.id))
+            key_list.append(key.__class__.__name__.lower())
+            key_list.append(str(key.id))
         elif isinstance(key, type):
-            key = key.__name__.lower()
+            key_list.append(key.__name__.lower())
         else:
-            key = str(key)
-        key_list.append(key)
-    return ':'.join(key_list)
+            key_list.append(str(key))
+
+    key_str = ''
+    if len(key_list) >= 2:
+        key_str = '{' + key_list[0] + ':' + key_list[1] + '}'
+        key_list = key_list[2:]
+
+    if key_list:
+        return key_str + ':' + ':'.join(key_list)
+    else:
+        return key_str
 
 
 pre_model_save = signal('pre_model_save')

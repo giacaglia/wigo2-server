@@ -138,7 +138,14 @@ def import_old_db(groups=False, users=False, friends=False):
     num_saved = 0
 
     if users:
-        boston = Group.find(code='boston')
+        try:
+            boston = Group.find(code='boston')
+        except DoesNotExist:
+            boston = Group({
+                'name': 'Boston', 'code': 'boston', 'city_id': 4930956,
+                'latitude': 42.3584, 'longitude': -71.0598
+            }).save()
+
         for dbuser in users_table.find(email_validated=True, group=1):
             properties = dbuser.get('properties')
             if isinstance(properties, dict) and 'images' in properties:
