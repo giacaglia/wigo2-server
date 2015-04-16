@@ -3,6 +3,9 @@ from __future__ import absolute_import
 import os
 import ujson
 import logging
+
+logconfig.configure(Configuration.ENVIRONMENT)
+
 from datetime import datetime
 from urlparse import urlparse
 from clize import clize
@@ -34,8 +37,6 @@ from server.rest.user import setup_user_resources
 from server.rest.event import setup_event_resources
 from utils import ValidationException, SecurityException
 
-
-logconfig.configure(Configuration.ENVIRONMENT)
 
 logger = logging.getLogger('wigo.web')
 
