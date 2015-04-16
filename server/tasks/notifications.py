@@ -35,15 +35,15 @@ def notify_on_eventmessage(self, message_id):
             }).save()
 
 
-def create_notification(sender, instance, created):
-    if not created:
-        return
-    #
-    # if isinstance(instance, EventMessage):
-    #     notify_on_eventmessage.delay(message_id=instance.id)
+def wire_notifications_listeners():
+    def notifications_model_listener(sender, instance, created):
+        if not created:
+            return
+            #
+            # if isinstance(instance, EventMessage):
+            # notify_on_eventmessage.delay(message_id=instance.id)
 
 
-def wire_notifications():
-    post_model_save.connect(create_notification)
+    post_model_save.connect(notifications_model_listener, weak=False)
 
 

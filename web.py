@@ -2,7 +2,9 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
-from server.rest.uploads import setup_upload_routes, wire_uploads
+from server.rest.uploads import setup_upload_routes, wire_uploads_listeners
+from server.tasks.images import wire_images_listeners
+from server.tasks.notifications import wire_notifications_listeners
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -25,15 +27,14 @@ from flask.ext.admin import Admin
 from flask.ext.compress import Compress
 from server import ApiSessionInterface
 from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, MessageView, EventModelView, \
-    WigoAdminIndexView
+    WigoAdminIndexView, EventMessageView
 from server.db import wigo_db
 from server.models.user import User, Notification, Message
-from server.models.event import Event
+from server.models.event import Event, EventMessage
 from server.models.group import Group
 from server.models import Config, DoesNotExist
 from server.rest.login import setup_login_resources
 from server.security import check_basic_auth, setup_user_by_token
-from server.tasks.notifications import wire_notifications
 from server.rest.register import setup_register_resources
 from server.rest.user import setup_user_resources
 from server.rest.event import setup_event_resources
@@ -70,27 +71,13 @@ admin.add_view(UserModelView(User))
 admin.add_view(GroupModelView(Group))
 admin.add_view(EventModelView(Event))
 admin.add_view(MessageView(Message))
+admin.add_view(EventMessageView(EventMessage))
 admin.add_view(NotificationView(Notification))
 admin.add_view(ConfigView(Config))
 
-wire_notifications()
-wire_uploads()
-
-
-@app.before_first_request
-def setup_web_app():
-    try:
-        user = User.find(username='admin')
-        user.role = 'admin'
-        user.password = generate_password_hash(Configuration.ADMIN_PASSWORD)
-        user.save()
-    except DoesNotExist:
-        User({
-            'username': 'admin',
-            'password': generate_password_hash(Configuration.ADMIN_PASSWORD),
-            'email': 'jason@wigo.us',
-            'role': 'admin'
-        }).save()
+wire_notifications_listeners()
+wire_uploads_listeners()
+wire_images_listeners()
 
 
 @app.before_request

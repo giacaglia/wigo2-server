@@ -1,13 +1,14 @@
 from __future__ import absolute_import
+
 import logging
 import os
-
 import ujson
+import requests
+
 from urlparse import urlparse, urljoin
 from uuid import uuid4
 from boto.s3.connection import S3Connection
 from flask.ext.restful import abort
-import requests
 from rq.decorators import job
 from werkzeug.utils import secure_filename
 from flask import g, request, jsonify
@@ -148,7 +149,7 @@ def get_upload_location(user, mime_type, filename, path_id=None):
     return params
 
 
-@job('images', connection=redis, timeout=5)
+@job('images', connection=redis, timeout=30, result_ttl=0)
 def process_eventmessage_image(message_id):
     if not Configuration.BLITLINE_APPLICATION_ID:
         logger.warning('blitline not configured, ignoring thumbnail request')
@@ -201,11 +202,12 @@ def process_eventmessage_image(message_id):
                      'for event message {id}, {error}'.format(id=message.id, error=resp.content))
 
 
-def wire_uploads():
-    def on_model_save(sender, instance, created):
+def wire_uploads_listeners():
+    def uploads_model_listener(sender, instance, created):
         if isinstance(instance, EventMessage):
             process_eventmessage_image.delay(instance.id)
 
-    post_model_save.connect(on_model_save)
+
+    post_model_save.connect(uploads_model_listener, weak=False)
 
 

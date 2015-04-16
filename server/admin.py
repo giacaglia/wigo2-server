@@ -205,7 +205,12 @@ class NotificationView(RedisModelView):
 
 class MessageView(RedisModelView):
     def scaffold_list_columns(self):
-        return ['id', 'user_id', 'to_user_id']
+        return ['id', 'user_id', 'to_user_id', 'created']
+
+
+class EventMessageView(RedisModelView):
+    def scaffold_list_columns(self):
+        return ['id', 'user_id', 'created']
 
 
 class ConfigView(RedisModelView):

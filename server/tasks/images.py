@@ -12,13 +12,14 @@ from PIL import Image
 from rq.decorators import job
 from config import Configuration
 from server.db import redis
+from server.models import post_model_save
 from server.models.user import User
 
 
 saving_images = threading.local()
 
 
-@job('email', connection=redis, timeout=5)
+@job('images', connection=redis, timeout=60, result_ttl=0)
 def save_images(user_id):
     cache = {}
 
@@ -102,8 +103,8 @@ def save_images(user_id):
     if len(images) == 0:
         images.append({
             'id': 'profile',
-            'url': 'https://graph.facebook.com/%s/picture?width=600&height=600' % user.get_facebook_id(),
-            'small': 'https://graph.facebook.com/%s/picture?width=200&height=200' % user.get_facebook_id()
+            'url': 'https://graph.facebook.com/%s/picture?width=600&height=600' % user.facebook_id,
+            'small': 'https://graph.facebook.com/%s/picture?width=200&height=200' % user.facebook_id
         })
 
     if images != user.images:
@@ -179,3 +180,14 @@ def upload_image(path, img):
 
 class ImageGoneException(Exception):
     pass
+
+
+def wire_images_listeners():
+    def images_model_listener(sender, instance, created):
+        if isinstance(instance, User):
+            if needs_images_saved(instance):
+                save_images.delay(instance.id)
+
+    post_model_save.connect(images_model_listener, weak=False)
+
+

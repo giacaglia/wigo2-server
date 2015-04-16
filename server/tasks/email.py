@@ -16,7 +16,7 @@ def create_sendgrid():
     return SendGridClient(Configuration.MAIL_USERNAME, Configuration.MAIL_PASSWORD, raise_errors=True)
 
 
-@job('email', connection=redis, timeout=5)
+@job('email', connection=redis, timeout=30, result_ttl=0)
 def send_email_verification(user_id, resend=False):
     if not Configuration.PUSH_ENABLED:
         return
@@ -70,7 +70,7 @@ def send_email_verification(user_id, resend=False):
     logger.info('sent verification email to "%s"' % user.email)
 
 
-@job('email', connection=redis, timeout=5)
+@job('email', connection=redis, timeout=30, result_ttl=0)
 def send_custom_email(user, subject, category, html, text, template_params=None):
     sendgrid = create_sendgrid()
 
