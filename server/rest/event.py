@@ -146,6 +146,7 @@ def setup_event_resources(api):
 
         @user_token_required
         @api.expect(EventMessage.to_doc_list_model(api))
+        @api.response(200, 'Success', model=Event.to_doc_list_model(api))
         def post(self, event_id):
             data = dict(request.get_json())
             data['event_id'] = event_id

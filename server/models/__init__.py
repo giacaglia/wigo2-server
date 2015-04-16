@@ -208,6 +208,9 @@ class WigoModel(Model):
 
     def save(self):
         self.validate(strict=True)
+
+        self.modified = datetime.utcnow()
+
         created = self.id is None if hasattr(self, 'id') else True
         pre_model_save.send(self, instance=self)
 

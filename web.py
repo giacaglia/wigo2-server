@@ -70,8 +70,8 @@ admin = Admin(app, name='Wigo', index_view=WigoAdminIndexView())
 admin.add_view(UserModelView(User))
 admin.add_view(GroupModelView(Group))
 admin.add_view(EventModelView(Event))
-admin.add_view(MessageView(Message))
 admin.add_view(EventMessageView(EventMessage))
+admin.add_view(MessageView(Message))
 admin.add_view(NotificationView(Notification))
 admin.add_view(ConfigView(Config))
 
@@ -233,7 +233,6 @@ def sendgrid_hook():
 
             logger.info('updating email validation status for user "%s", %s' % (user.email, event))
             user.email_validated_status = event
-            user.modified = datetime.datetime.utcnow()
             user.save()
 
     return jsonify(success=True)

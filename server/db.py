@@ -183,7 +183,7 @@ class WigoRedisDB(WigoDB):
         else:
             result = self.redis.set(key, self.encode(value, dict))
 
-        if self.queued_db:
+        if self.queued_db and long_term_expires != 0:
             self.queued_db.set(key, value, expires, long_term_expires)
 
         return result
@@ -236,9 +236,9 @@ class WigoRedisDB(WigoDB):
             self.queued_db.set_remove(key, value)
         return result
 
-    def sorted_set_add(self, key, value, score, dt=None):
+    def sorted_set_add(self, key, value, score, dt=None, replicate=True):
         result = self.redis.zadd(key, self.encode(value, dt), score)
-        if self.queued_db:
+        if replicate and self.queued_db:
             self.queued_db.sorted_set_add(key, value, score)
         return result
 
@@ -273,6 +273,10 @@ class WigoRedisDB(WigoDB):
     def sorted_set_remove_by_score(self, key, min, max, dt=None):
         # don't replicate remove by score to long term storage
         return self.redis.zremrangebyscore(key, min, max)
+
+    def sorted_set_remove_by_rank(self, key, start, stop):
+        # don't replicate remove by score to long term storage
+        return self.redis.zremrangebyrank(key, start, stop)
 
 
 # noinspection PyAbstractClass

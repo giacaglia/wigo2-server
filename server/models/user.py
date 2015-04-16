@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from uuid import uuid4
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
@@ -114,6 +114,19 @@ class User(WigoPersistentModel):
         friend_ids = set(wigo_db.sorted_set_rrange(skey(self, 'friends'), 0, -1))
         with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', with_user_id, 'friends'), 0, -1))
         return friend_ids & with_friend_ids
+
+    def track_friend_interaction(self, user):
+        from server.db import wigo_db
+
+        if self.is_friend(user):
+            tf_key = skey(self, 'top_friends')
+            wigo_db.sorted_set_add(tf_key, user.id, epoch(datetime.utcnow()), replicate=False)
+
+            # don't let the set get too long
+            size = wigo_db.get_sorted_set_size(tf_key)
+            if size > 15:
+                wigo_db.sorted_set_remove_by_rank(tf_key, 0, size-15)
+
 
 
 class Friend(WigoModel):
@@ -265,7 +278,8 @@ class Notification(WigoModel):
         return User.find(self.from_user_id)
 
     def index(self):
-        self.db.sorted_set_add(skey(self.user, 'notifications'), self.to_json(), epoch(self.created), dt=dict)
+        self.db.sorted_set_add(skey(self.user, 'notifications'), self.to_json(),
+                               epoch(self.created), dt=dict, replicate=False)
         self.clean_old(skey(self.user, 'notifications'))
 
     def delete(self):

@@ -204,8 +204,9 @@ def process_eventmessage_image(message_id):
 
 def wire_uploads_listeners():
     def uploads_model_listener(sender, instance, created):
-        if isinstance(instance, EventMessage):
-            process_eventmessage_image.delay(instance.id)
+        if created and isinstance(instance, EventMessage):
+            if instance.media_mime_type == 'image/jpeg' and not instance.thumbnail:
+                process_eventmessage_image.delay(instance.id)
 
 
     post_model_save.connect(uploads_model_listener, weak=False)
