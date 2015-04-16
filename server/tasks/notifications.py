@@ -1,11 +1,13 @@
 from __future__ import absolute_import
+from rq.decorators import job
 
-from server.db import rate_limit
+from server.db import rate_limit, redis
 from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage
 from server.models.user import User, Notification
 
 
+@job('notifications', connection=redis, timeout=30, result_ttl=0)
 def notify_on_eventmessage(self, message_id):
     try:
         message = EventMessage.find(message_id)
@@ -39,10 +41,9 @@ def wire_notifications_listeners():
     def notifications_model_listener(sender, instance, created):
         if not created:
             return
-            #
-            # if isinstance(instance, EventMessage):
-            # notify_on_eventmessage.delay(message_id=instance.id)
 
+        if isinstance(instance, EventMessage):
+            notify_on_eventmessage.delay(message_id=instance.id)
 
     post_model_save.connect(notifications_model_listener, weak=False)
 

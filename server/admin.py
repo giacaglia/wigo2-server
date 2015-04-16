@@ -167,7 +167,7 @@ class UserModelView(RedisModelView):
         password = form.password.data
         updated = super(UserModelView, self).update_model(form, model)
         if password != existing_password:
-            model.password = generate_password_hash(password)
+            model.password = generate_password_hash(password) if password else None
             model.save()
         return updated
 
@@ -205,12 +205,12 @@ class NotificationView(RedisModelView):
 
 class MessageView(RedisModelView):
     def scaffold_list_columns(self):
-        return ['id', 'user_id', 'to_user_id', 'created']
+        return ['id', 'user_id', 'to_user_id']
 
 
 class EventMessageView(RedisModelView):
     def scaffold_list_columns(self):
-        return ['id', 'user_id', 'created']
+        return ['id', 'user_id', '']
 
 
 class ConfigView(RedisModelView):
