@@ -339,7 +339,7 @@ class WigoRdbms(WigoDB):
                 ds.expires = long_term_expires
                 ds.save()
         except DoesNotExist:
-            if expires:
+            if long_term_expires:
                 DataExpires.create(key=key, expires=long_term_expires)
 
     def get(self, key):
