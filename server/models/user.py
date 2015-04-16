@@ -129,8 +129,7 @@ class User(WigoPersistentModel):
             # don't let the set get too long
             size = wigo_db.get_sorted_set_size(tf_key)
             if size > 15:
-                wigo_db.sorted_set_remove_by_rank(tf_key, 0, size-15)
-
+                wigo_db.sorted_set_remove_by_rank(tf_key, 0, size - 15)
 
 
 class Friend(WigoModel):

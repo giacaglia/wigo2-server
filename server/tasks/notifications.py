@@ -78,11 +78,8 @@ def notify_on_message(message_id):
         message_text = message_text[0:1000]
 
     push.alert(data={
-        'id': message.id,
+        'navigate': '/messages/{}'.format(from_user.id),
         'sound': 'chord',
-        'from_user': {
-            'id': from_user.id
-        },
         'alert': {
             'body': '{}: {}'.format(from_user.full_name, message_text),
         }
@@ -103,9 +100,8 @@ def notify_on_tap(user_id, tapped_id):
         'user_id': tapped_id,
         'type': 'tap',
         'from_user_id': user_id,
-        'properties': {
-            'message': message_text
-        }
+        'navigate': '/users/{}'.format(user_id),
+        'message': message_text
     }).save()
 
     send_notification_push(notification)
