@@ -258,22 +258,22 @@ class WigoDbListResource(WigoResource):
 
 @api.errorhandler(ModelValidationError)
 def handle_model_validation_error(error):
-    return error.message, 400
+    return {'message': error.message}, 400
 
 
 @api.errorhandler(ValidationException)
 def handle_validation_exception(error):
-    return error.message, 400
+    return {'message': error.message}, 400
 
 
 @api.errorhandler(SecurityException)
 def handle_security_exception(error):
-    return error.message, 403
+    return {'message': error.message}, 403
 
 
 @api.errorhandler(NotImplementedError)
 def handle_not_implemented(error):
-    return error.message, 501
+    return {'message': error.message}, 501
 
 
 import server.rest.register

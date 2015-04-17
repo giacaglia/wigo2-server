@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 import math
 from datetime import datetime, timedelta
-from server.models import Dated, user_eventmessages_key, skey, user_attendees_key, DoesNotExist
+from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist
 from server.models.event import EventMessage, EventAttendee, Event
 from server.models.group import Group
-from server.models.user import Message, User
+from server.models.user import Message, User, Notification
 from utils import returns_clone, epoch
 
 
@@ -161,6 +161,8 @@ class SelectQuery(object):
             return self.__get_page(skey(self._user, 'friend_requests'))
         elif self._user and self._model_class == Message:
             return self.__get_conversation()
+        elif self._user and self._model_class == Notification:
+            return self.__get_notifications()
         elif self._user and self._model_class == Event:
             group = self._group if self._group else self._user.group
             return self.__get_page(skey(group, self._user, 'events'))
@@ -206,7 +208,7 @@ class SelectQuery(object):
             if min is None:
                 min = epoch(datetime.utcnow() - timedelta(days=7))
             if max is None:
-                max = epoch(Dated.get_expires(self._group.timezone))
+                max = epoch(self._group.get_day_end())
 
         if self._order == 'desc':
             range_f = self.db.sorted_set_rrange_by_score
@@ -218,11 +220,15 @@ class SelectQuery(object):
         return count, self._model_class.find(model_ids)
 
     def __get_group(self):
-        return Group.find(lat=self._lat, lon=self._lon)
+        try:
+            group = Group.find(lat=self._lat, lon=self._lon)
+            return 1, [group]
+        except:
+            return 0, []
 
     def __get_conversation(self):
         if self._to_user:
-            return self.__get_page(skey(self._user, 'conversation', self._to_user))
+            return self.__get_page(skey(self._user, 'conversation', self._to_user.id))
         else:
             query = User.select().key(
                 skey(self._user, 'conversations')
@@ -230,18 +236,19 @@ class SelectQuery(object):
             count, users = query.execute()
             message_ids = []
             for user in users:
-                last_message_id = self.db.get(skey(self._user, 'conversation', user, 'last_message'))
+                last_message_id = self.db.get(skey(self._user, 'conversation', user.id, 'last_message'))
                 message_ids.append(last_message_id)
             return count, Message.find(message_ids)
+
+    def __get_notifications(self):
+        return self.__get_page(skey(self._user, 'notifications'))
 
     def __filtered(self):
         try:
             instance = self._model_class.find(**self._where)
-            if instance:
-                return 1, [instance]
+            return 1, [instance]
         except DoesNotExist:
-            pass
-        return 0, []
+            return 0, []
 
     def __get_by_event(self):
         if self._model_class == EventMessage:

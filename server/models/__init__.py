@@ -4,10 +4,10 @@ import logging
 import ujson
 
 from blinker import signal
-from pytz import timezone, UTC
-from datetime import datetime, tzinfo, timedelta
+from datetime import datetime, timedelta
 
 from flask.ext.restplus import fields as docfields
+import re
 
 from schematics.models import Model
 from schematics.transforms import blacklist
@@ -17,6 +17,7 @@ from utils import dotget, epoch, memoize
 
 logger = logging.getLogger('wigo.model')
 
+INDEX_FIELD = re.compile('\{(.*?)\}', re.I)
 
 class JsonType(BaseType):
     def _mock(self, context=None):
@@ -31,7 +32,6 @@ class JsonType(BaseType):
 
 class WigoModel(Model):
     indexes = ()
-    unique_indexes = ()
 
     created = DateTimeType(default=datetime.utcnow)
     modified = DateTimeType(default=datetime.utcnow)
@@ -69,8 +69,8 @@ class WigoModel(Model):
     def prepared(self):
         self._changes.clear()
 
-    def is_changed(self, key):
-        return key in self._changes
+    def is_changed(self, *keys):
+        return any(k for k in keys if k in self._changes.keys())
 
     def get_old_value(self, key):
         if self.is_changed(key):
@@ -194,13 +194,15 @@ class WigoModel(Model):
                 return instance
             raise DoesNotExist(cls, model_id)
 
-        # search the unique indexes
+        # search the indexes
         if kwargs:
             for kwarg in kwargs:
-                if kwarg in cls.unique_indexes:
-                    model_id = wigo_db.get(skey(cls, kwargs.get(kwarg), kwarg, 'index'))
-                    if model_id:
-                        return cls.find(model_id)
+                applicable_indexes = [key_tmpl for key_tmpl, unique in cls.indexes if kwarg in key_tmpl]
+                for key_tmpl in applicable_indexes:
+                    key = index_key(key_tmpl, {kwarg: kwargs.get(kwarg)})
+                    model_ids = wigo_db.sorted_set_range(key, 0, -1)
+                    if model_ids:
+                        return cls.find(model_ids[0])
 
             raise DoesNotExist()
 
@@ -218,76 +220,79 @@ class WigoModel(Model):
         try:
             if hasattr(self, 'id'):
                 self.check_id()
-                self.db.set(skey(self), self.to_json(), self.ttl())
-                self.db.sorted_set_add(skey(self.__class__), self.id, epoch(self.created))
-                self.clean_old(skey(self.__class__))
 
+            # check indexes to make sure there are no integrity issues
+            self.check_indexes()
+
+            # index
             self.index()
+
+            # save
+            if hasattr(self, 'id'):
+                self.db.set(skey(self), self.to_json(), self.ttl())
+
+            self.prepared()
             post_model_save.send(self, instance=self, created=created)
             return self
 
         except:
-            try:
-                self.delete()  # clean up on failure
-            except:
-                logger.exception('error cleaning up')
+            # only cleanup if this was a new record that threw an exception
+            if created:
+                try:
+                    self.delete()  # clean up on failure
+                except:
+                    logger.exception('error cleaning up')
 
             raise
 
+    def __each_index(self):
+        # process indexes
+        for key_template, unique in self.indexes:
+            key = None
+            fields = get_index_fields(key_template)
+            id_field = get_id_field(key_template)
+            id_value = getattr(self, id_field, None)
+            if id_value:
+                # check if the old index entry needs to be removed
+                if fields and self.is_changed(fields):
+                    old_values = {f: (self.get_old_value(f) if self.is_changed(f)
+                                      else getattr(self, f, None)) for f in fields}
+                    self.db.sorted_set_remove(index_key(key_template, old_values), id_value)
+
+                # record the new index entry
+                if fields:
+                    values = {f: getattr(self, f, None) for f in fields}
+                    key = index_key(key_template, values)
+                else:
+                    key = key_template
+
+                if key:
+                    yield key, id_value, unique
+
+    def get_index_score(self):
+        return epoch(self.created)
+
+    def check_indexes(self):
+        for key, id_value, unique in self.__each_index():
+            if (unique and self.db.get_sorted_set_size(key) > 0 and
+                    not self.db.sorted_set_is_member(key, id_value)):
+                raise IntegrityException('Unique contraint violation, key={}'.format(key))
+
     def index(self):
-        if hasattr(self, 'id'):
-            # process indexes
-            for name, field in self.indexes:
-                if self.is_changed(field):
-                    old_value = self.get_old_value(field)
-                    if old_value:
-                        self.db.sorted_set_remove(skey(name, old_value, 'index'), self.id)
-
-                value = getattr(self, field, None)
-                if value is not None:
-                    self.db.sorted_set_add(skey(name, value, 'index'), self.id, epoch(self.created))
-                    self.clean_old(skey(name, value, 'index'))
-
-            # process unique indexes
-            for field in self.__class__.unique_indexes:
-                if self.is_changed(field):
-                    old_value = self.get_old_value(field)
-                    old_key = skey(self.__class__, old_value, field, 'index')
-                    old_indexed = self.db.get(old_key)
-                    if old_indexed and int(old_indexed) == self.id:
-                        self.db.delete(old_key)
-
-                value = getattr(self, field, None)
-                if value is not None:
-                    k = skey(self.__class__, value, field, 'index')
-                    existing = self.db.get(k)
-                    if existing and int(existing) != self.id:
-                        raise IntegrityException('Unique contraint violation, field={}'.format(field))
-                    self.db.set(k, self.id, self.ttl())
+        for key, id_value, unique in self.__each_index():
+            self.db.sorted_set_add(key, id_value, self.get_index_score())
+            self.clean_old(key)
 
     def delete(self):
         if hasattr(self, 'id'):
             self.db.delete(skey(self))
-            self.db.sorted_set_remove(skey(self.__class__), self.id)
 
         self.remove_index()
         return self
 
     def remove_index(self):
-        # process indexes
-        for name, field in self.indexes:
-            value = getattr(self, field, None)
-            if value:
-                try:
-                    self.db.sorted_set_remove(skey(name, value, 'index'), self.id)
-                except:
-                    pass
-
-        # process unique indexes
-        for field in self.__class__.unique_indexes:
-            value = getattr(self, field, None)
-            if value:
-                self.db.delete(skey(self.__class__, value, field, 'index'))
+        for key, id_value, unique in self.__each_index():
+            self.db.sorted_set_remove(key, id_value)
 
     def clean_old(self, key, ttl=None):
         if ttl is None:
@@ -363,61 +368,6 @@ class WigoPersistentModel(WigoModel):
         return self.id == other.id
 
 
-class Dated(WigoModel):
-    date = DateTimeType(required=True)
-    expires = DateTimeType(required=True)
-
-    def ttl(self):
-        return timedelta(days=8)
-
-    def save(self):
-        if not self.date and not self.expires and self.group:
-            self.date, self.expires = self.get_dates(self.group.timezone)
-        super(Dated, self).save()
-
-    @serializable
-    def is_expired(self):
-        return datetime.utcnow() > self.expires
-
-    @classmethod
-    def get_expires(cls, tz_arg, current=None):
-        date, expires = Dated.get_dates(tz_arg, current)
-        return expires
-
-    @classmethod
-    def get_today(cls, tz_arg):
-        return Dated.get_expires(tz_arg) - timedelta(days=1)
-
-    @classmethod
-    def get_dates(cls, tz_arg, current=None):
-        if current is None:
-            if not tz_arg:
-                tz = timezone('US/Eastern')
-            elif isinstance(tz_arg, basestring):
-                tz = timezone(tz_arg)
-            elif isinstance(tz_arg, tzinfo):
-                tz = tz_arg
-            else:
-                raise ValueError('Invalid timezone')
-
-            # get current time in the correct timezone
-            current = datetime.now(tz)
-
-        current = current.replace(minute=0, second=0, microsecond=0)
-
-        # if it is < 6am, the date will be 0am, and the expires will be 6am the SAME day
-        # if it is > 6am, the date will be 6am, and the expires will be 6am the NEXT day
-        if current.hour < 6:
-            date = current.replace(hour=0).astimezone(UTC).replace(tzinfo=None)
-            expires = current.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
-        else:
-            date = current.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
-            next_day = current + timedelta(days=1)
-            expires = next_day.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
-
-        return date, expires
-
-
 class Config(WigoPersistentModel):
     group_id = LongType()
     name = StringType()
@@ -486,6 +436,25 @@ def skey(*keys):
         return (key_str + ':' + joined_keys) if key_str else joined_keys
     else:
         return key_str
+
+
+def get_index_fields(key):
+    return INDEX_FIELD.findall(key.split('=')[0])
+
+
+def get_id_field(key):
+    split = key.split('=')
+    if len(split) == 2:
+        m = INDEX_FIELD.search(split[1])
+        if m:
+            return m.group(1)
+    return 'id'
+
+
+def index_key(key_template, values):
+    split = key_template.split('=')
+    key = split[0].format(**values)
+    return skey(*key.split(':'))
 
 
 pre_model_save = signal('pre_model_save')

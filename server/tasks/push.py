@@ -17,14 +17,17 @@ def alert(data, where, enterprise=False, scheduled_datetime=None):
     return __send(packet, enterprise)
 
 
-def send(data, enterprise=False):
+def __send(data, enterprise=False):
     result = None
     if Configuration.PUSH_ENABLED:
         result = __post(data, Configuration.PARSE_APPLICATION_ID, Configuration.PARSE_REST_KEY)
         if enterprise:
             result = __post(data, Configuration.PARSE_ENTERPRISE_APPLICATION_ID,
                           Configuration.PARSE_ENTERPRISE_REST_KEY)
-    return result
+        return result
+    else:
+        logger.info('NOT sending push, data={}'.format(data))
+        return None
 
 
 def __post(data, app_id, rest_key):

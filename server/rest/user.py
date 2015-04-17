@@ -151,9 +151,15 @@ class InviteListResource(WigoResource):
         return {'success': True}
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/taps')
 class TapListResource(WigoResource):
     model = Tap
+
+    @user_token_required
+    @api.response(200, 'Success')
+    def get(self, user_id):
+        return g.user.get_tapped_ids()
 
     @user_token_required
     @api.expect(api.model('NewTap', {
@@ -168,16 +174,18 @@ class TapListResource(WigoResource):
         tap.save()
         return {'success': True}
 
+
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/taps/<int:tapped_id>')
 class DeleteTapResource(WigoResource):
     model = Friend
 
     @user_token_required
     @api.response(200, 'Success')
-    def delete(self, user_id, friend_id):
+    def delete(self, user_id, tapped_id):
         tap = Tap()
         tap.user_id = g.user.id
-        tap.tapped_id = self.get_id(request.get_json().get('tapped_id'))
+        tap.tapped_id = tapped_id
         tap.delete()
 
         return {'success': True}
@@ -246,13 +254,14 @@ class ConversationWithUserResource(WigoResource):
         return {'success': True}
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/notifications')
 class NotificationsResource(WigoResource):
     model = Notification
 
     @user_token_required
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
-    def get(self):
+    def get(self, user_id):
         count, instances = self.select().user(g.user).execute()
         return self.serialize_list(self.model, instances, count)
 

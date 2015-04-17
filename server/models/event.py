@@ -1,9 +1,10 @@
 from __future__ import absolute_import
 from datetime import timedelta, datetime
 from schematics.transforms import blacklist
-from schematics.types import LongType, StringType, IntType
+from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
-from server.models import WigoModel, WigoPersistentModel, Dated, get_score_key, skey, DoesNotExist, \
+from schematics.types.serializable import serializable
+from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, \
     AlreadyExistsException, user_attendees_key, user_eventmessages_key
 from server.models.user import User
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException, memoize
@@ -11,19 +12,37 @@ from utils import strip_unicode, strip_punctuation, epoch, ValidationException, 
 EVENT_LEADING_STOP_WORDS = {"a", "the"}
 
 
-class Event(WigoPersistentModel, Dated):
+class Event(WigoPersistentModel):
+    indexes = (
+        ('event', False),
+    )
+
     group_id = LongType(required=True)
     owner_id = LongType()
     name = StringType(required=True)
     privacy = StringType(choices=('public', 'private'), required=True, default='public')
+
+    date = DateTimeType(required=True)
+    expires = DateTimeType(required=True)
+
     tags = ListType(StringType)
+
+    @serializable
+    def is_expired(self):
+        return datetime.utcnow() > self.expires
+
+    def ttl(self):
+        return timedelta(days=8)
 
     def validate(self, partial=False, strict=False):
         if self.id is None and self.privacy == 'public':
             # for new events make sure there is an existing event with the same name
-            existing_event = self.find(group=self.group, name=self.name)
-            if existing_event and existing_event.id != self.id:
-                raise AlreadyExistsException(existing_event)
+            try:
+                existing_event = self.find(group=self.group, name=self.name)
+                if existing_event.id != self.id:
+                    raise AlreadyExistsException(existing_event)
+            except DoesNotExist:
+                pass
 
         return super(Event, self).validate(partial, strict)
 
@@ -44,7 +63,7 @@ class Event(WigoPersistentModel, Dated):
                     return Event.find(int(event_id))
                 except DoesNotExist:
                     wigo_db.delete(uniqe_name_key)
-            return None
+            raise DoesNotExist()
 
         return super(Event, cls).find(*args, **kwargs)
 
@@ -62,7 +81,13 @@ class Event(WigoPersistentModel, Dated):
 
     def save(self):
         created = self.id is None
+
+        if not self.date and not self.expires and self.group:
+            self.date = self.group.get_day_start()
+            self.expires = self.group.get_day_end()
+
         super(Event, self).save()
+
         if created and self.owner_id:
             EventAttendee({
                 'user_id': self.owner_id,
@@ -79,7 +104,6 @@ class Event(WigoPersistentModel, Dated):
         events_key = skey('group', self.group_id, 'events')
         attendees_key = skey(self, 'attendees')
         event_name_key = skey(group, Event, Event.event_key(self.name))
-        existing_event = self.find(group=group, name=self.name)
 
         if self.privacy == 'public':
             self.db.set(event_name_key, self.id, self.expires, self.expires)
@@ -89,8 +113,13 @@ class Event(WigoPersistentModel, Dated):
             else:
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, num_attending))
         else:
-            if existing_event and existing_event.id == self.id:
-                self.db.delete(event_name_key)
+            try:
+                existing_event = self.find(group=group, name=self.name)
+                if existing_event.id == self.id:
+                    self.db.delete(event_name_key)
+            except DoesNotExist:
+                pass
+
             self.db.sorted_set_remove(events_key, self.id)
 
     def add_to_user_events(self, user, remove_empty=False):
@@ -137,9 +166,12 @@ class Event(WigoPersistentModel, Dated):
         self.db.delete(skey(self, 'attendees'))
         self.db.delete(skey(self, 'messages'))
 
-        existing_event = self.find(group=group, name=self.name)
-        if existing_event and existing_event.id == self.id:
-            self.db.delete(skey(group, Event, Event.event_key(self.name)))
+        try:
+            existing_event = self.find(group=group, name=self.name)
+            if existing_event.id == self.id:
+                self.db.delete(skey(group, Event, Event.event_key(self.name)))
+        except:
+            pass
 
     @classmethod
     def annotate_list(cls, events, user, attendees_limit=5, messages_limit=5):
@@ -276,8 +308,15 @@ class EventMessage(WigoPersistentModel):
 
 
 class EventMessageVote(WigoModel):
+    indexes = (
+        ('message:{message_id}:votes={user_id}', False),
+    )
+
     message_id = LongType(required=True)
     user_id = LongType(required=True)
+
+    def ttl(self):
+        return timedelta(days=8)
 
     @property
     @memoize('message_id')
@@ -285,15 +324,3 @@ class EventMessageVote(WigoModel):
         from server.models.user import User
 
         return User.find(self.message_id)
-
-    def index(self):
-        super(EventMessageVote, self).index()
-        message = EventMessage.find(self.message_id)
-        votes_key = skey(message, 'votes')
-        self.db.set_add(votes_key, self.user_id)
-        self.db.expire(votes_key, timedelta(days=8))
-
-    def remove_index(self):
-        super(EventMessageVote, self).remove_index()
-        message = EventMessage.find(self.message_id)
-        self.db.set_remove(skey(message, 'votes'), self.user_id)

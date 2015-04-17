@@ -4,7 +4,7 @@ import logging
 from server.tasks import push
 from rq.decorators import job
 from server.db import rate_limit, redis
-from server.models import DoesNotExist, post_model_save, Dated
+from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage, EventMessageVote, Event
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
 
@@ -36,7 +36,7 @@ def notify_on_eventmessage(message_id):
                 'message': message_text
             }).save()
 
-            send_notification_push(notification)
+            send_notification_push.delay(notification_id=notification.id)
 
 
 @job('notifications', connection=redis, timeout=30, result_ttl=0)
@@ -49,8 +49,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
             message.user.is_blocked(voter):
         return
 
-    expires = Dated.get_expires(message.user.group.timezone)
-
+    expires = message.user.group.get_day_end()
     with rate_limit('eventmessagevote:%s:%s:%s' % (message.user_id, message_id, voter_id), expires) as limited:
         if not limited:
             message_text = '{name} liked your photo in {event}'.format(
@@ -64,7 +63,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
                 'message': message_text
             }).save()
 
-            send_notification_push(notification)
+            send_notification_push.delay(notification_id=notification.id)
 
 
 @job('notifications', connection=redis, timeout=30, result_ttl=0)
@@ -91,20 +90,21 @@ def notify_on_message(message_id):
 
 @job('notifications', connection=redis, timeout=30, result_ttl=0)
 def notify_on_tap(user_id, tapped_id):
-    user = User.find(user_id)
     tapped = User.find(tapped_id)
+    expires = tapped.group.get_day_end()
+    with rate_limit('tap:{}:{}'.format(user_id, tapped_id), expires) as limited:
+        if not limited:
+            user = User.find(user_id)
+            message_text = '{} wants to see you out'.format(user.full_name)
+            notification = Notification({
+                'user_id': tapped_id,
+                'type': 'tap',
+                'from_user_id': user_id,
+                'navigate': '/users/{}'.format(user_id),
+                'message': message_text
+            }).save()
 
-    message_text = '{} wants to see you out'.format(user.full_name)
-
-    notification = Notification({
-        'user_id': tapped_id,
-        'type': 'tap',
-        'from_user_id': user_id,
-        'navigate': '/users/{}'.format(user_id),
-        'message': message_text
-    }).save()
-
-    send_notification_push(notification)
+            send_notification_push.delay(notification_id=notification.id)
 
 
 @job('notifications', connection=redis, timeout=30, result_ttl=0)
@@ -123,7 +123,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
         'message': message_text
     }).save()
 
-    send_notification_push(notification)
+    send_notification_push.delay(notification_id=notification.id)
 
 
 @job('notifications', connection=redis, timeout=30, result_ttl=0)
@@ -144,10 +144,13 @@ def notify_on_friend(user_id, friend_id, accepted):
         'message': message_text
     }).save()
 
-    send_notification_push(notification)
+    send_notification_push.delay(notification_id=notification.id)
 
 
-def send_notification_push(notification):
+@job('push', connection=redis, timeout=30, result_ttl=0)
+def send_notification_push(notification_id):
+    notification = Notification.find(notification_id)
+
     push.alert(data={
         'id': notification.id,
         'navigate': notification.navigate,

@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from uuid import uuid4
 from datetime import timedelta, datetime
 
+from time import time
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
 from schematics.types.serializable import serializable
@@ -17,8 +18,14 @@ class Role(object):
 
 
 class User(WigoPersistentModel):
-    unique_indexes = ('facebook_id', 'email', 'username', 'key')
-    indexes = (('group', 'group_id'),)
+    indexes = (
+        ('user:{facebook_id}:facebook_id', True),
+        ('user:{email}:email', True),
+        ('user:{username}:username', True),
+        ('user:{key}:key', True),
+        ('user', False),
+        ('group:{group_id}:users', False),
+    )
 
     class Options:
         roles = {'www': blacklist('facebook_token', 'key', 'status', 'role', 'group_id', 'user_id',
@@ -97,6 +104,10 @@ class User(WigoPersistentModel):
     def is_friend(self, friend):
         return self.db.sorted_set_is_member(skey(self, 'friends'), friend.id)
 
+    def is_tapped(self, tapped):
+        score = self.db.sorted_set_get_score(skey(self, 'tapped'), tapped.id)
+        return score and score > time()
+
     def is_blocked(self, user):
         return False
 
@@ -118,6 +129,10 @@ class User(WigoPersistentModel):
         friend_ids = set(wigo_db.sorted_set_rrange(skey(self, 'friends'), 0, -1))
         with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', with_user_id, 'friends'), 0, -1))
         return friend_ids & with_friend_ids
+
+    def get_tapped_ids(self):
+        from server.db import wigo_db
+        return wigo_db.sorted_set_range_by_score(skey(self, 'tapped'), time(), 'inf')
 
     def track_friend_interaction(self, user):
         from server.db import wigo_db
@@ -174,6 +189,7 @@ class Friend(WigoModel):
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
             friend_requests_key = skey('user', self.friend_id, 'friend_requests')
             self.db.sorted_set_add(friend_requests_key, self.user_id, epoch(self.created))
+
             # clean out old friend requests
             self.clean_old(friend_requests_key, timedelta(days=30))
 
@@ -198,8 +214,18 @@ class Friend(WigoModel):
 
 
 class Tap(WigoModel):
+    indexes = (
+        ('user:{user_id}:tapped={tapped_id}', False),
+    )
+
     user_id = LongType(required=True)
     tapped_id = LongType(required=True)
+
+    def ttl(self):
+        return timedelta(days=8)
+
+    def get_index_score(self):
+        return epoch(self.tapped.group.get_day_end(self.created))
 
     @property
     @memoize('tapped_id')
@@ -209,23 +235,22 @@ class Tap(WigoModel):
     def save(self):
         if not self.user.is_friend(self.tapped):
             raise ValidationException('Not friends')
+        if self.user.is_tapped(self.tapped):
+            raise ValidationException('Already tapped')
         return super(Tap, self).save()
-
-    def index(self):
-        super(Tap, self).index()
-        tapped_key = skey('user', self.user_id, 'tapped')
-        self.db.sorted_set_add(tapped_key, self.tapped_id, epoch(self.expires))
-        self.db.expire(tapped_key, self.expires)
-
-    def remove_index(self):
-        super(Tap, self).remove_index()
-        self.db.sorted_set_remove(skey('user', self.user_id, 'tapped'), self.tapped_id)
 
 
 class Invite(WigoModel):
+    indexes = (
+        ('event:{event_id}:invited={invited_id}', False),
+    )
+
     event_id = LongType(required=True)
     user_id = LongType(required=True)
     invited_id = LongType(required=True)
+
+    def ttl(self):
+        return timedelta(days=8)
 
     @property
     @memoize('invited_id')
@@ -252,10 +277,6 @@ class Invite(WigoModel):
         inviter = self.user
         invited = self.invited
 
-        invited_key = skey(event, 'invited')
-        self.db.set_add(invited_key, invited.id)
-        self.db.expire(invited_key, event.expires)
-
         # make sure i am seeing all my friends attending now
         for friend_id, score in self.db.sorted_set_iter(skey(invited, 'friends')):
             friend = User.find(friend_id)
@@ -266,7 +287,11 @@ class Invite(WigoModel):
         pass
 
 
-class Notification(WigoModel):
+class Notification(WigoPersistentModel):
+    indexes = (
+        ('user:{user_id}:notifications', False),
+    )
+
     user_id = LongType(required=True)
     type = StringType(required=True)
     from_user_id = LongType()
@@ -287,16 +312,15 @@ class Notification(WigoModel):
     def user_ref(self):
         return self.ref_field(User, 'from_user_id')
 
-    def index(self):
-        self.db.sorted_set_add(skey(self.user, 'notifications'), self.to_json(),
-                               epoch(self.created), dt=dict, replicate=False)
-        self.clean_old(skey(self.user, 'notifications'))
-
-    def delete(self):
-        pass
-
 
 class Message(WigoPersistentModel):
+    indexes = (
+        ('user:{user_id}:conversations={to_user_id}', False),
+        ('user:{user_id}:conversation:{to_user_id}', False),
+        ('user:{to_user_id}:conversations={user_id}', False),
+        ('user:{to_user_id}:conversation:{user_id}', False),
+    )
+
     user_id = LongType(required=True)
     to_user_id = LongType(required=True)
     message = StringType(required=True)
@@ -313,24 +337,12 @@ class Message(WigoPersistentModel):
 
     def index(self):
         super(Message, self).index()
-
-        self.db.sorted_set_add(skey(self.user, 'conversations'), self.to_user.id, epoch(self.created))
-        self.db.sorted_set_add(skey(self.to_user, 'conversations'), self.user.id, epoch(self.created))
-
-        self.db.set(skey(self.user, 'conversation', self.to_user, 'last_message'), self.id)
-        self.db.set(skey(self.to_user, 'conversation', self.user, 'last_message'), self.id)
-
-        self.db.sorted_set_add(skey(self.user, 'conversation', self.to_user), self.id, epoch(self.created))
-        self.db.sorted_set_add(skey(self.to_user, 'conversation', self.user), self.id, epoch(self.created))
-
-    def remove_index(self):
-        super(Message, self).remove_index()
-        self.db.sorted_set_remove(skey(self.user, 'conversation', self.to_user), self.id)
-        self.db.sorted_set_remove(skey(self.to_user, 'conversation', self.user), self.id)
+        self.db.set(skey(self.user, 'conversation', self.to_user.id, 'last_message'), self.id)
+        self.db.set(skey(self.to_user, 'conversation', self.user.id, 'last_message'), self.id)
 
     @classmethod
     def delete_conversation(cls, user, to_user):
         from server.db import wigo_db
 
         wigo_db.sorted_set_remove(skey(user, 'conversations'), to_user.id)
-        wigo_db.delete(skey(user, 'conversation', to_user))
+        wigo_db.delete(skey(user, 'conversation', to_user.id))

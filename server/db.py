@@ -43,16 +43,6 @@ class WigoDB(object):
 
         raise Exception('couldnt find an available random code in redis, up to 50chars?')
 
-    def get_data_type(self, dt, value=None):
-        if dt is not None:
-            if dt == 'int' or isinstance(dt, type):
-                return dt
-            else:
-                raise ValueError('Invalid data type')
-        if value is not None:
-            return int if isinstance(value, (int, long)) else None
-        return int
-
     def set(self, key, value, expires=None, long_term_expires=None):
         raise NotImplementedError()
 
@@ -84,6 +74,9 @@ class WigoDB(object):
         raise NotImplementedError()
 
     def sorted_set_add(self, key, value, score, dt=None):
+        raise NotImplementedError()
+
+    def sorted_set_get_score(self, key, value, dt=None):
         raise NotImplementedError()
 
     def sorted_set_is_member(self, key, value, dt=None):
@@ -152,7 +145,7 @@ class WigoRedisDB(WigoDB):
         return self.gen_id_script()
 
     def encode(self, value, dt):
-        dt = self.get_data_type(dt, value)
+        dt = get_data_type(dt, value)
         if dt == int:
             return int(value)
         else:
@@ -162,7 +155,7 @@ class WigoRedisDB(WigoDB):
         if value is None:
             return value
 
-        dt = self.get_data_type(dt)
+        dt = get_data_type(dt)
         if hasattr(value, '__iter__'):
             return [self.decode(v, dt) for v in value]
         else:
@@ -172,11 +165,7 @@ class WigoRedisDB(WigoDB):
                 return msgpack.unpackb(value)
 
     def set(self, key, value, expires=None, long_term_expires=None):
-        if isinstance(expires, datetime):
-            if expires < datetime.utcnow():
-                expires = timedelta(days=8)
-            else:
-                expires = expires - datetime.utcnow()
+        expires = check_expires(expires)
 
         if expires:
             result = self.redis.setex(key, self.encode(value, dict), expires)
@@ -211,8 +200,7 @@ class WigoRedisDB(WigoDB):
         return result
 
     def expire(self, key, expires, long_term_expires=None):
-        if isinstance(expires, datetime):
-            expires = expires - datetime.utcnow()
+        expires = check_expires(expires)
         result = self.redis.expire(key, expires)
         if self.queued_db and long_term_expires:
             self.queued_db.expire(key, expires, long_term_expires)
@@ -242,8 +230,11 @@ class WigoRedisDB(WigoDB):
             self.queued_db.sorted_set_add(key, value, score)
         return result
 
+    def sorted_set_get_score(self, key, value, dt=None):
+        return self.redis.zscore(key, self.encode(value, dt))
+
     def sorted_set_is_member(self, key, value, dt=None):
-        return self.redis.zscore(key, self.encode(value, dt)) is not None
+        return self.sorted_set_get_score(key, value, dt) is not None
 
     def sorted_set_iter(self, key, dt=None):
         for item, score in self.redis.zscan_iter(key):
@@ -324,8 +315,8 @@ class WigoRdbms(WigoDB):
         if not value:
             return
 
-        if isinstance(long_term_expires, timedelta):
-            long_term_expires = datetime.utcnow() + long_term_expires
+        long_term_expires = check_expires(long_term_expires)
+        long_term_expires = datetime.utcnow() + long_term_expires
 
         try:
             ds = DataStrings.get(key=key)
@@ -374,8 +365,8 @@ class WigoRdbms(WigoDB):
         DataExpires.delete().where(DataExpires.key == key).execute()
 
     def expire(self, key, expires, long_term_expires=None):
-        if isinstance(long_term_expires, timedelta):
-            long_term_expires = datetime.utcnow() + long_term_expires
+        long_term_expires = check_expires(long_term_expires)
+        long_term_expires = datetime.utcnow() + long_term_expires
 
         try:
             existing = DataExpires.get(key=key)
@@ -386,7 +377,7 @@ class WigoRdbms(WigoDB):
             DataExpires.create(key=key, expires=long_term_expires, modified=datetime.utcnow())
 
     def get_set_type(self, dt, value=None):
-        dt = self.get_data_type(dt, value)
+        dt = get_data_type(dt, value)
         return DataIntSets if dt == int else DataSets
 
     def set_add(self, key, value, dt=None):
@@ -411,7 +402,7 @@ class WigoRdbms(WigoDB):
         ).execute()
 
     def get_sorted_set_type(self, dt, value=None):
-        dt = self.get_data_type(dt, value)
+        dt = get_data_type(dt, value)
         return DataIntSortedSets if dt == int else DataSortedSets
 
     def sorted_set_add(self, key, value, score, dt=None):
@@ -427,6 +418,13 @@ class WigoRdbms(WigoDB):
                 stype.value == value,
                 stype.modified == datetime.utcnow()
             ).execute()
+
+    def sorted_set_get_score(self, key, value, dt=None):
+        stype = self.get_sorted_set_type(dt, value)
+        return stype.select_non_expired(stype.score).where(
+            stype.key == key,
+            stype.value == value,
+        ).scalar()
 
     def sorted_set_is_member(self, key, value, dt=None):
         stype = self.get_sorted_set_type(dt, value)
@@ -500,6 +498,25 @@ class WigoRdbms(WigoDB):
             stype.score >= min,
             stype.score <= max
         ).execute()
+
+
+def get_data_type(dt, value=None):
+    if dt is not None:
+        if dt == 'int' or isinstance(dt, type):
+            return dt
+        else:
+            raise ValueError('Invalid data type')
+    if value is not None:
+        return int if isinstance(value, (int, long)) else None
+    return int
+
+
+def check_expires(expires):
+    if isinstance(expires, datetime):
+        expires = expires - datetime.utcnow()
+    if isinstance(expires, timedelta) and expires.total_seconds() < 0:
+        expires = timedelta(days=8)
+    return expires
 
 
 def get_range_val(val):
