@@ -1,4 +1,3 @@
-mockredis
 -i https://pip.blade.net/pip/dev/+simple/
 Flask==0.10.1
 Flask-Admin==1.1.0

@@ -316,7 +316,8 @@ class WigoRdbms(WigoDB):
             return
 
         long_term_expires = check_expires(long_term_expires)
-        long_term_expires = datetime.utcnow() + long_term_expires
+        if long_term_expires:
+            long_term_expires = datetime.utcnow() + long_term_expires
 
         try:
             ds = DataStrings.get(key=key)
