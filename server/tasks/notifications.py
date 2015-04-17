@@ -153,7 +153,8 @@ def wire_notifications_listeners():
         elif isinstance(instance, Tap):
             notify_on_tap.delay(user_id=instance.user_id, tapped_id=instance.tapped_id)
         elif isinstance(instance, Invite):
-            notify_on_invite.delay(message_id=instance.id)
+            notify_on_invite.delay(inviter_id=instance.user_id,
+                                   invited_id=instance.invited_id, event_id=instance.event_id)
 
     post_model_save.connect(notifications_model_listener, weak=False)
 

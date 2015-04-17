@@ -1,17 +1,32 @@
 from __future__ import absolute_import
 
-from __future__ import absolute_import
-from collections import defaultdict
-
 import math
-from flask import g, request
+
+from collections import defaultdict
+from flask import g, request, Blueprint
 from flask.ext.restful import Resource, abort
+from flask.ext import restplus
+from schematics.exceptions import ModelValidationError
 from werkzeug.urls import url_encode
 from server.models import AlreadyExistsException
 from server.models.event import EventMessage, Event
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
+from utils import ValidationException
+from utils import SecurityException
+
+
+api_blueprint = Blueprint('api', __name__, url_prefix='/api')
+
+# noinspection PyTypeChecker
+api = restplus.Api(
+    api_blueprint, ui=False, title='Wigo API', catch_all_404s=True,
+    errors={
+        'UnknownTimeZoneError': {
+            'message': 'Unknown timezone', 'status': 400
+        }
+    })
 
 
 class WigoResource(Resource):
@@ -125,7 +140,8 @@ class WigoResource(Resource):
             if count > len(attendees):
                 path = ('/api/users/me/events/{}/attendees' if '/users/' in request.path
                         else '/api/events/{}/attendees').format(obj.id)
-                prim['attendees']['meta']['next'] = '{}?page=2&limit={}'.format(path, request.args.get('attendees_limit', 5))
+                prim['attendees']['meta']['next'] = '{}?page=2&limit={}'.format(path,
+                                                                                request.args.get('attendees_limit', 5))
 
         if hasattr(obj, 'messages'):
             count = obj.messages[0]
@@ -139,7 +155,8 @@ class WigoResource(Resource):
             if count > len(messages):
                 path = ('/api/users/me/events/{}/messages' if '/users/' in request.path
                         else '/api/events/{}/messages').format(obj.id)
-                prim['messages']['meta']['next'] = '{}?page=2&limit={}'.format(path, request.args.get('messages_limit', 5))
+                prim['messages']['meta']['next'] = '{}?page=2&limit={}'.format(path,
+                                                                               request.args.get('messages_limit', 5))
 
         return prim
 
@@ -237,3 +254,30 @@ class WigoDbListResource(WigoResource):
 
     def handle_already_exists_exception(self, e):
         return self.serialize_list(self.model, [e.instance], 1)
+
+
+@api.errorhandler(ModelValidationError)
+def handle_model_validation_error(error):
+    return error.message, 400
+
+
+@api.errorhandler(ValidationException)
+def handle_validation_exception(error):
+    return error.message, 400
+
+
+@api.errorhandler(SecurityException)
+def handle_security_exception(error):
+    return error.message, 403
+
+
+@api.errorhandler(NotImplementedError)
+def handle_not_implemented(error):
+    return error.message, 501
+
+
+import server.rest.register
+import server.rest.login
+import server.rest.user
+import server.rest.event
+import server.rest.uploads

@@ -2,7 +2,8 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
-from server.rest.uploads import setup_upload_routes, wire_uploads_listeners
+from server.rest import api_blueprint
+from server.tasks.uploads import wire_uploads_listeners
 from server.tasks.images import wire_images_listeners
 from server.tasks.notifications import wire_notifications_listeners
 
@@ -21,7 +22,6 @@ from flask.ext.sslify import SSLify
 from schematics.exceptions import ModelValidationError
 from rq_dashboard import RQDashboard
 from flask import Flask, render_template, g, request, jsonify
-from flask.ext import restplus
 from flask.ext.admin import Admin
 from flask.ext.compress import Compress
 from server import ApiSessionInterface
@@ -32,11 +32,7 @@ from server.models.user import User, Notification, Message
 from server.models.event import Event, EventMessage
 from server.models.group import Group
 from server.models import Config, DoesNotExist
-from server.rest.login import setup_login_resources
 from server.security import check_basic_auth, setup_user_by_token
-from server.rest.register import setup_register_resources
-from server.rest.user import setup_user_resources
-from server.rest.event import setup_event_resources
 from utils import ValidationException, SecurityException
 
 
@@ -51,19 +47,7 @@ SSLify(app)
 Compress(app)
 RQDashboard(app, '/admin/rq', check_basic_auth)
 
-api = restplus.Api(
-    app, ui=False, title='Wigo API', catch_all_404s=True,
-    errors={
-        'UnknownTimeZoneError': {
-            'message': 'Unknown timezone', 'status': 400
-        }
-    })
-
-setup_login_resources(api)
-setup_register_resources(api)
-setup_user_resources(api)
-setup_event_resources(api)
-setup_upload_routes(app)
+app.register_blueprint(api_blueprint)
 
 admin = Admin(app, name='Wigo', index_view=WigoAdminIndexView())
 admin.add_view(UserModelView(User))
@@ -98,8 +82,7 @@ def setup_request():
     elif request.path.startswith('/api') and api_key != app.config['API_KEY']:
         abort(403, message='Bad API key')
 
-    setup_user_by_token()
-
+    # resolve by lat/long
     geolocation = request.headers.get('Geolocation')
     if geolocation:
         parsed_geo = urlparse(geolocation)
@@ -112,6 +95,9 @@ def setup_request():
                     g.group = group
             except DoesNotExist:
                 logger.info('could not resolve group from geo')
+
+    # setup the user after the geo lookup, since the user might need to update its group
+    setup_user_by_token()
 
 
 @app.after_request
@@ -235,26 +221,6 @@ def sendgrid_hook():
             user.save()
 
     return jsonify(success=True)
-
-
-@api.errorhandler(ModelValidationError)
-def handle_model_validation_error(error):
-    return error.message, 400
-
-
-@api.errorhandler(ValidationException)
-def handle_validation_exception(error):
-    return error.message, 400
-
-
-@api.errorhandler(SecurityException)
-def handle_security_exception(error):
-    return error.message, 403
-
-
-@api.errorhandler(NotImplementedError)
-def handle_not_implemented(error):
-    return error.message, 501
 
 
 @clize

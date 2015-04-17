@@ -100,9 +100,14 @@ class Configuration(object):
 
     CAPTURE_IMAGES = True
 
-    def is_push_enabled(self, user):
-        if not self.PUSH_ENABLED:
-            return False
-        if self.ENVIRONMENT == 'production':
-            return True
-        return user._data.get('group') == 1
+    UPLOAD_FOLDER = 'uploads'
+
+    if not os.path.exists(UPLOAD_FOLDER):
+        try:
+            os.mkdir(UPLOAD_FOLDER)
+        except OSError as exception:
+            if exception.errno != errno.EEXIST:
+                raise
+            if not os.path.isdir(UPLOAD_FOLDER):
+                os.unlink(UPLOAD_FOLDER)
+                os.mkdir(UPLOAD_FOLDER)

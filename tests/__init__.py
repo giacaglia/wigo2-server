@@ -1,22 +1,28 @@
 from __future__ import absolute_import
-
 import logging
+
 import ujson
 
+from mock import patch
 from datetime import datetime, timedelta
 from contextlib import contextmanager
-from mock import patch
 from mockredis import mock_redis_client
 from config import Configuration
-from server.models.user import User
 
 
 Configuration.ENVIRONMENT = 'test'
 Configuration.PUSH_ENABLED = False
-Configuration.CELERY_ALWAYS_EAGER = True
 
 NEXT_ID = 1
 
+@contextmanager
+def mocks():
+    class MockQueue(object):
+        pass
+
+    with patch('rq.decorators.Queue', autospec=True):
+        with patch('redis.Redis', mock_redis_client):
+            yield
 
 @contextmanager
 def client():
@@ -24,11 +30,12 @@ def client():
     logging.getLogger('web').setLevel(level=logging.FATAL)
     logging.getLogger('wigo').setLevel(level=logging.FATAL)
 
-    with patch('redis.Redis', mock_redis_client):
+    with mocks():
         from web import app
         from server.db import wigo_db
         from server.models.group import Group
         from geodis.city import City
+        from server.models.user import User
 
         app.debug = True
         wigo_db.redis.flushdb()
