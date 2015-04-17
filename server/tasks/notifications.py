@@ -6,7 +6,7 @@ from rq.decorators import job
 from server.db import rate_limit, redis
 from server.models import DoesNotExist, post_model_save, Dated
 from server.models.event import EventMessage, EventMessageVote, Event
-from server.models.user import User, Notification, Message, Tap, Invite
+from server.models.user import User, Notification, Message, Tap, Invite, Friend
 
 
 logger = logging.getLogger('wigo.notifications')
@@ -126,6 +126,27 @@ def notify_on_invite(inviter_id, invited_id, event_id):
     send_notification_push(notification)
 
 
+@job('notifications', connection=redis, timeout=30, result_ttl=0)
+def notify_on_friend(user_id, friend_id, accepted):
+    user = User.find(user_id)
+    friend = User.find(friend_id)
+
+    if not accepted:
+        message_text = '{} wants to be friends with you'.format(user.full_name)
+    else:
+        message_text = '{} accepted your friend request'.format(user.full_name)
+
+    notification = Notification({
+        'user_id': friend_id,
+        'type': 'friend.request' if not accepted else 'friend.accept',
+        'from_user_id': user.id,
+        'navigate': '/users/{}'.format(user_id),
+        'message': message_text
+    }).save()
+
+    send_notification_push(notification)
+
+
 def send_notification_push(notification):
     push.alert(data={
         'id': notification.id,
@@ -150,6 +171,8 @@ def wire_notifications_listeners():
             notify_on_eventmessage_vote.delay(voter_id=instance.user_id, message_id=instance.message_id)
         elif isinstance(instance, Message):
             notify_on_message.delay(message_id=instance.id)
+        elif isinstance(instance, Friend):
+            notify_on_friend.delay(user_id=instance.user_id, friend_id=instance.friend_id, accepted=instance.accepted)
         elif isinstance(instance, Tap):
             notify_on_tap.delay(user_id=instance.user_id, tapped_id=instance.tapped_id)
         elif isinstance(instance, Invite):

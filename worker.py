@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 from config import Configuration
-from server.rest.uploads import wire_uploads_listeners
+from server.tasks.uploads import wire_uploads_listeners
 from server.tasks.images import wire_images_listeners
 from server.tasks.notifications import wire_notifications_listeners
 
