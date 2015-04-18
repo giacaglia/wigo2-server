@@ -19,7 +19,6 @@ from clize import clize
 from flask.ext.restful import abort
 from flask.ext.restplus import apidoc
 from flask.ext.sslify import SSLify
-from schematics.exceptions import ModelValidationError
 from rq_dashboard import RQDashboard
 from flask import Flask, render_template, g, request, jsonify
 from flask.ext.admin import Admin
@@ -33,7 +32,6 @@ from server.models.event import Event, EventMessage
 from server.models.group import Group
 from server.models import Config, DoesNotExist
 from server.security import check_basic_auth, setup_user_by_token
-from utils import ValidationException, SecurityException
 
 
 logger = logging.getLogger('wigo.web')
@@ -50,8 +48,8 @@ RQDashboard(app, '/admin/rq', check_basic_auth)
 app.register_blueprint(api_blueprint)
 
 admin = Admin(app, name='Wigo', index_view=WigoAdminIndexView())
-admin.add_view(UserModelView(User))
 admin.add_view(GroupModelView(Group))
+admin.add_view(UserModelView(User))
 admin.add_view(EventModelView(Event))
 admin.add_view(EventMessageView(EventMessage))
 admin.add_view(MessageView(Message))

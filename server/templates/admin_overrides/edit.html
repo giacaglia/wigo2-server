@@ -1,0 +1,16 @@
+{% extends 'admin/model/edit.html' %}
+
+{% block body %}
+    {% if event %}
+        <div class="controls" style="margin-right: 80px; margin-bottom: 20px; float:right">
+            <button class="btn">View Photos</button>
+            <button class="btn">View Attendees</button>
+        </div>
+    {% elif group %}
+        <div class="controls" style="margin-right: 80px; margin-bottom: 20px; float:right">
+            <button class="btn">View Events</button>
+        </div>
+    {% endif %}
+
+    {{ super() }}
+{% endblock %}

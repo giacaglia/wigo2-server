@@ -89,5 +89,3 @@ class Group(WigoPersistentModel):
                 }).save()
 
         return super(Group, cls).find(*args, **kwargs)
-
-

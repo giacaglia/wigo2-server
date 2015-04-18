@@ -96,10 +96,11 @@ class WigoModel(Model):
     @property
     @memoize('user_id')
     def user(self):
-        if self.user_id:
+        user_id = getattr(self, 'user_id', None)
+        if user_id:
             from server.models.user import User
 
-            return User.find(self.user_id)
+            return User.find(user_id)
         return None
 
     @serializable(serialized_name='user', serialize_when_none=False)

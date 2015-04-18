@@ -2,20 +2,24 @@ from __future__ import absolute_import
 
 import json
 from flask.ext.admin import AdminIndexView
+from flask.ext.admin.model.ajax import AjaxModelLoader, DEFAULT_PAGE_SIZE
 from flask.ext.admin.model.filters import BaseFilter
 from flask.ext.bcrypt import generate_password_hash
+from markupsafe import Markup
 
 from wtforms.widgets import TextArea
 from flask import flash, redirect, url_for
 from flask.ext.admin.actions import action
 from flask.ext.admin.babel import gettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
-from flask.ext.admin.model.fields import ListEditableFieldList
+from flask.ext.admin.model.fields import ListEditableFieldList, AjaxSelectField
 from schematics.types import StringType, BooleanType, DateTimeType, NumberType, FloatType
 from wtforms import Form, StringField, BooleanField, SelectField, IntegerField, FloatField, TextAreaField
 from flask_admin.form.fields import DateTimeField
 from wtforms.validators import Optional, DataRequired
 from server.models import JsonType
+from server.models.event import Event
+from server.models.group import Group
 from server.security import check_basic_auth, authenticate
 
 
@@ -27,11 +31,29 @@ class WigoAdminIndexView(AdminIndexView):
         return authenticate()
 
 
-class RedisModelView(BaseModelView):
+def actions_formatter(view, context, model, name):
+    return Markup('Photos | Attendees')
+
+
+def group_formatter(view, context, model, name):
+    return Markup(model.group.name) if model.group else ""
+
+
+class WigoModelView(BaseModelView):
+    edit_template = 'admin_overrides/edit.html'
+
+    column_formatters = {
+        'actions': actions_formatter,
+        'group': group_formatter
+    }
+
     def __init__(self, model, name=None, category=None, endpoint=None, url=None, static_folder=None,
                  menu_class_name=None, menu_icon_type=None, menu_icon_value=None):
-        super(RedisModelView, self).__init__(model, name, category, endpoint, url, static_folder, menu_class_name,
-                                             menu_icon_type, menu_icon_value)
+        super(WigoModelView, self).__init__(model, name, category, endpoint, url, static_folder, menu_class_name,
+                                            menu_icon_type, menu_icon_value)
+
+    def _create_ajax_loader(self, name, options):
+        pass
 
     def is_accessible(self):
         return check_basic_auth()
@@ -81,9 +103,6 @@ class RedisModelView(BaseModelView):
                 flash(gettext('Failed to delete record. %(error)s', error=str(ex)), 'error')
             return False
 
-    def _create_ajax_loader(self, name, options):
-        pass
-
     def scaffold_form(self):
         class MyForm(Form):
             pass
@@ -92,7 +111,10 @@ class RedisModelView(BaseModelView):
             validators = [DataRequired() if field.required else Optional()]
             if field.name == 'id':
                 continue
-            if isinstance(field, DateTimeType):
+            if 'group_id' == field.name:
+                setattr(MyForm, 'group', AjaxSelectField(RedisAjaxModelLoader('group', {}),
+                                                         'group', validators=validators))
+            elif isinstance(field, DateTimeType):
                 setattr(MyForm, field.name, DateTimeField(field.name, default=field.default, validators=validators))
             elif isinstance(field, FloatType):
                 setattr(MyForm, field.name, FloatField(field.name, default=field.default, validators=validators))
@@ -141,6 +163,14 @@ class RedisModelView(BaseModelView):
     def scaffold_list_columns(self):
         return self.model.fields.keys()
 
+    def render(self, template, **kwargs):
+        if template == self.edit_template:
+            if self.model == Event:
+                kwargs['event'] = True
+            if self.model == Group:
+                kwargs['group'] = True
+        return super(WigoModelView, self).render(template, **kwargs)
+
     @action('delete', lazy_gettext('Delete'), lazy_gettext('Are you sure you want to delete selected records?'))
     def action_delete(self, ids):
         for id in ids:
@@ -156,11 +186,11 @@ class RedisEqualsModelFilter(BaseFilter):
         return gettext('equals')
 
 
-class UserModelView(RedisModelView):
+class UserModelView(WigoModelView):
     column_filters = ('username', 'email', 'facebook_id')
 
     def scaffold_list_columns(self):
-        return ['id', 'group_id', 'username', 'created']
+        return ['id', 'group', 'username', 'created']
 
     def update_model(self, form, model):
         existing_password = model.password
@@ -180,42 +210,63 @@ class UserModelView(RedisModelView):
         return redirect(url_for('.send_push'))
 
 
-class EmailForm(Form):
-    message = StringField(validators=[DataRequired()])
-
-
-class GroupModelView(RedisModelView):
+class GroupModelView(WigoModelView):
     column_filters = ('code', 'name', 'city_id')
 
     def scaffold_list_columns(self):
         return ['id', 'name', 'created']
 
 
-class EventModelView(RedisModelView):
+class EventModelView(WigoModelView):
     column_filters = ('group',)
 
     def scaffold_list_columns(self):
-        return ['id', 'group_id', 'name', 'created']
+        return ['group', 'name', 'created']
 
 
-class NotificationView(RedisModelView):
+class NotificationView(WigoModelView):
     def scaffold_list_columns(self):
         return ['id', 'user_id', 'type']
 
+    def is_visible(self):
+        return False
 
-class MessageView(RedisModelView):
+
+class MessageView(WigoModelView):
     def scaffold_list_columns(self):
         return ['id', 'user_id', 'to_user_id']
 
+    def is_visible(self):
+        return False
 
-class EventMessageView(RedisModelView):
+
+class EventMessageView(WigoModelView):
+    column_filters = ('user_id', 'event_id')
+
     def scaffold_list_columns(self):
-        return ['id', 'user_id', '']
+        return ['id', 'user_id', 'media_mime_type']
+
+    def is_visible(self):
+        return False
 
 
-class ConfigView(RedisModelView):
+class ConfigView(WigoModelView):
     def scaffold_list_columns(self):
         return ['id', 'name', 'created']
+
+
+class RedisAjaxModelLoader(AjaxModelLoader):
+    def __init__(self, name, options):
+        super(RedisAjaxModelLoader, self).__init__(name, options)
+
+    def get_list(self, query, offset=0, limit=DEFAULT_PAGE_SIZE):
+        pass
+
+    def get_one(self, pk):
+        pass
+
+    def format(self, model):
+        return (model.name, model.name)
 
 
 class JsonTextArea(TextArea):
