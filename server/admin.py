@@ -31,6 +31,18 @@ class WigoAdminIndexView(AdminIndexView):
         return authenticate()
 
 
+class WigoAjaxModelLoader(AjaxModelLoader):
+    def get_one(self, pk):
+        return self.options['model'].find(int(pk))
+
+    def get_list(self, query, offset=0, limit=DEFAULT_PAGE_SIZE):
+        model = self.options['model']
+        return list(model.select().where('name', query).limit(limit))
+
+    def format(self, model):
+        return model.id, model.name
+
+
 def actions_formatter(view, context, model, name):
     return Markup('Photos | Attendees')
 
@@ -45,6 +57,10 @@ class WigoModelView(BaseModelView):
     column_formatters = {
         'actions': actions_formatter,
         'group': group_formatter
+    }
+
+    form_ajax_refs = {
+        'group': WigoAjaxModelLoader('group', {'model': Group})
     }
 
     def __init__(self, model, name=None, category=None, endpoint=None, url=None, static_folder=None,
@@ -104,7 +120,7 @@ class WigoModelView(BaseModelView):
             return False
 
     def scaffold_form(self):
-        class MyForm(Form):
+        class WigoModelForm(Form):
             pass
 
         for field in self.model.fields.values():
@@ -112,27 +128,30 @@ class WigoModelView(BaseModelView):
             if field.name == 'id':
                 continue
             if 'group_id' == field.name:
-                setattr(MyForm, 'group', AjaxSelectField(RedisAjaxModelLoader('group', {}),
-                                                         'group', validators=validators))
+                setattr(WigoModelForm, 'group', AjaxSelectField(
+                    WigoAjaxModelLoader('group', {'model': Group}), 'group', validators=validators))
             elif isinstance(field, DateTimeType):
-                setattr(MyForm, field.name, DateTimeField(field.name, default=field.default, validators=validators))
+                setattr(WigoModelForm, field.name,
+                        DateTimeField(field.name, default=field.default, validators=validators))
             elif isinstance(field, FloatType):
-                setattr(MyForm, field.name, FloatField(field.name, default=field.default, validators=validators))
+                setattr(WigoModelForm, field.name, FloatField(field.name, default=field.default, validators=validators))
             elif isinstance(field, NumberType):
-                setattr(MyForm, field.name, IntegerField(field.name, default=field.default, validators=validators))
+                setattr(WigoModelForm, field.name,
+                        IntegerField(field.name, default=field.default, validators=validators))
             elif isinstance(field, StringType):
                 if field.choices:
-                    setattr(MyForm, field.name, SelectField(field.name,
-                                                            choices=[(val, val) for val in field.choices],
-                                                            default=field.default))
+                    setattr(WigoModelForm, field.name,
+                            SelectField(field.name, choices=[(val, val) for val in field.choices],
+                                        default=field.default))
                 else:
-                    setattr(MyForm, field.name, StringField(field.name, default=field.default, validators=validators))
+                    setattr(WigoModelForm, field.name,
+                            StringField(field.name, default=field.default, validators=validators))
             elif isinstance(field, BooleanType):
-                setattr(MyForm, field.name, BooleanField(field.name))
+                setattr(WigoModelForm, field.name, BooleanField(field.name))
             elif isinstance(field, JsonType):
-                setattr(MyForm, field.name, JSONField(field.name, validators=validators))
+                setattr(WigoModelForm, field.name, JSONField(field.name, validators=validators))
 
-        return MyForm
+        return WigoModelForm
 
     def get_list(self, page, sort_field, sort_desc, search, filters):
         query = self.model.select().limit(self.page_size).page(page + 1)
@@ -155,7 +174,7 @@ class WigoModelView(BaseModelView):
         return []
 
     def scaffold_filters(self, name):
-        return [RedisEqualsModelFilter(name)]
+        return [WigoEqualsModelFilter(name)]
 
     def get_pk_value(self, model):
         return model.id
@@ -177,7 +196,7 @@ class WigoModelView(BaseModelView):
             self.model.find(id).delete()
 
 
-class RedisEqualsModelFilter(BaseFilter):
+class WigoEqualsModelFilter(BaseFilter):
     # noinspection PyMethodOverriding
     def apply(self, query, name, value):
         return query.where(name, value)
@@ -253,20 +272,6 @@ class EventMessageView(WigoModelView):
 class ConfigView(WigoModelView):
     def scaffold_list_columns(self):
         return ['id', 'name', 'created']
-
-
-class RedisAjaxModelLoader(AjaxModelLoader):
-    def __init__(self, name, options):
-        super(RedisAjaxModelLoader, self).__init__(name, options)
-
-    def get_list(self, query, offset=0, limit=DEFAULT_PAGE_SIZE):
-        pass
-
-    def get_one(self, pk):
-        pass
-
-    def format(self, model):
-        return (model.name, model.name)
 
 
 class JsonTextArea(TextArea):

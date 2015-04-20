@@ -132,6 +132,10 @@ class WigoModel(Model):
             return Group.find(self.group_id)
         return None
 
+    @group.setter
+    def group(self, group):
+        self.group_id = group.id
+
     @serializable(serialized_name='group', serialize_when_none=False)
     def group_ref(self):
         from server.models.group import Group
@@ -180,7 +184,7 @@ class WigoModel(Model):
         if hasattr(model_ids, '__iter__'):
             if model_ids:
                 results = wigo_db.mget([skey(cls, int(model_id)) for model_id in model_ids])
-                instances = [cls(ujson.loads(result)) if result is not None else None for result in results]
+                instances = [cls(result) if result is not None else None for result in results]
                 for instance in instances:
                     if instance is not None:
                         instance.prepared()
@@ -190,7 +194,7 @@ class WigoModel(Model):
         elif model_id:
             result = wigo_db.get(skey(cls, int(model_id)))
             if result:
-                instance = cls(ujson.loads(result))
+                instance = cls(result)
                 instance.prepared()
                 return instance
             raise DoesNotExist(cls, model_id)
@@ -230,7 +234,7 @@ class WigoModel(Model):
 
             # save
             if hasattr(self, 'id'):
-                self.db.set(skey(self), self.to_json(), self.ttl())
+                self.db.set(skey(self), self.to_primitive(), self.ttl())
 
             self.prepared()
             post_model_save.send(self, instance=self, created=created)

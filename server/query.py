@@ -6,7 +6,7 @@ from server.models import user_eventmessages_key, skey, user_attendees_key, Does
 from server.models.event import EventMessage, EventAttendee, Event
 from server.models.group import Group
 from server.models.user import Message, User, Notification
-from utils import returns_clone, epoch
+from utils import returns_clone, epoch, ValidationException
 
 
 class SelectQuery(object):
@@ -168,8 +168,13 @@ class SelectQuery(object):
             return self.__get_page(skey(group, self._user, 'events'))
         elif self._group and self._model_class == Event:
             return self.__get_page(skey(self._group, 'events'))
-        if self._model_class == Group and self._lat and self._lon:
+        elif self._model_class == Group and self._lat and self._lon:
             return self.__get_group()
+        elif self._model_class == User:
+            if self._group:
+                return self.__get_page(skey(self._group, 'users'))
+            else:
+                raise ValidationException('Missing group for user query')
         elif self._event:
             return self.__get_by_event()
         elif self._events:
@@ -184,9 +189,11 @@ class SelectQuery(object):
         while True:
             for instance in instances:
                 yield instance
-            if query.page < query.pages:
+            if query.page < pages:
                 query = query.page(query._page + 1)
                 count, instances = self.execute()
+            else:
+                break
 
     def get(self):
         count, instances = self.execute()

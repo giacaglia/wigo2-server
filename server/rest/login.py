@@ -61,5 +61,5 @@ class LoginResource(WigoResource):
 
         g.user = user
 
-        return self.serialize_list(User, [user], 1)
+        return self.serialize_list(User, [user])
 

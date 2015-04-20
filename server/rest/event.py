@@ -149,7 +149,7 @@ class EventMessageListResource(WigoResource):
         data = dict(request.get_json())
         data['event_id'] = event_id
         message = self.create(data)
-        return self.serialize_list(self.model, [message], 1)
+        return self.serialize_list(self.model, [message])
 
 
 @api.route('/events/<int:event_id>/messages/<int:message_id>')
@@ -164,14 +164,14 @@ class EventMessageResource(WigoResource):
         event = message.event
         if not g.user.is_invited(event):
             abort(403, message='Not invited to event')
-        return self.serialize_list(self.model, [message], 1)
+        return self.serialize_list(self.model, [message])
 
     @user_token_required
     @api.expect(EventMessage.to_doc_list_model(api))
     @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
     def post(self, event_id, message_id):
         message = self.edit(message_id, request.get_json())
-        return self.serialize_list(self.model, [message], 1)
+        return self.serialize_list(self.model, [message])
 
     @user_token_required
     def delete(self, event_id, message_id):

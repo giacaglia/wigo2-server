@@ -1,10 +1,13 @@
 from __future__ import absolute_import
 
+import re
+
 from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
 
 from server.models.user import User, Friend, Tap, Invite, Message, Notification
+from server.rdbms import db
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api
 from server.security import user_token_required
 
@@ -38,15 +41,36 @@ class UserResource(WigoDbResource):
 class UserListResource(WigoDbListResource):
     model = User
 
+    @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self):
-        return super(UserListResource, self).get()
+        text = request.args.get('text')
+        if text:
+            sql = """
+              SELECT value->'id' FROM data_strings WHERE
+              CAST(value->>'group_id' AS int8) = %s AND value->>'$type' = 'User'
+            """
+            params = [g.group.id]
+
+            split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
+            for s in split:
+                sql += "AND ((LOWER(value->>'first_name') LIKE %s) or (LOWER(value->>'last_name') LIKE %s))"
+                params.append(s)
+                params.append(s)
+
+            results = list(db.execute_sql('{} limit 20'.format(sql), params))
+            users = User.find([id[0] for id in results])
+            return self.serialize_list(self.model, users)
+        else:
+            count, instances = self.setup_query(self.model.select().group(g.group)).execute()
+            return self.serialize_list(self.model, instances, count)
 
     @api.response(501, 'Not implemented')
     def post(self):
         abort(501, message='Not implemented')
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends')
 class FriendsListResource(WigoResource):
     model = Friend
@@ -89,6 +113,7 @@ class FriendsListResource(WigoResource):
         return {'success': True}
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/<int:friend_id>')
 class DeleteFriendResource(WigoResource):
     model = Friend
@@ -104,6 +129,7 @@ class DeleteFriendResource(WigoResource):
         return {'success': True}
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/common/<int:with_user_id>/count')
 class FriendsInCommonCountResource(WigoResource):
     model = Friend
@@ -114,6 +140,7 @@ class FriendsInCommonCountResource(WigoResource):
         return {'count': len(ids)}
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/common/<int:with_user_id>')
 @api.response(200, 'Success', model=User.to_doc_list_model(api))
 class FriendsInCommonResource(WigoResource):
@@ -123,8 +150,10 @@ class FriendsInCommonResource(WigoResource):
     def get(self, user_id, with_user_id):
         ids = g.user.get_friend_ids_in_common(with_user_id)
         users = User.find(ids)
-        return self.serialize_list(User, users, len(users))
+        return self.serialize_list(User, users)
 
+
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friend_requests')
 class FriendRequestsListResource(FriendsListResource):
     def get_friends_query(self, user_id):
@@ -132,6 +161,7 @@ class FriendRequestsListResource(FriendsListResource):
         return self.setup_query(self.select(User).user(user).friend_requests())
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/invites')
 class InviteListResource(WigoResource):
     model = Invite
@@ -204,6 +234,7 @@ class MessageListResource(WigoDbListResource):
         return super(MessageListResource, self).post()
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/messages/<int:model_id>')
 class MessageResource(WigoDbResource):
     model = Message
@@ -236,6 +267,8 @@ class ConversationsResource(WigoResource):
         count, instances = self.select().user(g.user).execute()
         return self.serialize_list(self.model, instances, count)
 
+
+# noinspection PyUnresolvedReferences
 @api.route('/conversations/<int:with_user_id>')
 class ConversationWithUserResource(WigoResource):
     model = Message

@@ -162,6 +162,8 @@ class WigoResource(Resource):
 
     def serialize_list(self, model_class, objects, count=None):
         objects = self.annotate_list(model_class, objects)
+        if count is None:
+            count = len(objects)
 
         page = self.get_page()
         limit = self.get_limit()
@@ -222,13 +224,13 @@ class WigoDbResource(WigoResource):
     def get(self, model_id):
         instance = self.model.find(self.get_id(model_id))
         self.check_get(instance)
-        return self.serialize_list(self.model, [instance], 1)
+        return self.serialize_list(self.model, [instance])
 
     @user_token_required
     def post(self, model_id):
         data = request.get_json()
         instance = self.edit(model_id, data)
-        return self.serialize_list(self.model, [instance], 1)
+        return self.serialize_list(self.model, [instance])
 
     @user_token_required
     def delete(self, model_id):
@@ -248,12 +250,12 @@ class WigoDbListResource(WigoResource):
     def post(self):
         try:
             instance = self.create(request.get_json())
-            return self.serialize_list(self.model, [instance], 1)
+            return self.serialize_list(self.model, [instance])
         except AlreadyExistsException, e:
             return self.handle_already_exists_exception(e)
 
     def handle_already_exists_exception(self, e):
-        return self.serialize_list(self.model, [e.instance], 1)
+        return self.serialize_list(self.model, [e.instance])
 
 
 @api.errorhandler(ModelValidationError)

@@ -126,7 +126,7 @@ class RegisterResource(WigoResource):
 
         logger.info('registered new account for user "%s"' % user.email)
 
-        return self.serialize_list(User, [user], 1)
+        return self.serialize_list(User, [user])
 
     def get_me(self, facebook_id, facebook_token, facebook_token_expires):
         # fetch user information from facebook

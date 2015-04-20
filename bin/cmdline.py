@@ -57,6 +57,22 @@ def initialize(create_tables=False, import_cities=False):
         db.create_tables([DataStrings, DataSets, DataIntSets,
                           DataSortedSets, DataIntSortedSets, DataExpires], safe=True)
 
+        db.execute_sql("""
+          CREATE INDEX data_strings_gin ON data_strings USING gin (value) jsonb_path_ops;
+
+          CREATE INDEX data_strings_first_name ON data_strings(
+              CAST(value->>'group_id' AS int8),
+              (value->>'$type'),
+              LOWER(value->>'first_name') varchar_pattern_ops
+            ) WHERE value->>'$type' = 'User';
+
+           CREATE INDEX data_strings_last_name ON data_strings(
+              CAST(value->>'group_id' AS int8),
+              (value->>'$type'),
+              LOWER(value->>'last_name') varchar_pattern_ops
+            ) WHERE value->>'$type' = 'User';
+        """)
+
     if import_cities:
         from server.db import redis
         from geodis.city import City
