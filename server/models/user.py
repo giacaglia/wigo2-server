@@ -136,15 +136,8 @@ class User(WigoPersistentModel):
 
     def track_friend_interaction(self, user):
         from server.db import wigo_db
-
-        if self.is_friend(user):
-            tf_key = skey(self, 'top_friends')
-            wigo_db.sorted_set_add(tf_key, user.id, epoch(datetime.utcnow()), replicate=False)
-
-            # don't let the set get too long
-            size = wigo_db.get_sorted_set_size(tf_key)
-            if size > 15:
-                wigo_db.sorted_set_remove_by_rank(tf_key, 0, size - 15)
+        # increment the score for the user in the friends table
+        wigo_db.sorted_set_incr_score(skey(self, 'friends'), user.id)
 
 
 class Friend(WigoModel):
@@ -168,8 +161,8 @@ class Friend(WigoModel):
         from server.models.event import Event
 
         if self.accepted:
-            self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, self.friend_id)
-            self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, self.user_id)
+            self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, 1)
+            self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, 1)
             self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friend_requests'), self.user_id)
 
@@ -184,6 +177,7 @@ class Friend(WigoModel):
                 friend_event = Event.find(friend_event_id)
                 if self.user.is_invited(friend_event):
                     friend_event.add_to_user_attending(self.user, self.friend)
+
         else:
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
@@ -237,7 +231,12 @@ class Tap(WigoModel):
             raise ValidationException('Not friends')
         if self.user.is_tapped(self.tapped):
             raise ValidationException('Already tapped')
-        return super(Tap, self).save()
+
+        super(Tap, self).save()
+
+        self.user.track_friend_interaction(self.tapped)
+
+        return self
 
 
 class Invite(WigoModel):
@@ -268,7 +267,11 @@ class Invite(WigoModel):
         if not inviter.is_attending(event):
             raise ValidationException('Must be attending the event')
 
-        return super(Invite, self).save()
+        super(Invite, self).save()
+
+        self.user.track_friend_interaction(self.invited)
+
+        return self
 
     def index(self):
         super(Invite, self).index()
@@ -281,7 +284,7 @@ class Invite(WigoModel):
         for friend_id, score in self.db.sorted_set_iter(skey(invited, 'friends')):
             friend = User.find(friend_id)
             if friend.is_attending(event):
-                event.add_to_user_attending(invited, friend)
+                event.add_to_user_attending(invited, friend, score)
 
     def delete(self):
         pass
@@ -333,7 +336,12 @@ class Message(WigoPersistentModel):
     def save(self):
         if not self.user.is_friend(self.to_user):
             raise ValidationException('Not friends')
-        return super(Message, self).save()
+
+        super(Message, self).save()
+
+        self.user.track_friend_interaction(self.to_user)
+
+        return self
 
     def index(self):
         super(Message, self).index()

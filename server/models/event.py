@@ -137,10 +137,11 @@ class Event(WigoPersistentModel):
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, num_attending))
                 self.clean_old(events_key)
 
-    def add_to_user_attending(self, user, attendee):
+    def add_to_user_attending(self, user, attendee, score=1):
         # add to the users view of who is attending
         attendees_key = user_attendees_key(user, self)
-        self.db.sorted_set_add(attendees_key, attendee.id, epoch(datetime.utcnow()))
+
+        self.db.sorted_set_add(attendees_key, attendee.id, score)
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # add the attendees photos to the users view
@@ -234,7 +235,7 @@ class EventAttendee(WigoModel):
         for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             if friend.is_invited(event):
-                event.add_to_user_attending(friend, user)
+                event.add_to_user_attending(friend, user, score)
 
     def remove_index(self):
         super(EventAttendee, self).remove_index()
