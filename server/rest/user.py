@@ -58,9 +58,12 @@ class UserListResource(WigoDbListResource):
                 params.append(s)
                 params.append(s)
 
-            results = list(db.execute_sql('{} limit 20'.format(sql), params))
+            with db.execution_context(False) as ctx:
+                results = list(db.execute_sql('{} limit 20'.format(sql), params))
+
             users = User.find([id[0] for id in results])
             return self.serialize_list(self.model, users)
+
         else:
             count, instances = self.setup_query(self.model.select().group(g.group)).execute()
             return self.serialize_list(self.model, instances, count)
