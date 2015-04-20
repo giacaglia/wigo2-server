@@ -7,7 +7,7 @@ from time import time
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
 from schematics.types.serializable import serializable
-from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key
+from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL
 from utils import epoch, ValidationException, memoize
 
 
@@ -222,7 +222,7 @@ class Tap(WigoModel):
     tapped_id = LongType(required=True)
 
     def ttl(self):
-        return timedelta(days=8)
+        return DEFAULT_EXPIRING_TTL
 
     def get_index_score(self):
         return epoch(self.tapped.group.get_day_end(self.created))
@@ -250,7 +250,7 @@ class Invite(WigoModel):
     invited_id = LongType(required=True)
 
     def ttl(self):
-        return timedelta(days=8)
+        return DEFAULT_EXPIRING_TTL
 
     @property
     @memoize('invited_id')
@@ -301,7 +301,7 @@ class Notification(WigoPersistentModel):
     properties = JsonType()
 
     def ttl(self):
-        return timedelta(days=8)
+        return DEFAULT_EXPIRING_TTL
 
     @property
     @memoize('from_user_id')

@@ -37,10 +37,10 @@ class WigoAjaxModelLoader(AjaxModelLoader):
 
     def get_list(self, query, offset=0, limit=DEFAULT_PAGE_SIZE):
         model = self.options['model']
-        return list(model.select().where('name', query).limit(limit))
+        return list(model.select().where(name=query).limit(limit))
 
     def format(self, model):
-        return model.id, model.name
+        return (model.id, model.name) if model else None
 
 
 def actions_formatter(view, context, model, name):
@@ -199,14 +199,14 @@ class WigoModelView(BaseModelView):
 class WigoEqualsModelFilter(BaseFilter):
     # noinspection PyMethodOverriding
     def apply(self, query, name, value):
-        return query.where(name, value)
+        return query.where(**{name: value})
 
     def operation(self):
         return gettext('equals')
 
 
 class UserModelView(WigoModelView):
-    column_filters = ('username', 'email', 'facebook_id')
+    column_filters = ('username', 'email', 'facebook_id', 'first_name', 'last_name')
 
     def scaffold_list_columns(self):
         return ['id', 'group', 'username', 'created']

@@ -58,7 +58,7 @@ def initialize(create_tables=False, import_cities=False):
                           DataSortedSets, DataIntSortedSets, DataExpires], safe=True)
 
         db.execute_sql("""
-          CREATE INDEX data_strings_gin ON data_strings USING gin (value) jsonb_path_ops;
+          CREATE INDEX data_strings_gin ON data_strings USING gin (value);
 
           CREATE INDEX data_strings_first_name ON data_strings(
               CAST(value->>'group_id' AS int8),

@@ -2,11 +2,12 @@ from __future__ import absolute_import
 
 import math
 from datetime import datetime, timedelta
-from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist
+from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
 from server.models.event import EventMessage, EventAttendee, Event
 from server.models.group import Group
 from server.models.user import Message, User, Notification
-from utils import returns_clone, epoch, ValidationException
+from server.rdbms import DataStrings
+from utils import returns_clone, epoch
 
 
 class SelectQuery(object):
@@ -133,8 +134,8 @@ class SelectQuery(object):
         self._lon = lon
 
     @returns_clone
-    def where(self, field, value):
-        self._where[field] = value
+    def where(self, **kwargs):
+        self._where.update(kwargs)
 
     def count(self):
         count, results = self.execute()
@@ -170,11 +171,8 @@ class SelectQuery(object):
             return self.__get_page(skey(self._group, 'events'))
         elif self._model_class == Group and self._lat and self._lon:
             return self.__get_group()
-        elif self._model_class == User:
-            if self._group:
-                return self.__get_page(skey(self._group, 'users'))
-            else:
-                raise ValidationException('Missing group for user query')
+        elif self._model_class == User and self._group:
+            return self.__get_page(skey(self._group, 'users'))
         elif self._event:
             return self.__get_by_event()
         elif self._events:
@@ -251,9 +249,37 @@ class SelectQuery(object):
         return self.__get_page(skey(self._user, 'notifications'))
 
     def __filtered(self):
+        from server.db import wigo_db
+        from server.rdbms import db
+
         try:
-            instance = self._model_class.find(**self._where)
-            return 1, [instance]
+            for kwarg in self._where:
+                applicable_indexes = [key_tmpl for key_tmpl, unique in self._model_class.indexes if kwarg in key_tmpl]
+                if applicable_indexes:
+                    for key_tmpl in applicable_indexes:
+                        key = index_key(key_tmpl, {kwarg: self._where.get(kwarg)})
+                        model_ids = wigo_db.sorted_set_range(key, 0, -1)
+                        if model_ids:
+                            instances = self._model_class.find(model_ids)
+                            return len(instances), instances
+                        else:
+                            return 0, []
+                else:
+                    # not a redis indexed key, so look in the rdbms
+                    with db.execution_context(False) as ctx:
+                        keys = [k[0] for k in DataStrings.select(DataStrings.key).where(
+                            DataStrings.value.contains({kwarg: self._where.get(kwarg)})
+                        ).tuples()]
+
+                    # still fetch the actual objects from redis
+                    results = wigo_db.mget(keys)
+                    instances = [self._model_class(result) if result is not None else None for result in results]
+                    for instance in instances:
+                        if instance is not None:
+                            instance.prepared()
+
+                    return len(instances), instances
+
         except DoesNotExist:
             return 0, []
 

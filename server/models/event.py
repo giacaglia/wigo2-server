@@ -5,7 +5,7 @@ from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, \
-    AlreadyExistsException, user_attendees_key, user_eventmessages_key
+    AlreadyExistsException, user_attendees_key, user_eventmessages_key, DEFAULT_EXPIRING_TTL
 from server.models.user import User
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException, memoize
 
@@ -32,7 +32,7 @@ class Event(WigoPersistentModel):
         return datetime.utcnow() > self.expires
 
     def ttl(self):
-        return timedelta(days=8)
+        return DEFAULT_EXPIRING_TTL
 
     def validate(self, partial=False, strict=False):
         if self.id is None and self.privacy == 'public':
@@ -141,13 +141,13 @@ class Event(WigoPersistentModel):
         # add to the users view of who is attending
         attendees_key = user_attendees_key(user, self)
         self.db.sorted_set_add(attendees_key, attendee.id, epoch(datetime.utcnow()))
-        self.db.expire(attendees_key, timedelta(days=8))
+        self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # add the attendees photos to the users view
         emessages_key = user_eventmessages_key(user, self)
         for message_id, score in self.db.sorted_set_iter(user_eventmessages_key(attendee, self)):
             self.db.sorted_set_add(emessages_key, message_id, score)
-        self.db.expire(emessages_key, timedelta(days=8))
+        self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
 
         # add to the users current events list
         self.add_to_user_events(user)
@@ -216,7 +216,7 @@ class EventAttendee(WigoModel):
         if user.privacy != 'private':
             attendees_key = skey(event, 'attendees')
             self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
-            self.db.expire(attendees_key, timedelta(days=8))
+            self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
             event.add_to_global_events()
 
         # now update the users view of the events
@@ -226,7 +226,7 @@ class EventAttendee(WigoModel):
         # record current user as an attendee
         attendees_key = user_attendees_key(user, event)
         self.db.sorted_set_add(attendees_key, user.id, 'inf')
-        self.db.expire(attendees_key, timedelta(days=8))
+        self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # record the event into the events the user can see, as the most important one
         event.add_to_user_events(user)
@@ -269,6 +269,9 @@ class EventMessage(WigoPersistentModel):
     vote_boost = IntType()
     tags = ListType(StringType)
 
+    def ttl(self):
+        return DEFAULT_EXPIRING_TTL
+
     def save(self):
         if not self.user.is_attending(self.event):
             raise ValidationException('Not attending event')
@@ -281,18 +284,18 @@ class EventMessage(WigoPersistentModel):
 
         emessages_key = user_eventmessages_key(user, event)
         self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-        self.db.expire(emessages_key, timedelta(days=8))
+        self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
 
         if user.privacy == 'public':
             emessages_key = skey(event, 'messages')
             self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-            self.db.expire(emessages_key, timedelta(days=8))
+            self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
 
         for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             emessages_key = user_eventmessages_key(friend, event)
             self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-            self.db.expire(emessages_key, timedelta(days=8))
+            self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
 
     def remove_index(self):
         super(EventMessage, self).remove_index()
@@ -316,7 +319,7 @@ class EventMessageVote(WigoModel):
     user_id = LongType(required=True)
 
     def ttl(self):
-        return timedelta(days=8)
+        return DEFAULT_EXPIRING_TTL
 
     @property
     @memoize('message_id')
