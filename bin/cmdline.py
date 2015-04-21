@@ -200,10 +200,11 @@ def import_old_db(groups=False, users=False, friends=False):
     if friends:
         results = rdbms.query("""
             select t1.user_id, t1.follow_id from follow t1, follow t2 where t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-            t1.accepted is True and t2.accepted is True
+            t1.accepted is True and t2.accepted is True and t1.user_id = 19855
         """)
 
         for result in results:
+            print result
             try:
                 Friend({
                     'user_id': result[0],

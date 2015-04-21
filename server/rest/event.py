@@ -33,6 +33,7 @@ class EventListResource(WigoDbListResource):
         return super(EventListResource, self).handle_already_exists_exception(e)
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/events/<int:model_id>')
 @api.response(403, 'If not invited')
 class EventResource(WigoDbResource):
@@ -59,6 +60,7 @@ class EventResource(WigoDbResource):
         abort(501, message='Not implemented')
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/events/')
 class UserEventListResource(WigoResource):
     model = Event
@@ -70,6 +72,7 @@ class UserEventListResource(WigoResource):
         return self.serialize_list(self.model, instances, count)
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/attendees')
 @api.response(403, 'If not invited')
 class EventAttendeeListResource(WigoResource):
@@ -98,6 +101,7 @@ class EventAttendeeListResource(WigoResource):
         abort(501, message='Not implemented')
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/attendees/<user_id>')
 @api.response(200, 'Success')
 class DeleteAttendeeResource(WigoResource):
@@ -113,6 +117,7 @@ class DeleteAttendeeResource(WigoResource):
         return {'success': True}
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/events/<int:event_id>/attendees')
 @api.response(403, 'If not invited')
 class UserEventAttendeeListResource(WigoResource):
@@ -128,6 +133,7 @@ class UserEventAttendeeListResource(WigoResource):
         return self.serialize_list(self.model, instances, count)
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/messages')
 @api.response(403, 'If not invited to event')
 class EventMessageListResource(WigoResource):
@@ -152,6 +158,7 @@ class EventMessageListResource(WigoResource):
         return self.serialize_list(self.model, [message])
 
 
+# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/messages/<int:message_id>')
 @api.response(403, 'If not invited to event')
 class EventMessageResource(WigoResource):

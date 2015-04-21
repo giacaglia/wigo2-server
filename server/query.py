@@ -232,7 +232,10 @@ class SelectQuery(object):
             range_f = self.db.sorted_set_range_by_score
 
         model_ids = range_f(key, min, max, start, self._limit)
-        return count, self._model_class.find(model_ids)
+        if self._fields and 'id' in self._fields:
+            return count, model_ids
+        else:
+            return count, self._model_class.find(model_ids)
 
     def __get_group(self):
         try:

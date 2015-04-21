@@ -45,6 +45,7 @@ class UserListResource(WigoDbListResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self):
         text = request.args.get('text')
+        context = request.args.get('context')
         if text:
             sql = """
               SELECT value->'id' FROM data_strings WHERE
@@ -62,6 +63,35 @@ class UserListResource(WigoDbListResource):
                 results = list(db.execute_sql('{} limit 20'.format(sql), params))
 
             users = User.find([id[0] for id in results])
+            return self.serialize_list(self.model, users)
+
+        elif context == 'invite':
+            page = self.get_page()
+            limit = self.get_limit()
+            users = []
+
+            top_5_friends = list(User.select().friends().limit(5))
+            if page == 1:
+                users.extend(top_5_friends)
+
+            if page > 1 or len(users) == 5:
+                with db.execution_context(False) as ctx:
+                    sql = """
+                        SELECT data_strings.value->>'id' FROM
+                          data_strings INNER JOIN data_int_sorted_sets ON
+                          format('{{user:%%s}}', data_int_sorted_sets.value) = data_strings.key
+                        WHERE
+                          data_int_sorted_sets.key = '{{user:{}}}:friends'
+                          and data_int_sorted_sets.value not in ({})
+                        ORDER BY
+                          data_strings.value->>'first_name', data_strings.value->>'last_name' ASC
+                        LIMIT {} OFFSET {}
+                    """.format(g.user.id, ','.join([str(u.id) for u in users]), limit, limit * (page - 1))
+
+                    results = list(db.execute_sql(sql))
+
+                users.extend(User.find([id[0] for id in results]))
+
             return self.serialize_list(self.model, users)
 
         else:

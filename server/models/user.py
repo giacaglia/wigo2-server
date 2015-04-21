@@ -151,7 +151,7 @@ class Friend(WigoModel):
         return User.find(self.friend_id)
 
     def save(self):
-        if self.friend.is_friend_requested(self.user):
+        if self.user.is_friend_requested(self.friend):
             self.accepted = True
 
         return super(Friend, self).save()
