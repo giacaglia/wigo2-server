@@ -26,6 +26,7 @@ class SelectQuery(object):
         self._event = None
         self._events = None
         self._friends = False
+        self._friend_requested = False
         self._friend_requests = False
         self._min = None
         self._max = None
@@ -47,6 +48,7 @@ class SelectQuery(object):
         clone._user = self._user
         clone._to_user = self._to_user
         clone._friends = self._friends
+        clone._friend_requested = self._friend_requested
         clone._friend_requests = self._friend_requests
         clone._where = dict(self._where)
         clone._min = self._min
@@ -100,6 +102,10 @@ class SelectQuery(object):
     @returns_clone
     def friends(self):
         self._friends = True
+
+    @returns_clone
+    def friend_requested(self):
+        self._friend_requested = True
 
     @returns_clone
     def friend_requests(self):
@@ -160,6 +166,8 @@ class SelectQuery(object):
             return self.__get_page(skey(self._user, 'friends'))
         elif self._user and self._friend_requests:
             return self.__get_page(skey(self._user, 'friend_requests'))
+        elif self._user and self._friend_requested:
+            return self.__get_page(skey(self._user, 'friend_requested'))
         elif self._user and self._model_class == Message:
             return self.__get_conversation()
         elif self._user and self._model_class == Notification:

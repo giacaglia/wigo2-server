@@ -117,6 +117,22 @@ class FriendsListResource(WigoResource):
 
 
 # noinspection PyUnresolvedReferences
+@api.route('/users/<user_id>/friends/requested')
+class FriendRequestsListResource(FriendsListResource):
+    def get_friends_query(self, user_id):
+        user = User.find(self.get_id(user_id))
+        return self.setup_query(self.select(User).user(user).friend_requested())
+
+
+# noinspection PyUnresolvedReferences
+@api.route('/users/<user_id>/friends/requests')
+class FriendRequestsListResource(FriendsListResource):
+    def get_friends_query(self, user_id):
+        user = User.find(self.get_id(user_id))
+        return self.setup_query(self.select(User).user(user).friend_requests())
+
+
+# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/<int:friend_id>')
 class DeleteFriendResource(WigoResource):
     model = Friend
@@ -154,14 +170,6 @@ class FriendsInCommonResource(WigoResource):
         ids = g.user.get_friend_ids_in_common(with_user_id)
         users = User.find(ids)
         return self.serialize_list(User, users)
-
-
-# noinspection PyUnresolvedReferences
-@api.route('/users/<user_id>/friend_requests')
-class FriendRequestsListResource(FriendsListResource):
-    def get_friends_query(self, user_id):
-        user = User.find(self.get_id(user_id))
-        return self.setup_query(self.select(User).user(user).friend_requests())
 
 
 # noinspection PyUnresolvedReferences

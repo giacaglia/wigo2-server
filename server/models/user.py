@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from uuid import uuid4
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 from time import time
 from schematics.transforms import blacklist
@@ -163,8 +163,10 @@ class Friend(WigoModel):
         if self.accepted:
             self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, 1)
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, 1)
-            self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
-            self.db.sorted_set_remove(skey('user', self.friend_id, 'friend_requests'), self.user_id)
+
+            for type in ('friend_requests', 'friend_requested'):
+                self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
+                self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
 
             user_event_id = self.user.get_attending_id()
             if user_event_id:
@@ -181,20 +183,24 @@ class Friend(WigoModel):
         else:
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
+
+            friend_requested_key = skey('user', self.user_id, 'friend_requested')
+            self.db.sorted_set_add(friend_requested_key, self.friend_id, epoch(self.created))
+
             friend_requests_key = skey('user', self.friend_id, 'friend_requests')
             self.db.sorted_set_add(friend_requests_key, self.user_id, epoch(self.created))
 
             # clean out old friend requests
+            self.clean_old(friend_requested_key, timedelta(days=30))
             self.clean_old(friend_requests_key, timedelta(days=30))
 
     def remove_index(self):
         super(Friend, self).remove_index()
         from server.models.event import Event
 
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
-        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
-        self.db.sorted_set_remove(skey('user', self.friend_id, 'friend_requests'), self.user_id)
+        for type in ('friends', 'friend_requests', 'friend_requested'):
+            self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
+            self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
 
         user_event_id = self.user.get_attending_id()
         if user_event_id:
