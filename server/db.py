@@ -529,12 +529,12 @@ def get_range_val(val):
 
 
 @contextmanager
-def rate_limit(self, key, expires):
+def rate_limit(key, expires):
     if Configuration.ENVIRONMENT in ('dev', 'test'):
         yield False
     else:
         if not key.startswith('rate_limit:'):
-            key = 'rate_limit:%s:%s' % (self.__class__.__name__.lower(), key)
+            key = 'rate_limit:{}'.format(key)
         if redis.exists(key):
             yield True
         else:

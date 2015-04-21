@@ -20,7 +20,7 @@ def notify_on_eventmessage(message_id):
         return
 
     user = message.user
-    with rate_limit('eventmessage:{}:'.format(user.id, message.event.id), message.event.expires) as limited:
+    with rate_limit('notifications:eventmessage:{}:'.format(user.id, message.event.id), message.event.expires) as limited:
         if limited:
             return
 
@@ -50,7 +50,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
         return
 
     expires = message.user.group.get_day_end()
-    with rate_limit('eventmessagevote:%s:%s:%s' % (message.user_id, message_id, voter_id), expires) as limited:
+    with rate_limit('notifications:vote:%s:%s:%s' % (message.user_id, message_id, voter_id), expires) as limited:
         if not limited:
             message_text = '{name} liked your photo in {event}'.format(
                 name=voter.full_name.encode('utf-8'), event=message.event.name.encode('utf-8'))
@@ -92,7 +92,7 @@ def notify_on_message(message_id):
 def notify_on_tap(user_id, tapped_id):
     tapped = User.find(tapped_id)
     expires = tapped.group.get_day_end()
-    with rate_limit('tap:{}:{}'.format(user_id, tapped_id), expires) as limited:
+    with rate_limit('notifications:tap:{}:{}'.format(user_id, tapped_id), expires) as limited:
         if not limited:
             user = User.find(user_id)
             message_text = '{} wants to see you out'.format(user.full_name)
