@@ -139,6 +139,16 @@ class User(WigoPersistentModel):
         # increment the score for the user in the friends table
         wigo_db.sorted_set_incr_score(skey(self, 'friends'), user.id)
 
+    def track_meta(self, key, value=None):
+        from server.db import wigo_db
+
+        if value is None:
+            value = time()
+
+        meta_key = skey(self, 'meta')
+        wigo_db.redis.hset(meta_key, key, value)
+        wigo_db.redis.expire(meta_key, timedelta(days=60))
+
 
 class Friend(WigoModel):
     user_id = LongType(required=True)
