@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import ujson
 from server.models.event import Event, EventAttendee
-from server.models.group import Group
 from server.models.user import User
 from tests import client, api_post, api_get, api_delete, make_friends, create_event
 

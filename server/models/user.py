@@ -154,7 +154,7 @@ class Friend(WigoModel):
         if self.user.is_friend(self.friend):
             raise ValidationException('Already friends')
 
-        if self.user.is_friend_requested(self.friend):
+        if self.friend.is_friend_requested(self.user):
             self.accepted = True
 
         return super(Friend, self).save()
