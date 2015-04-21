@@ -118,7 +118,7 @@ class FriendsListResource(WigoResource):
 
 # noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/requested')
-class FriendRequestsListResource(FriendsListResource):
+class FriendRequestedListResource(FriendsListResource):
     def get_friends_query(self, user_id):
         user = User.find(self.get_id(user_id))
         return self.setup_query(self.select(User).user(user).friend_requested())
