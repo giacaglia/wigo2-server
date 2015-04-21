@@ -1,9 +1,9 @@
 from __future__ import absolute_import
 import logging
 
-from server.tasks import push
 from rq.decorators import job
 from server.db import rate_limit, redis
+from server.services import push
 from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage, EventMessageVote, Event
 from server.models.user import User, Notification, Message, Tap, Invite, Friend

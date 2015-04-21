@@ -2,10 +2,6 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
-from server.rest import api_blueprint
-from server.tasks.uploads import wire_uploads_listeners
-from server.tasks.images import wire_images_listeners
-from server.tasks.notifications import wire_notifications_listeners
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -17,15 +13,20 @@ from datetime import datetime
 from urlparse import urlparse
 from clize import clize
 from flask.ext.restful import abort
-from flask.ext.restplus import apidoc
 from flask.ext.sslify import SSLify
 from rq_dashboard import RQDashboard
 from flask import Flask, render_template, g, request, jsonify
 from flask.ext.admin import Admin
 from flask.ext.compress import Compress
+from flask.ext.restplus import apidoc
+
 from server import ApiSessionInterface
-from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, MessageView, EventModelView, \
-    WigoAdminIndexView, EventMessageView
+from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, \
+    MessageView, EventModelView, WigoAdminIndexView, EventMessageView
+from server.rest import api_blueprint
+from server.tasks.uploads import wire_uploads_listeners
+from server.tasks.images import wire_images_listeners
+from server.tasks.notifications import wire_notifications_listeners
 from server.db import wigo_db
 from server.models.user import User, Notification, Message
 from server.models.event import Event, EventMessage
@@ -77,6 +78,8 @@ def setup_request():
     if request.path.startswith('/api/hooks/'):
         # webhooks do their own auth
         pass
+    elif request.path.startswith('/api/swagger'):
+        pass
     elif request.path.startswith('/api') and api_key != app.config['API_KEY']:
         abort(403, message='Bad API key')
 
@@ -117,6 +120,7 @@ def wigo_home():
 
 @app.route('/docs/', endpoint='docs')
 def swagger_ui():
+    from server.rest import api
     return apidoc.ui_for(api)
 
 

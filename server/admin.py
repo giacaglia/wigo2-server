@@ -17,7 +17,7 @@ from schematics.types import StringType, BooleanType, DateTimeType, NumberType, 
 from wtforms import Form, StringField, BooleanField, SelectField, IntegerField, FloatField, TextAreaField
 from flask_admin.form.fields import DateTimeField
 from wtforms.validators import Optional, DataRequired
-from server.models import JsonType
+from server.models import JsonType, DoesNotExist
 from server.models.event import Event
 from server.models.group import Group
 from server.security import check_basic_auth, authenticate
@@ -199,6 +199,12 @@ class WigoModelView(BaseModelView):
 class WigoEqualsModelFilter(BaseFilter):
     # noinspection PyMethodOverriding
     def apply(self, query, name, value):
+        if name == 'group_code':
+            try:
+                group = Group.find(code=value)
+                return query.group(group)
+            except DoesNotExist:
+                pass
         return query.where(**{name: value})
 
     def operation(self):
@@ -206,7 +212,7 @@ class WigoEqualsModelFilter(BaseFilter):
 
 
 class UserModelView(WigoModelView):
-    column_filters = ('username', 'email', 'facebook_id', 'first_name', 'last_name')
+    column_filters = ('username', 'email', 'facebook_id', 'first_name', 'last_name', 'group_code')
 
     def scaffold_list_columns(self):
         return ['id', 'group', 'username', 'created']
@@ -224,7 +230,7 @@ class UserModelView(WigoModelView):
     def action_email(self, ids):
         pass
 
-    @action('push', lazy_gettext('Push'))
+    @action('push', lazy_gettext('Push'), 'Are you sure?')
     def action_push(self, ids):
         return redirect(url_for('.send_push'))
 
