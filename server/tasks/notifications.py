@@ -20,7 +20,8 @@ def notify_on_eventmessage(message_id):
         return
 
     user = message.user
-    with rate_limit('notifications:eventmessage:{}:'.format(user.id, message.event.id), message.event.expires) as limited:
+    with rate_limit('notifications:eventmessage:{}:'.format(user.id, message.event.id),
+                    message.event.expires) as limited:
         if limited:
             return
 
@@ -142,15 +143,22 @@ def notify_on_friend(user_id, friend_id, accepted):
         'from_user_id': user.id,
         'navigate': '/users/{}'.format(user_id),
         'message': message_text
-    }).save()
+    })
 
-    send_notification_push.delay(notification_id=notification.id)
+    if accepted:
+        notification.save()
+        send_notification_push.delay(notification_id=notification.id)
+    else:
+        __send_notification_push(notification)
 
 
 @job('push', connection=redis, timeout=30, result_ttl=0)
 def send_notification_push(notification_id):
     notification = Notification.find(notification_id)
+    __send_notification_push(notification)
 
+
+def __send_notification_push(notification):
     push.alert(data={
         'id': notification.id,
         'navigate': notification.navigate,
