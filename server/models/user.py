@@ -102,17 +102,24 @@ class User(WigoPersistentModel):
         return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id)
 
     def is_friend(self, friend):
-        return self.db.sorted_set_is_member(skey(self, 'friends'), friend.id)
+        friend_id = friend.id if isinstance(friend, User) else friend
+        return self.db.sorted_set_is_member(skey(self, 'friends'), friend_id)
 
     def is_tapped(self, tapped):
-        score = self.db.sorted_set_get_score(skey(self, 'tapped'), tapped.id)
-        return score and score > time()
+        tapped_id = tapped.id if isinstance(tapped, User) else tapped
+        score = self.db.sorted_set_get_score(skey(self, 'tapped'), tapped_id)
+        return score is not None and score > time()
 
     def is_blocked(self, user):
         return False
 
-    def is_friend_requested(self, friend):
-        return self.db.sorted_set_is_member(skey(friend, 'friend_requests'), self.id)
+    def is_friend_request_sent(self, friend):
+        friend_id = friend.id if isinstance(friend, User) else friend
+        return self.db.sorted_set_is_member(skey(self, 'friend_requested'), friend_id)
+
+    def is_friend_request_received(self, friend):
+        friend_id = friend.id if isinstance(friend, User) else friend
+        return self.db.sorted_set_is_member(skey(self, 'friend_requests'), friend_id)
 
     def is_invited(self, event):
         if event.privacy == 'public':
@@ -164,7 +171,7 @@ class Friend(WigoModel):
         if self.user.is_friend(self.friend):
             raise ValidationException('Already friends')
 
-        if self.friend.is_friend_requested(self.user):
+        if self.friend.is_friend_request_sent(self.user_id):
             self.accepted = True
 
         return super(Friend, self).save()
@@ -250,9 +257,9 @@ class Tap(WigoModel):
         return User.find(self.tapped_id)
 
     def save(self):
-        if not self.user.is_friend(self.tapped):
+        if not self.user.is_friend(self.tapped_id):
             raise ValidationException('Not friends')
-        if self.user.is_tapped(self.tapped):
+        if self.user.is_tapped(self.tapped_id):
             raise ValidationException('Already tapped')
 
         super(Tap, self).save()

@@ -1,10 +1,13 @@
 from __future__ import absolute_import
+from datetime import datetime
 
 import re
 
 from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
+from server.db import wigo_db
+from server.models import skey
 
 from server.models.user import User, Friend, Tap, Invite, Message, Notification
 from server.rdbms import db
@@ -35,6 +38,33 @@ class UserResource(WigoDbResource):
     @api.response(501, 'Not implemented')
     def delete(self, model_id):
         abort(501, message='Not implemented')
+
+
+# noinspection PyUnresolvedReferences
+@api.route('/users/<user_id>/meta')
+class UserMetaResource(WigoResource):
+    model = User
+
+    @user_token_required
+    @api.response(200, 'Success')
+    def get(self, user_id):
+        user_id = self.get_id(user_id)
+
+        meta = {}
+        if user_id == g.user.id:
+            user_meta = wigo_db.redis.hgetall(skey('user', user_id, 'meta'))
+            if user_meta:
+                meta.update({k: datetime.utcfromtimestamp(float(v)).isoformat() for k, v in user_meta.items()})
+        else:
+            meta['is_tapped'] = g.user.is_tapped(user_id)
+            meta['is_friend'] = g.user.is_friend(user_id)
+            if g.user.is_friend_request_sent(user_id):
+                meta['friend_request'] = 'sent'
+            elif g.user.is_friend_request_received(user_id):
+                meta['friend_request'] = 'received'
+
+        meta['num_friends'] = wigo_db.get_sorted_set_size(skey('user', user_id, 'friends'))
+        return meta
 
 
 @api.route('/users')
