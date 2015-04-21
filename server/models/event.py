@@ -176,6 +176,14 @@ class Event(WigoPersistentModel):
 
     @classmethod
     def annotate_list(cls, events, user, attendees_limit=5, messages_limit=5):
+        from server.db import wigo_db
+
+        for event in events:
+            if user:
+                event.num_attending = wigo_db.get_sorted_set_size(user_attendees_key(user, event))
+            else:
+                event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
+
         count, attendees_by_event = EventAttendee.select().events(events).user(user).limit(attendees_limit).execute()
         if count:
             for event, attendees in zip(events, attendees_by_event):

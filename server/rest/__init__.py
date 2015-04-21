@@ -128,6 +128,9 @@ class WigoResource(Resource):
     def serialize_object(self, obj):
         prim = obj.to_primitive(role='www')
 
+        if hasattr(obj, 'num_attending'):
+            prim['num_attending'] = obj.num_attending
+
         if hasattr(obj, 'attendees'):
             count = obj.attendees[0]
             attendees = obj.attendees[1]
