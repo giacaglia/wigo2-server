@@ -82,7 +82,7 @@ class FriendsListResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, friends = self.setup_query(self.select(User).user(user).friends())
+        count, friends = self.setup_query(self.select(User).user(user).friends()).execute()
         return self.serialize_list(User, friends, count)
 
     @user_token_required
@@ -120,7 +120,7 @@ class FriendRequestedListResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, friends = self.setup_query(self.select(User).user(user).friend_requested())
+        count, friends = self.setup_query(self.select(User).user(user).friend_requested()).execute()
         return self.serialize_list(User, friends, count)
 
 
@@ -131,7 +131,7 @@ class FriendRequestsListResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, friends = self.setup_query(self.select(User).user(user).friend_requests())
+        count, friends = self.setup_query(self.select(User).user(user).friend_requests()).execute()
         return self.serialize_list(User, friends, count)
 
 
