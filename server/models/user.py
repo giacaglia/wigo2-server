@@ -201,9 +201,13 @@ class Friend(WigoModel):
         super(Friend, self).remove_index()
         from server.models.event import Event
 
-        for type in ('friends', 'friend_requests', 'friend_requested'):
-            self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
-            self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
+        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
+
+        # clean it out of the current users friend_requests and friend_requested but
+        # leave the request on the other side of the relationship so it still seems to be pending
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requested'), self.friend_id)
 
         user_event_id = self.user.get_attending_id()
         if user_event_id:
