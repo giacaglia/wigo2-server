@@ -32,9 +32,9 @@ api = restplus.Api(
 class WigoResource(Resource):
     model = None
 
-    def select(self, model=None):
+    def select(self, model=None, fields=None):
         model = model if model else self.model
-        query = self.setup_query(model.select())
+        query = self.setup_query(model.select(fields))
         if request.args.get('ordering') == 'asc':
             query = query.order('asc')
         return query

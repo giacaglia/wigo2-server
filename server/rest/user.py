@@ -78,14 +78,11 @@ class UserListResource(WigoDbListResource):
 class FriendsListResource(WigoResource):
     model = Friend
 
-    def get_friends_query(self, user_id):
-        user = User.find(self.get_id(user_id))
-        return self.setup_query(self.select(User).user(user).friends())
-
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
-        count, friends = self.get_friends_query(user_id).execute()
+        user = User.find(self.get_id(user_id))
+        count, friends = self.setup_query(self.select(User).user(user).friends())
         return self.serialize_list(User, friends, count)
 
     @user_token_required
@@ -118,18 +115,24 @@ class FriendsListResource(WigoResource):
 
 # noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/requested')
-class FriendRequestedListResource(FriendsListResource):
-    def get_friends_query(self, user_id):
+class FriendRequestedListResource(WigoResource):
+    @user_token_required
+    @api.response(200, 'Success', model=User.to_doc_list_model(api))
+    def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        return self.setup_query(self.select(User).user(user).friend_requested())
+        count, friends = self.setup_query(self.select(User).user(user).friend_requested())
+        return self.serialize_list(User, friends, count)
 
 
 # noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/requests')
-class FriendRequestsListResource(FriendsListResource):
-    def get_friends_query(self, user_id):
+class FriendRequestsListResource(WigoResource):
+    @user_token_required
+    @api.response(200, 'Success', model=User.to_doc_list_model(api))
+    def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        return self.setup_query(self.select(User).user(user).friend_requests())
+        count, friends = self.setup_query(self.select(User).user(user).friend_requests())
+        return self.serialize_list(User, friends, count)
 
 
 # noinspection PyUnresolvedReferences

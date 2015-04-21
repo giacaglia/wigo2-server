@@ -53,9 +53,9 @@ class WigoModel(Model):
         return wigo_db
 
     @classmethod
-    def select(self):
+    def select(self, fields=None):
         from server.query import SelectQuery
-        return SelectQuery(self)
+        return SelectQuery(self, fields)
 
     def ttl(self):
         return None

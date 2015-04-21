@@ -11,12 +11,13 @@ from utils import returns_clone, epoch
 
 
 class SelectQuery(object):
-    def __init__(self, model_class=None, key=None):
+    def __init__(self, model_class=None, fields=None):
         super(SelectQuery, self).__init__()
+        self._fields = fields
         self._model_class = model_class
         self._id = None
         self._ids = None
-        self._key = key
+        self._key = None
         self._page = 1
         self._limit = 10
         self._order = 'desc'
@@ -36,6 +37,7 @@ class SelectQuery(object):
 
     def clone(self):
         clone = SelectQuery(self._model_class)
+        clone._fields = self._fields
         clone._id = self._id
         clone._ids = self._ids
         clone._key = self._key
