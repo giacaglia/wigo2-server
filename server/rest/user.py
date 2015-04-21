@@ -124,7 +124,7 @@ class FriendsListResource(WigoResource):
         friend = Friend()
         friend.user_id = g.user.id
         friend.friend_id = self.get_id(request.get_json().get('friend_id'))
-        friend.sahttps://github.com/heroku/heroku-buildpack-python.gitve()
+        friend.save()
         return {'success': True}
 
     @user_token_required
