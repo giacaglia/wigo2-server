@@ -23,6 +23,7 @@ class Configuration(object):
     PROPAGATE_EXCEPTIONS = False
     WTF_CSRF_ENABLED = False
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'test')
+    PREFERRED_URL_SCHEME = 'https'
 
     API_KEY = os.environ.get('WIGO_API_KEY', 'oi34u53205ju34ik23')
     API_HOOK_KEY = os.environ.get('WIGO_API_HOOK_KEY', '9tejvdoikkf')
