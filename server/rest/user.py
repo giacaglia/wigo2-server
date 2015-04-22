@@ -109,47 +109,25 @@ class UserInviteListResource(WigoResource):
     def get(self):
         page = self.get_page()
         limit = self.get_limit()
+        start = (page - 1) * limit
+
         users = []
 
         friends_key = skey(g.user, 'friends')
         num_friends = wigo_db.get_sorted_set_size(friends_key)
 
         # find the users top 5 friends. this is users with > 3 interactions
-        top_5_friend_ids = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
+        top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 1, limit=5)
 
-        extra_filter = ''
-        if top_5_friend_ids:
-            # exclude those friends from the alpha search below
-            extra_filter = 'and data_int_sorted_sets.value not in ({})'.format(
-                ','.join([str(id) for id in top_5_friend_ids]))
-            # if this is page 1, get the users objects and prepend to the list
-            if page == 1:
-                users.extend(User.find(top_5_friend_ids))
+        friend_ids = wigo_db.sorted_set_range(skey(g.user, 'friends', 'alpha'), start, start+(limit-1))
+        for top_friend_id in top_5:
+            if top_friend_id in friend_ids:
+                friend_ids.remove(top_friend_id)
 
-        # get the users sorted by alpha from the db
-        with db.execution_context(False) as ctx:
-            sql = """
-                SELECT data_strings.value->>'id' FROM
-                  data_strings INNER JOIN data_int_sorted_sets ON
-                  format('{{user:%%s}}', data_int_sorted_sets.value) = data_strings.key
-                WHERE
-                  data_int_sorted_sets.key = '{{user:{user_id}}}:friends'
-                  {extra_filter}
-                ORDER BY
-                  data_strings.value->>'first_name', data_strings.value->>'last_name' ASC
-                LIMIT {limit} OFFSET {offset}
-            """.format(
-                user_id=g.user.id,
-                extra_filter=extra_filter,
-                limit=limit,
-                offset=limit * (page - 1)
-            )
+        if page == 1 and top_5:
+            friend_ids = top_5 + friend_ids
 
-            results = list(db.execute_sql(sql))
-
-        if results:
-            users.extend(User.find([id[0] for id in results]))
-
+        users = User.find(friend_ids)
         return self.serialize_list(self.model, users, num_friends)
 
 

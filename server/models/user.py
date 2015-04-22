@@ -8,7 +8,7 @@ from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
 from schematics.types.serializable import serializable
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL
-from utils import epoch, ValidationException, memoize
+from utils import epoch, ValidationException, memoize, prefix_score
 
 
 class Role(object):
@@ -192,6 +192,11 @@ class Friend(WigoModel):
             self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, 1)
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, 1)
 
+            self.db.sorted_set_add(skey('user', self.user_id, 'friends', 'alpha'),
+                                   self.friend_id, prefix_score(self.friend.full_name))
+            self.db.sorted_set_add(skey('user', self.friend_id, 'friends', 'alpha'),
+                                   self.user_id, prefix_score(self.user.full_name))
+
             for type in ('friend_requests', 'friend_requested'):
                 self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
                 self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
@@ -212,6 +217,9 @@ class Friend(WigoModel):
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
 
+            self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id)
+            self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id)
+
             friend_requested_key = skey('user', self.user_id, 'friend_requested')
             self.db.sorted_set_add(friend_requested_key, self.friend_id, epoch(self.created))
 
@@ -228,6 +236,9 @@ class Friend(WigoModel):
 
         self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
+
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id)
+        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id)
 
         # clean it out of the current users friend_requests and friend_requested but
         # leave the request on the other side of the relationship so it still seems to be pending

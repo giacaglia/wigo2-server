@@ -1,7 +1,8 @@
 from __future__ import absolute_import
 
-import signal
 import re
+import six
+import signal
 
 from collections import namedtuple
 from functools import wraps
@@ -122,6 +123,29 @@ def memoize(field=None):
         return decorated
 
     return inner
+
+
+def prefix_score(v, next=False):
+    if isinstance(v, six.text_type):
+        v = v.encode('utf-8')
+    # We only get 7 characters of score-based prefix.
+    score = 0
+    for ch in six.iterbytes(v[:7]):
+        score *= 258
+        score += ch + 1
+    if next:
+        score += 1
+    score *= 258 ** max(0, 7 - len(v))
+    return repr(bigint_to_float(score))
+
+
+def bigint_to_float(v):
+    assert isinstance(v, six.integer_types)
+    sign = -1 if v < 0 else 1
+    v *= sign
+    assert v < 0x7fe0000000000000
+    exponent, mantissa = divmod(v, 2 ** 52)
+    return sign * (2 ** 52 + mantissa) * 2.0 ** (exponent - 52 - 1022)
 
 
 class BreakHandler:
