@@ -100,24 +100,22 @@ class UserListResource(WigoResource):
             return self.serialize_list(self.model, instances, count)
 
 
-@api.route('/users/invite')
+@api.route('/users/<user_id>/friends/invite')
 class UserInviteListResource(WigoResource):
     model = User
 
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
-    def get(self):
+    def get(self, user_id):
         page = self.get_page()
         limit = self.get_limit()
         start = (page - 1) * limit
-
-        users = []
 
         friends_key = skey(g.user, 'friends')
         num_friends = wigo_db.get_sorted_set_size(friends_key)
 
         # find the users top 5 friends. this is users with > 3 interactions
-        top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 1, limit=5)
+        top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
 
         friend_ids = wigo_db.sorted_set_range(skey(g.user, 'friends', 'alpha'), start, start+(limit-1))
         for top_friend_id in top_5:
