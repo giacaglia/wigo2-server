@@ -111,7 +111,8 @@ class User(WigoPersistentModel):
         return score is not None and score > time()
 
     def is_blocked(self, user):
-        return False
+        user_id = user.id if isinstance(user, User) else user
+        return self.db.sorted_set_is_member(skey(self, 'blocked'), user_id)
 
     def is_friend_request_sent(self, friend):
         friend_id = friend.id if isinstance(friend, User) else friend
@@ -140,6 +141,10 @@ class User(WigoPersistentModel):
     def get_tapped_ids(self):
         from server.db import wigo_db
         return wigo_db.sorted_set_range_by_score(skey(self, 'tapped'), time(), 'inf')
+
+    def get_blocked_ids(self):
+        from server.db import wigo_db
+        return wigo_db.sorted_set_range_by_score(skey(self, 'blocked'), 0, 'inf')
 
     def track_friend_interaction(self, user):
         from server.db import wigo_db
@@ -170,6 +175,9 @@ class Friend(WigoModel):
     def save(self):
         if self.user.is_friend(self.friend):
             raise ValidationException('Already friends')
+
+        if self.friend.is_blocked(self.user):
+            raise ValidationException('Blocked')
 
         if self.friend.is_friend_request_sent(self.user_id):
             self.accepted = True
@@ -259,12 +267,37 @@ class Tap(WigoModel):
     def save(self):
         if not self.user.is_friend(self.tapped_id):
             raise ValidationException('Not friends')
+
         if self.user.is_tapped(self.tapped_id):
             raise ValidationException('Already tapped')
 
         super(Tap, self).save()
 
         self.user.track_friend_interaction(self.tapped)
+
+        return self
+
+
+class Block(WigoModel):
+    indexes = (
+        ('user:{user_id}:blocked={blocked_id}', False),
+    )
+
+    user_id = LongType(required=True)
+    blocked_id = LongType(required=True)
+
+    @property
+    @memoize('tapped_id')
+    def blocked(self):
+        return User.find(self.blocked_id)
+
+    def save(self):
+        super(Block, self).save()
+
+        Friend({
+            'user_id': self.user_id,
+            'blocked_id': self.blocked_id
+        }).delete()
 
         return self
 

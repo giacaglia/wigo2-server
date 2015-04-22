@@ -9,7 +9,7 @@ from flask.ext.restplus import fields
 from server.db import wigo_db
 from server.models import skey
 
-from server.models.user import User, Friend, Tap, Invite, Message, Notification
+from server.models.user import User, Friend, Tap, Block, Invite, Message, Notification
 from server.rdbms import db
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api
 from server.security import user_token_required
@@ -58,6 +58,7 @@ class UserMetaResource(WigoResource):
         else:
             meta['is_tapped'] = g.user.is_tapped(user_id)
             meta['is_friend'] = g.user.is_friend(user_id)
+            meta['is_blocked'] = g.user.is_blocked(user_id)
             if g.user.is_friend_request_sent(user_id):
                 meta['friend_request'] = 'sent'
             elif g.user.is_friend_request_received(user_id):
@@ -276,6 +277,30 @@ class TapListResource(WigoResource):
         tap.user_id = g.user.id
         tap.tapped_id = self.get_id(request.get_json().get('tapped_id'))
         tap.save()
+        return {'success': True}
+
+
+# noinspection PyUnresolvedReferences
+@api.route('/users/<user_id>/blocks')
+class BlockListResource(WigoResource):
+    model = Block
+
+    @user_token_required
+    @api.response(200, 'Success')
+    def get(self, user_id):
+        return g.user.get_blocked_ids()
+
+    @user_token_required
+    @api.expect(api.model('NewBlock', {
+        'blocked_id': fields.Integer(description='User to block', required=True)
+    }))
+    @api.response(200, 'Success')
+    def post(self, user_id):
+        block = Block()
+        block.user_id = g.user.id
+        block.blocked_id = self.get_id(request.get_json().get('blocked_id'))
+        block.save()
+
         return {'success': True}
 
 
