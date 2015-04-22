@@ -332,6 +332,4 @@ class EventMessageVote(WigoModel):
     @property
     @memoize('message_id')
     def message(self):
-        from server.models.user import User
-
-        return User.find(self.message_id)
+        return EventMessage.find(self.message_id)

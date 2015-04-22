@@ -4,7 +4,7 @@ from flask.ext.restful import abort
 from server.db import wigo_db
 from server.models import skey, user_eventmessages_key
 
-from server.models.event import Event, EventMessage, EventAttendee
+from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
 from server.security import user_token_required
 
@@ -230,3 +230,20 @@ class UserEventMessagesMetaListResource(WigoResource):
             }
 
         return message_meta
+
+
+@api.route('/events/<int:event_id>/messages/<int:message_id>/votes')
+@api.response(403, 'If not invited')
+class EventMessageVoteResource(WigoResource):
+    model = EventMessageVote
+
+    @user_token_required
+    @api.response(200, 'Success')
+    def post(self, event_id, message_id):
+        EventMessageVote({
+            'message_id': message_id,
+            'user_id': g.user.id
+        }).save()
+        return {'success': True}
+
+
