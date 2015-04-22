@@ -67,6 +67,9 @@ def setup_request():
     g.user = None
     g.group = None
 
+    if is_request_secure() and request.environ.get('wsgi.url_scheme') != 'https':
+        request.environ['wsgi.url_scheme'] = 'https'
+
     api_key = request.headers.get('X-Wigo-API-Key')
     if not api_key and 'key' in request.args:
         request.args = request.args.copy()
@@ -121,6 +124,7 @@ def wigo_home():
 @app.route('/docs/', endpoint='docs')
 def swagger_ui():
     from server.rest import api
+
     return apidoc.ui_for(api)
 
 
@@ -221,6 +225,14 @@ def sendgrid_hook():
             user.save()
 
     return jsonify(success=True)
+
+
+def is_request_secure():
+    secure = True if request.is_secure else False
+    forwarded_proto = request.headers.get('X-Forwarded-Proto')
+    if forwarded_proto == 'https':
+        secure = True
+    return secure
 
 
 @clize
