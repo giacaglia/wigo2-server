@@ -121,7 +121,7 @@ class FriendsListResource(WigoResource):
     def post(self, user_id):
         friend = Friend()
         friend.user_id = g.user.id
-        friend.friend_id = self.get_id(request.get_json().get('friend_id'))
+        friend.friend_id = self.get_id_field('friend_id')
         friend.save()
         return {'success': True}
 
@@ -135,7 +135,7 @@ class FriendsListResource(WigoResource):
 
         friend = Friend()
         friend.user_id = g.user.id
-        friend.friend_id = self.get_id(request.get_json().get('friend_id'))
+        friend.friend_id = self.get_id_field('friend_id')
         friend.delete()
 
         return {'success': True}
@@ -247,7 +247,7 @@ class InviteListResource(WigoResource):
     def post(self, event_id):
         invite = Invite()
         invite.user_id = g.user.id
-        invite.invited_id = self.get_id(request.get_json().get('invited_id'))
+        invite.invited_id = self.get_id_field('invited_id')
         invite.event_id = event_id
         invite.save()
         return {'success': True}
@@ -272,7 +272,7 @@ class TapListResource(WigoResource):
     def post(self, user_id):
         tap = Tap()
         tap.user_id = g.user.id
-        tap.tapped_id = self.get_id(request.get_json().get('tapped_id'))
+        tap.tapped_id = self.get_id_field('tapped_id')
         tap.save()
         return {'success': True}
 
@@ -295,7 +295,7 @@ class BlockListResource(WigoResource):
     def post(self, user_id):
         block = Block()
         block.user_id = g.user.id
-        block.blocked_id = self.get_id(request.get_json().get('blocked_id'))
+        block.blocked_id = self.get_id_field('blocked_id')
         block.save()
 
         return {'success': True}

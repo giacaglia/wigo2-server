@@ -13,7 +13,6 @@ from schematics.models import Model
 from schematics.transforms import blacklist
 from schematics.types import BaseType, StringType, DateTimeType, LongType, FloatType, NumberType, BooleanType
 from schematics.types.serializable import serializable
-from server.rdbms import DataStrings
 from utils import dotget, epoch, memoize
 
 logger = logging.getLogger('wigo.model')

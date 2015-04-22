@@ -200,14 +200,10 @@ class EventAttendee(WigoModel):
     user_id = LongType(required=True)
     event_id = LongType(required=True)
 
-    def save(self):
-        user = self.user
-        event = self.event
-
-        if not user.is_invited(event):
+    def validate(self, partial=False, strict=False):
+        super(EventAttendee, self).validate(partial, strict)
+        if not self.user.is_invited(self.event):
             raise ValidationException('Not invited')
-
-        return super(EventAttendee, self).save()
 
     def index(self):
         super(EventAttendee, self).index()
@@ -281,10 +277,10 @@ class EventMessage(WigoPersistentModel):
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
 
-    def save(self):
+    def validate(self, partial=False, strict=False):
+        super(EventMessage, self).validate(partial, strict)
         if not self.user.is_attending(self.event):
             raise ValidationException('Not attending event')
-        return super(EventMessage, self).save()
 
     def index(self):
         super(EventMessage, self).index()

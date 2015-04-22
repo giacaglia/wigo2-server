@@ -57,8 +57,15 @@ class WigoResource(Resource):
     def setup_query(self, query):
         return query.page(self.get_page()).limit(self.get_limit())
 
-    def get_id(self, user_id):
-        return g.user.id if user_id == 'me' else int(user_id)
+    def get_id(self, id_value):
+        return g.user.id if id_value == 'me' else int(id_value)
+
+    def get_id_field(self, field):
+        value = request.get_json().get(field)
+        if not value:
+            abort(400, message='Field {} is required'.format(field))
+        return self.get_id(value)
+
 
     def check_get(self, instance):
         pass

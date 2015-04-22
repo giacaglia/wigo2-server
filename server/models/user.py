@@ -143,10 +143,12 @@ class User(WigoPersistentModel):
 
     def get_tapped_ids(self):
         from server.db import wigo_db
+
         return wigo_db.sorted_set_range_by_score(skey(self, 'tapped'), time(), 'inf')
 
     def get_blocked_ids(self):
         from server.db import wigo_db
+
         return wigo_db.sorted_set_range_by_score(skey(self, 'blocked'), 0, 'inf')
 
     def track_friend_interaction(self, user):
@@ -175,7 +177,9 @@ class Friend(WigoModel):
     def friend(self):
         return User.find(self.friend_id)
 
-    def save(self):
+    def validate(self, partial=False, strict=False):
+        super(Friend, self).validate(partial, strict)
+
         if self.user.is_friend(self.friend):
             raise ValidationException('Already friends')
 
@@ -184,8 +188,6 @@ class Friend(WigoModel):
 
         if self.friend.is_friend_request_sent(self.user_id):
             self.accepted = True
-
-        return super(Friend, self).save()
 
     def index(self):
         super(Friend, self).index()
@@ -278,17 +280,17 @@ class Tap(WigoModel):
     def tapped(self):
         return User.find(self.tapped_id)
 
-    def save(self):
+    def validate(self, partial=False, strict=False):
+        super(Tap, self).validate(partial, strict)
         if not self.user.is_friend(self.tapped_id):
             raise ValidationException('Not friends')
 
         if self.user.is_tapped(self.tapped_id):
             raise ValidationException('Already tapped')
 
+    def save(self):
         super(Tap, self).save()
-
         self.user.track_friend_interaction(self.tapped)
-
         return self
 
 
@@ -333,7 +335,9 @@ class Invite(WigoModel):
     def invited(self):
         return User.find(self.invited_id)
 
-    def save(self):
+    def validate(self, partial=False, strict=False):
+        super(Invite, self).validate(partial, strict)
+
         inviter = self.user
         invited = self.invited
         event = self.event
@@ -344,10 +348,9 @@ class Invite(WigoModel):
         if not inviter.is_attending(event):
             raise ValidationException('Must be attending the event')
 
+    def save(self):
         super(Invite, self).save()
-
         self.user.track_friend_interaction(self.invited)
-
         return self
 
     def index(self):
@@ -389,6 +392,10 @@ class Notification(WigoPersistentModel):
         return User.find(self.from_user_id)
 
     @serializable(serialized_name='from_user', serialize_when_none=False)
+    def from_user_ref(self):
+        return self.ref_field(User, 'from_user_id')
+
+    @serializable(serialized_name='from_user', serialize_when_none=False)
     def user_ref(self):
         return self.ref_field(User, 'from_user_id')
 
@@ -410,14 +417,18 @@ class Message(WigoPersistentModel):
     def to_user(self):
         return User.find(self.to_user_id)
 
-    def save(self):
+    @serializable(serialized_name='to_user', serialize_when_none=False)
+    def to_user_ref(self):
+        return self.ref_field(User, 'to_user_id')
+
+    def validate(self, partial=False, strict=False):
+        super(Message, self).validate(partial, strict)
         if not self.user.is_friend(self.to_user):
             raise ValidationException('Not friends')
 
+    def save(self):
         super(Message, self).save()
-
         self.user.track_friend_interaction(self.to_user)
-
         return self
 
     def index(self):
