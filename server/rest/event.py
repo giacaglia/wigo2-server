@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 from flask import g, request
 from flask.ext.restful import abort
+from server.db import wigo_db
+from server.models import skey, user_eventmessages_key
 
 from server.models.event import Event, EventMessage, EventAttendee
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
@@ -186,3 +188,43 @@ class EventMessageResource(WigoResource):
         self.check_edit(message)
         message.delete()
         return {'success': True}
+
+
+# noinspection PyUnresolvedReferences
+@api.route('/events/<int:event_id>/messages/meta')
+@api.response(200, 'Meta data about event messages')
+class EventMessagesMetaListResource(WigoResource):
+    model = EventMessage
+
+    @user_token_required
+    @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
+    def get(self, event_id):
+        message_meta = {}
+
+        message_ids = wigo_db.sorted_set_range(skey('event', event_id, 'messages'), 0, -1)
+        for message_id in message_ids:
+            message_meta[message_id] = {
+                'num_votes': wigo_db.get_sorted_set_size(skey('message', message_id, 'votes'))
+            }
+
+        return message_meta
+
+
+# noinspection PyUnresolvedReferences
+@api.route('/users/<user_id>/events/<int:event_id>/messages/meta')
+@api.response(200, 'Meta data about event messages')
+class UserEventMessagesMetaListResource(WigoResource):
+    model = EventMessage
+
+    @user_token_required
+    @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
+    def get(self, user_id, event_id):
+        message_meta = {}
+
+        message_ids = wigo_db.sorted_set_range(user_eventmessages_key(g.user, event_id), 0, -1)
+        for message_id in message_ids:
+            message_meta[message_id] = {
+                'num_votes': wigo_db.get_sorted_set_size(skey('message', message_id, 'votes'))
+            }
+
+        return message_meta

@@ -415,7 +415,8 @@ def user_attendees_key(user, event):
 
 
 def user_eventmessages_key(user, event):
-    return skey(user, event, 'messages')
+    event_id = event.id if isinstance(event, Model) else event
+    return skey(user, 'event', event_id, 'messages')
 
 
 def skey(*keys):
