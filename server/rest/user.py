@@ -69,14 +69,13 @@ class UserMetaResource(WigoResource):
 
 
 @api.route('/users')
-class UserListResource(WigoDbListResource):
+class UserListResource(WigoResource):
     model = User
 
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self):
         text = request.args.get('text')
-        context = request.args.get('context')
         if text:
             sql = """
               SELECT value->'id' FROM data_strings WHERE
@@ -96,42 +95,62 @@ class UserListResource(WigoDbListResource):
             users = User.find([id[0] for id in results])
             return self.serialize_list(self.model, users)
 
-        elif context == 'invite':
-            page = self.get_page()
-            limit = self.get_limit()
-            users = []
-
-            top_5_friends = list(User.select().friends().limit(5))
-            if page == 1:
-                users.extend(top_5_friends)
-
-            if page > 1 or len(users) == 5:
-                with db.execution_context(False) as ctx:
-                    sql = """
-                        SELECT data_strings.value->>'id' FROM
-                          data_strings INNER JOIN data_int_sorted_sets ON
-                          format('{{user:%%s}}', data_int_sorted_sets.value) = data_strings.key
-                        WHERE
-                          data_int_sorted_sets.key = '{{user:{}}}:friends'
-                          and data_int_sorted_sets.value not in ({})
-                        ORDER BY
-                          data_strings.value->>'first_name', data_strings.value->>'last_name' ASC
-                        LIMIT {} OFFSET {}
-                    """.format(g.user.id, ','.join([str(u.id) for u in users]), limit, limit * (page - 1))
-
-                    results = list(db.execute_sql(sql))
-
-                users.extend(User.find([id[0] for id in results]))
-
-            return self.serialize_list(self.model, users)
-
         else:
             count, instances = self.setup_query(self.model.select().group(g.group)).execute()
             return self.serialize_list(self.model, instances, count)
 
-    @api.response(501, 'Not implemented')
-    def post(self):
-        abort(501, message='Not implemented')
+
+@api.route('/users/invite')
+class UserInviteListResource(WigoResource):
+    model = User
+
+    @user_token_required
+    @api.response(200, 'Success', model=User.to_doc_list_model(api))
+    def get(self):
+        page = self.get_page()
+        limit = self.get_limit()
+        users = []
+
+        friends_key = skey(g.user, 'friends')
+        num_friends = wigo_db.get_sorted_set_size(friends_key)
+
+        # find the users top 5 friends. this is users with > 3 interactions
+        top_5_friend_ids = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
+
+        extra_filter = ''
+        if top_5_friend_ids:
+            # exclude those friends from the alpha search below
+            extra_filter = 'and data_int_sorted_sets.value not in ({})'.format(
+                ','.join([str(id) for id in top_5_friend_ids]))
+            # if this is page 1, get the users objects and prepend to the list
+            if page == 1:
+                users.extend(User.find(top_5_friend_ids))
+
+        # get the users sorted by alpha from the db
+        with db.execution_context(False) as ctx:
+            sql = """
+                SELECT data_strings.value->>'id' FROM
+                  data_strings INNER JOIN data_int_sorted_sets ON
+                  format('{{user:%%s}}', data_int_sorted_sets.value) = data_strings.key
+                WHERE
+                  data_int_sorted_sets.key = '{{user:{user_id}}}:friends'
+                  {extra_filter}
+                ORDER BY
+                  data_strings.value->>'first_name', data_strings.value->>'last_name' ASC
+                LIMIT {limit} OFFSET {offset}
+            """.format(
+                user_id=g.user.id,
+                extra_filter=extra_filter,
+                limit=limit,
+                offset=limit * (page - 1)
+            )
+
+            results = list(db.execute_sql(sql))
+
+        if results:
+            users.extend(User.find([id[0] for id in results]))
+
+        return self.serialize_list(self.model, users, num_friends)
 
 
 # noinspection PyUnresolvedReferences
