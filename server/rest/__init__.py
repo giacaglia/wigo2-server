@@ -70,16 +70,23 @@ class WigoResource(Resource):
     def check_get(self, instance):
         pass
 
-    def clean_data(self, data):
+    def clean_data(self, data, mode='edit'):
         data = dict(data)
 
+        if 'id' in data:
+            del data['id']
         if 'created' in data:
             del data['created']
         if 'modified' in data:
             del data['modified']
 
         # remove blacklisted fields
-        role = self.model._options.roles.get('www')
+        role = self.model._options.roles.get('www-{}'.format(mode))
+        if not role and mode != 'edit':
+            role = self.model._options.roles.get('www-edit')
+        if not role:
+            role = self.model._options.roles.get('www')
+
         for field in role:
             if field in data:
                 del data[field]
@@ -102,20 +109,16 @@ class WigoResource(Resource):
         self.check_edit(instance)
 
         # can't change created/modified
-        data = self.clean_data(data)
+        data = self.clean_data(data, 'edit')
         for key, value in data.items():
             setattr(instance, key, value)
-
-        for key in data.keys():
-            if '_id' in key:
-                del data[key]
 
         instance.save()
         return instance
 
     def create(self, data):
         self.check_create(data)
-        data = self.clean_data(data)
+        data = self.clean_data(data, 'create')
         instance = self.model(data)
 
         if 'group_id' in self.model.fields and g.group:

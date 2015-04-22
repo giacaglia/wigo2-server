@@ -262,7 +262,11 @@ class EventAttendee(WigoModel):
 
 class EventMessage(WigoPersistentModel):
     class Options:
-        roles = {'www': blacklist('vote_boost', 'user_id')}
+        roles = {
+            'www': blacklist('vote_boost'),
+            'www-create': blacklist('id', 'vote_boost', 'user_id'),
+            'www-edit': blacklist('id', 'vote_boost', 'user_id', 'event_id')
+        }
         serialize_when_none = False
 
     event_id = LongType(required=True)

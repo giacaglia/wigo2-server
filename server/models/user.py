@@ -28,8 +28,12 @@ class User(WigoPersistentModel):
     )
 
     class Options:
-        roles = {'www': blacklist('facebook_token', 'key', 'status', 'role', 'group_id', 'user_id',
-                                  'exchange_token', 'email_validated_status', 'password')}
+        roles = {
+            'www': blacklist('facebook_token', 'key', 'status', 'role',
+                             'exchange_token', 'email_validated_status', 'password'),
+            'www-edit': blacklist('id', 'facebook_token', 'key', 'status', 'role', 'group_id', 'user_id',
+                                  'exchange_token', 'email_validated_status', 'password')
+        }
         serialize_when_none = False
 
     group_id = LongType()
