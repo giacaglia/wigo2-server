@@ -395,10 +395,6 @@ class Notification(WigoPersistentModel):
     def from_user_ref(self):
         return self.ref_field(User, 'from_user_id')
 
-    @serializable(serialized_name='from_user', serialize_when_none=False)
-    def user_ref(self):
-        return self.ref_field(User, 'from_user_id')
-
 
 class Message(WigoPersistentModel):
     indexes = (
