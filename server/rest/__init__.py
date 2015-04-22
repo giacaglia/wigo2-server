@@ -3,9 +3,10 @@ from __future__ import absolute_import
 import math
 
 from collections import defaultdict
-from flask import g, request, Blueprint
+from flask import g, request, Blueprint, url_for
 from flask.ext.restful import Resource, abort
 from flask.ext import restplus
+from pytz import UnknownTimeZoneError
 from schematics.exceptions import ModelValidationError
 from werkzeug.urls import url_encode
 from server.models import AlreadyExistsException
@@ -19,14 +20,22 @@ from utils import SecurityException
 
 api_blueprint = Blueprint('api', __name__, url_prefix='/api')
 
-# noinspection PyTypeChecker
-api = restplus.Api(
-    api_blueprint, ui=False, title='Wigo API', catch_all_404s=True,
-    errors={
-        'UnknownTimeZoneError': {
-            'message': 'Unknown timezone', 'status': 400
-        }
-    })
+
+class WigoApi(restplus.Api):
+    def __init__(self):
+        # noinspection PyTypeChecker
+        super(WigoApi, self).__init__(api_blueprint, ui=False, title='Wigo API', catch_all_404s=True)
+
+    @property
+    def specs_url(self):
+        return url_for(self.endpoint('specs'))
+
+    @property
+    def base_url(self):
+        return url_for(self.endpoint('root'))
+
+
+api = WigoApi()
 
 
 class WigoResource(Resource):
@@ -279,6 +288,11 @@ def handle_security_exception(error):
 @api.errorhandler(NotImplementedError)
 def handle_not_implemented(error):
     return {'message': error.message}, 501
+
+
+@api.errorhandler(UnknownTimeZoneError)
+def handle_unknown_tz(error):
+    return {'message': 'Unknown timezone'}, 400
 
 
 import server.rest.register
