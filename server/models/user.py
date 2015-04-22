@@ -6,6 +6,7 @@ from datetime import timedelta
 from time import time
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
+from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL
 from utils import epoch, ValidationException, memoize, prefix_score
@@ -69,6 +70,8 @@ class User(WigoPersistentModel):
 
     latitude = FloatType()
     longitude = FloatType()
+
+    tags = ListType(StringType)
 
     properties = JsonType(default=lambda: {})
 
