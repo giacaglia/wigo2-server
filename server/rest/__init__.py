@@ -208,6 +208,10 @@ class WigoResource(Resource):
                     nested_ids[Group].add(o.group_id)
                 if getattr(o, 'user_id', None):
                     nested_ids[User].add(o.user_id)
+                if getattr(o, 'to_user_id', None):
+                    nested_ids[User].add(o.to_user_id)
+                if getattr(o, 'from_user_id', None):
+                    nested_ids[User].add(o.from_user_id)
                 if getattr(o, 'event_id', None):
                     nested_ids[Event].add(o.event_id)
                 if getattr(o, 'message_id', None):
