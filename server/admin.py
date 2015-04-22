@@ -6,6 +6,7 @@ from flask.ext.admin.model.ajax import AjaxModelLoader, DEFAULT_PAGE_SIZE
 from flask.ext.admin.model.filters import BaseFilter
 from flask.ext.bcrypt import generate_password_hash
 from markupsafe import Markup
+from schematics.types.compound import ListType
 
 from wtforms.widgets import TextArea
 from flask import flash, redirect, url_for
@@ -15,7 +16,7 @@ from flask.ext.admin.model import BaseModelView
 from flask.ext.admin.model.fields import ListEditableFieldList, AjaxSelectField
 from schematics.types import StringType, BooleanType, DateTimeType, NumberType, FloatType
 from wtforms import Form, StringField, BooleanField, SelectField, IntegerField, FloatField, TextAreaField
-from flask_admin.form.fields import DateTimeField
+from flask_admin.form.fields import DateTimeField, Select2TagsField
 from wtforms.validators import Optional, DataRequired
 from server.models import JsonType, DoesNotExist
 from server.models.event import Event
@@ -150,6 +151,8 @@ class WigoModelView(BaseModelView):
                 setattr(WigoModelForm, field.name, BooleanField(field.name))
             elif isinstance(field, JsonType):
                 setattr(WigoModelForm, field.name, JSONField(field.name, validators=validators))
+            elif isinstance(field, ListType):
+                setattr(WigoModelForm, field.name, Select2TagsField(field.name, validators=validators, save_as_list=True))
 
         return WigoModelForm
 
