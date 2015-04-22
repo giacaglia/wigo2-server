@@ -41,7 +41,6 @@ class WigoModel(Model):
     class Options:
         roles = {
             'www': blacklist(),
-            'www-create': blacklist('id', 'group_id', 'user_id', 'owner_id'),
             'www-edit': blacklist('id', 'group_id', 'user_id', 'owner_id'),
         }
         serialize_when_none = False

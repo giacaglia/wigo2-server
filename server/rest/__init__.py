@@ -81,15 +81,16 @@ class WigoResource(Resource):
             del data['modified']
 
         # remove blacklisted fields
-        role = self.model._options.roles.get('www-{}'.format(mode))
-        if not role and mode != 'edit':
-            role = self.model._options.roles.get('www-edit')
-        if not role:
-            role = self.model._options.roles.get('www')
+        role = None
+        for name in ('www-{}'.format(mode), 'www-edit', 'www'):
+            role = self.model._options.roles.get(name)
+            if role:
+                break
 
-        for field in role:
-            if field in data:
-                del data[field]
+        if role:
+            for field in role:
+                if field in data:
+                    del data[field]
 
         return data
 
