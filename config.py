@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import os
+from datetime import timedelta
 
 
 def parse_env_list(prefix):
@@ -19,18 +20,20 @@ def parse_env_list(prefix):
 
 class Configuration(object):
     ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
-    PREFERRED_URL_SCHEME = 'http' if ENVIRONMENT == 'dev' else 'https'
+    DEBUG = True if ENVIRONMENT == 'dev' else False
     SECRET_KEY = 'bb034599jkrtbg30ijwerrgjvn'
+    PREFERRED_URL_SCHEME = 'http' if ENVIRONMENT == 'dev' else 'https'
 
     WEB_HOST = os.environ.get('WEB_HOST', 'localhost:5100')
     API_HOST = os.environ.get('API_HOST', WEB_HOST.replace('verify', 'api'))
     SERVER_NAME = os.environ.get('SERVER_NAME', API_HOST)
 
+    PERMANENT_SESSION_LIFETIME = timedelta(days=365)
     SESSION_COOKIE_HTTPONLY=True
     SESSION_COOKIE_SECURE=True
 
-    PROPAGATE_EXCEPTIONS = False
-    WTF_CSRF_ENABLED = False
+    SEND_FILE_MAX_AGE_DEFAULT = 60 * 60 * 24
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'test')
 

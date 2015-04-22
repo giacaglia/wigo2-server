@@ -129,6 +129,9 @@ class User(WigoPersistentModel):
             return True
         if self.is_attending(event):
             return True
+        return self.is_directly_invited(event)
+
+    def is_directly_invited(self, event):
         return self.db.set_is_member(skey(event, 'invited'), self.id)
 
     def get_friend_ids_in_common(self, with_user_id):

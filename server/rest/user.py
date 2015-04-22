@@ -8,6 +8,7 @@ from flask.ext.restful import abort
 from flask.ext.restplus import fields
 from server.db import wigo_db
 from server.models import skey
+from server.models.event import Event
 
 from server.models.user import User, Friend, Tap, Block, Invite, Message, Notification
 from server.rdbms import db
@@ -98,35 +99,6 @@ class UserListResource(WigoResource):
         else:
             count, instances = self.setup_query(self.model.select().group(g.group)).execute()
             return self.serialize_list(self.model, instances, count)
-
-
-@api.route('/users/<user_id>/friends/invite')
-class UserInviteListResource(WigoResource):
-    model = User
-
-    @user_token_required
-    @api.response(200, 'Success', model=User.to_doc_list_model(api))
-    def get(self, user_id):
-        page = self.get_page()
-        limit = self.get_limit()
-        start = (page - 1) * limit
-
-        friends_key = skey(g.user, 'friends')
-        num_friends = wigo_db.get_sorted_set_size(friends_key)
-
-        # find the users top 5 friends. this is users with > 3 interactions
-        top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
-
-        friend_ids = wigo_db.sorted_set_range(skey(g.user, 'friends', 'alpha'), start, start+(limit-1))
-        for top_friend_id in top_5:
-            if top_friend_id in friend_ids:
-                friend_ids.remove(top_friend_id)
-
-        if page == 1 and top_5:
-            friend_ids = top_5 + friend_ids
-
-        users = User.find(friend_ids)
-        return self.serialize_list(self.model, users, num_friends)
 
 
 # noinspection PyUnresolvedReferences
@@ -235,6 +207,36 @@ class FriendsInCommonResource(WigoResource):
 @api.route('/events/<int:event_id>/invites')
 class InviteListResource(WigoResource):
     model = Invite
+
+    @user_token_required
+    @api.response(200, 'Success', model=User.to_doc_list_model(api))
+    def get(self, event_id):
+        event = Event.find(event_id)
+
+        page = self.get_page()
+        limit = self.get_limit()
+        start = (page - 1) * limit
+
+        friends_key = skey(g.user, 'friends')
+        num_friends = wigo_db.get_sorted_set_size(friends_key)
+
+        # find the users top 5 friends. this is users with > 3 interactions
+        top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
+
+        friend_ids = wigo_db.sorted_set_range(skey(g.user, 'friends', 'alpha'), start, start + (limit - 1))
+        for top_friend_id in top_5:
+            if top_friend_id in friend_ids:
+                friend_ids.remove(top_friend_id)
+
+        if page == 1 and top_5:
+            friend_ids = top_5 + friend_ids
+
+        users = User.find(friend_ids)
+
+        for user in users:
+            user.invited = user.is_directly_invited(event)
+
+        return self.serialize_list(self.model, users, num_friends)
 
     @user_token_required
     @api.expect(api.model('NewInvite', {

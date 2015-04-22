@@ -140,6 +140,9 @@ class WigoResource(Resource):
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
 
+        if hasattr(obj, 'invited'):
+            prim['is_invited'] = obj.invited
+
         if hasattr(obj, 'attendees'):
             count = obj.attendees[0]
             attendees = obj.attendees[1]
