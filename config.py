@@ -19,17 +19,19 @@ def parse_env_list(prefix):
 
 class Configuration(object):
     ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
+    PREFERRED_URL_SCHEME = 'http' if ENVIRONMENT == 'dev' else 'https'
     SECRET_KEY = 'bb034599jkrtbg30ijwerrgjvn'
+
+    WEB_HOST = os.environ.get('WEB_HOST', 'localhost:5100')
+    API_HOST = os.environ.get('API_HOST', WEB_HOST.replace('verify', 'api'))
+    SERVER_NAME = os.environ.get('SERVER_NAME', API_HOST)
+
     PROPAGATE_EXCEPTIONS = False
     WTF_CSRF_ENABLED = False
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'test')
-    PREFERRED_URL_SCHEME = 'http' if ENVIRONMENT == 'dev' else 'https'
 
     API_KEY = os.environ.get('WIGO_API_KEY', 'oi34u53205ju34ik23')
     API_HOOK_KEY = os.environ.get('WIGO_API_HOOK_KEY', '9tejvdoikkf')
-
-    WEB_HOST = os.environ.get('WEB_HOST', 'localhost:5000')
-    API_HOST = os.environ.get('API_HOST', WEB_HOST.replace('verify', 'api'))
 
     REDIS_URL = os.environ.get('REDIS_URL', os.environ.get('REDISCLOUD_URL', 'redis://localhost:6379'))
     REDIS_URLS = parse_env_list('REDIS_URL')
