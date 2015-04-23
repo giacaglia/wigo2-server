@@ -238,9 +238,6 @@ class EventAttendee(WigoModel):
 
         for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
-            # add to this users list of friends attending
-            if friend.is_attending(event):
-                event.add_to_user_attending(user, friend, score)
             # add to each of the users friends that this user is attending
             if friend.is_invited(event):
                 event.add_to_user_attending(friend, user, score)
