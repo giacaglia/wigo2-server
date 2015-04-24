@@ -27,6 +27,8 @@ from server.rest import api_blueprint
 from server.tasks.uploads import wire_uploads_listeners
 from server.tasks.images import wire_images_listeners
 from server.tasks.notifications import wire_notifications_listeners
+from server.tasks.parse import wire_parse_listeners
+from server.tasks.predictions import wire_predictions_listeners
 from server.db import wigo_db
 from server.models.user import User, Notification, Message
 from server.models.event import Event, EventMessage
@@ -60,7 +62,8 @@ admin.add_view(ConfigView(Config))
 wire_notifications_listeners()
 wire_uploads_listeners()
 wire_images_listeners()
-
+wire_predictions_listeners()
+wire_parse_listeners()
 
 @app.before_request
 def setup_request():

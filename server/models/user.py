@@ -8,6 +8,7 @@ from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
+from config import Configuration
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL
 from utils import epoch, ValidationException, memoize, prefix_score
 
@@ -131,12 +132,19 @@ class User(WigoPersistentModel):
         return self.db.sorted_set_is_member(skey(self, 'friend_requests'), friend_id)
 
     def is_invited(self, event):
+        # you can't be invited to another groups event
+        if event.group_id != self.group_id:
+            return False
+        # everyone is invited to a public event
         if event.privacy == 'public':
             return True
+        # if you own the event, your invited!
         if self.id == event.owner_id:
             return True
+        # if you are going already, you are invited
         if self.is_attending(event):
             return True
+        # if you were actually invited you are...
         return self.is_directly_invited(event)
 
     def is_directly_invited(self, event):
@@ -188,13 +196,13 @@ class Friend(WigoModel):
     def validate(self, partial=False, strict=False):
         super(Friend, self).validate(partial, strict)
 
-        if self.user.is_friend(self.friend):
+        if Configuration.ENVIRONMENT != 'dev' and self.user.is_friend(self.friend):
             raise ValidationException('Already friends')
 
         if self.friend.is_blocked(self.user):
             raise ValidationException('Blocked')
 
-        if self.friend.is_friend_request_sent(self.user_id):
+        if not self.accepted and self.friend.is_friend_request_sent(self.user_id):
             self.accepted = True
 
     def index(self):
@@ -290,10 +298,11 @@ class Tap(WigoModel):
 
     def validate(self, partial=False, strict=False):
         super(Tap, self).validate(partial, strict)
-        if not self.user.is_friend(self.tapped_id):
-            raise ValidationException('Not friends')
 
-        if self.user.is_tapped(self.tapped_id):
+        # if not self.user.is_friend(self.tapped_id):
+        #     raise ValidationException('Not friends')
+
+        if Configuration.ENVIRONMENT != 'dev' and self.user.is_tapped(self.tapped_id):
             raise ValidationException('Already tapped')
 
     def save(self):

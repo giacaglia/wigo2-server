@@ -220,6 +220,8 @@ class InviteListResource(WigoResource):
         friends_key = skey(g.user, 'friends')
         num_friends = wigo_db.get_sorted_set_size(friends_key)
 
+        # TODO make sure only to recommend friends in the same city
+
         # find the users top 5 friends. this is users with > 3 interactions
         top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
 

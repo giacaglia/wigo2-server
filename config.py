@@ -92,6 +92,10 @@ class Configuration(object):
 
     CAPTURE_IMAGES = True
 
+    PREDICTION_IO_APP_ID = 2
+    PREDICTION_IO_ACCESS_KEY = 'FRTbOYF3fFKnZWeXJaKavdDpIVB5NoMgEfeYdBmpHlZi9C84Q1K2MSuE4EUHTj7z'
+    PREDICTION_IO_HOST = '104.197.21.254'
+
     UPLOAD_FOLDER = 'uploads'
 
     if not os.path.exists(UPLOAD_FOLDER):
