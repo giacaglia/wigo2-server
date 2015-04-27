@@ -31,7 +31,7 @@ class User(WigoPersistentModel):
 
     class Options:
         roles = {
-            'www': blacklist('facebook_token', 'key', 'status', 'role',
+            'www': blacklist('facebook_token', 'status', 'role',
                              'exchange_token', 'email_validated_status', 'password'),
             'www-edit': blacklist('id', 'facebook_token', 'key', 'status', 'role',
                                   'group_id', 'user_id', 'exchange_token',
@@ -131,21 +131,25 @@ class User(WigoPersistentModel):
         friend_id = friend.id if isinstance(friend, User) else friend
         return self.db.sorted_set_is_member(skey(self, 'friend_requests'), friend_id)
 
+    def can_see_event(self, event):
+        # everyone can see a public event
+        if event.privacy == 'public':
+            return True
+        # if you own the event, your can see it!
+        if self.id == event.owner_id:
+            return True
+        # if you are going already, you can see it
+        if self.is_attending(event):
+            return True
+        # if you were invited you can see it
+        return self.is_directly_invited(event)
+
     def is_invited(self, event):
         # you can't be invited to another groups event
         if event.group_id != self.group_id:
             return False
-        # everyone is invited to a public event
-        if event.privacy == 'public':
-            return True
-        # if you own the event, your invited!
-        if self.id == event.owner_id:
-            return True
-        # if you are going already, you are invited
-        if self.is_attending(event):
-            return True
-        # if you were actually invited you are...
-        return self.is_directly_invited(event)
+        # check if the user can see the event
+        return self.can_see_event(event)
 
     def is_directly_invited(self, event):
         return self.db.set_is_member(skey(event, 'invited'), self.id)
@@ -225,13 +229,13 @@ class Friend(WigoModel):
             user_event_id = self.user.get_attending_id()
             if user_event_id:
                 user_event = Event.find(user_event_id)
-                if self.friend.is_invited(user_event):
+                if self.friend.can_see_event(user_event):
                     user_event.add_to_user_attending(self.friend, self.user)
 
             friend_event_id = self.friend.get_attending_id()
             if friend_event_id:
                 friend_event = Event.find(friend_event_id)
-                if self.user.is_invited(friend_event):
+                if self.user.can_see_event(friend_event):
                     friend_event.add_to_user_attending(self.user, self.friend)
 
         else:

@@ -48,8 +48,8 @@ class EventResource(WigoDbResource):
 
     def check_get(self, event):
         super(EventResource, self).check_get(event)
-        if not g.user.is_invited(event):
-            abort(403, message='Not invited to event')
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event event')
 
     @user_token_required
     @api.expect(Event.to_doc_list_model(api))
@@ -84,8 +84,8 @@ class EventAttendeeListResource(WigoResource):
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
     def get(self, event_id):
         event = Event.find(event_id)
-        if not g.user.is_invited(event):
-            abort(403, message='Not invited to event')
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event')
         count, instances = self.select().event(event).execute()
         return self.serialize_list(self.model, instances, count)
 
@@ -129,8 +129,8 @@ class UserEventAttendeeListResource(WigoResource):
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
     def get(self, user_id, event_id):
         event = Event.find(event_id)
-        if not g.user.is_invited(event):
-            abort(403, message='Not invited to event')
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event')
         count, instances = self.select().user(g.user).event(event).execute()
         return self.serialize_list(self.model, instances, count)
 
@@ -145,8 +145,8 @@ class EventMessageListResource(WigoResource):
     @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
     def get(self, event_id):
         event = Event.find(event_id)
-        if not g.user.is_invited(event):
-            abort(403, message='Not invited to event')
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event')
         count, messages = self.select().event(event).execute()
         return self.serialize_list(self.model, messages, count)
 
@@ -171,8 +171,8 @@ class EventMessageResource(WigoResource):
     def get(self, event_id, message_id):
         message = self.model.find(self.get_id(message_id))
         event = message.event
-        if not g.user.is_invited(event):
-            abort(403, message='Not invited to event')
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event')
         return self.serialize_list(self.model, [message])
 
     @user_token_required

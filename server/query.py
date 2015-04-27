@@ -175,8 +175,7 @@ class SelectQuery(object):
         elif self._user and self._model_class == Notification:
             return self.__get_notifications()
         elif self._user and self._model_class == Event:
-            group = self._group if self._group else self._user.group
-            return self.__get_page(skey(group, self._user, 'events'))
+            return self.__get_page(skey(self._user, 'events'))
         elif self._group and self._model_class == Event:
             return self.__get_page(skey(self._group, 'events'))
         elif self._model_class == Group and self._lat and self._lon:

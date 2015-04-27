@@ -375,7 +375,8 @@ class WigoPersistentModel(WigoModel):
         return hash(self.id)
 
     def __eq__(self, other):
-        return self.id == other.id
+        return other.__class__ == self.__class__ and self.id is not None and other.id == self.id
+
 
 
 class Config(WigoPersistentModel):

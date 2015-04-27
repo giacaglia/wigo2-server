@@ -123,7 +123,7 @@ class Event(WigoPersistentModel):
             self.db.sorted_set_remove(events_key, self.id)
 
     def add_to_user_events(self, user, remove_empty=False):
-        events_key = skey(user.group, user, 'events')
+        events_key = skey(user, 'events')
 
         current_attending = user.get_attending_id()
         if current_attending and current_attending == self.id:
@@ -239,7 +239,7 @@ class EventAttendee(WigoModel):
         for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))
             # add to each of the users friends that this user is attending
-            if friend.is_invited(event):
+            if friend.can_see_event(event):
                 event.add_to_user_attending(friend, user, score)
 
     def remove_index(self):
