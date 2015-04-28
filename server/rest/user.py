@@ -141,6 +141,17 @@ class FriendsListResource(WigoResource):
         return {'success': True}
 
 
+@api.route('/users/<user_id>/friends/ids')
+class FriendIdsListResource(WigoResource):
+    model = Friend
+
+    @user_token_required
+    @api.response(200, 'Success')
+    def get(self, user_id):
+        user = User.find(self.get_id(user_id))
+        return wigo_db.sorted_set_range(skey(user, 'friends'), 0, -1)
+
+
 # noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/requested')
 class FriendRequestedListResource(WigoResource):
