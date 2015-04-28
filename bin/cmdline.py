@@ -127,7 +127,7 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
     logconfig.configure('dev')
     Configuration.CAPTURE_IMAGES = False
 
-    rdbms = DataSet(Configuration.DATABASE_URL)
+    rdbms = DataSet(Configuration.OLD_DATABASE_URL)
 
     num_saved = 0
     groups_table = rdbms['group']
