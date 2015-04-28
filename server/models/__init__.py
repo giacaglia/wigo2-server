@@ -407,8 +407,8 @@ class AlreadyExistsException(WigoModelException):
         self.instance = instance
 
 
-def get_score_key(d, score):
-    return int(epoch(d)) + (score / 10000.0)
+def get_score_key(time, distance, num_attending):
+    return epoch(time) + (1 - (distance / 5000.0)) + (num_attending / 10000.0)
 
 
 def user_attendees_key(user, event):

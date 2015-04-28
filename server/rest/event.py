@@ -2,9 +2,10 @@ from __future__ import absolute_import
 from flask import g, request
 from flask.ext.restful import abort
 from server.db import wigo_db
-from server.models import skey, user_eventmessages_key
+from server.models import skey, user_eventmessages_key, AlreadyExistsException
 
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
+from server.models.group import get_group_by_city_id, Group
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
 from server.security import user_token_required
 
@@ -23,11 +24,30 @@ class EventListResource(WigoDbListResource):
     @api.expect(Event.to_doc_list_model(api))
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def post(self):
-        return super(EventListResource, self).post()
+        json = request.get_json()
+        if 'city_id' in json:
+            group = get_group_by_city_id(json['city_id'])
+        elif 'group_id' in json:
+            group = Group.find(json['group_id'])
+        else:
+            group = g.group
+
+        try:
+            event = Event({
+                'name': json.get('name'),
+                'group_id': group.id,
+                'owner_id': g.user.id,
+                'privacy': json.get('privacy') or 'public'
+            })
+
+            event.save()
+            return self.serialize_list(Event, [event])
+        except AlreadyExistsException, e:
+            return self.handle_already_exists_exception(e)
 
     def handle_already_exists_exception(self, e):
         event = e.instance
-        if g.user.is_invited(event) and not g.user.is_attending(event):
+        if g.user.can_see_event(event) and not g.user.is_attending(event):
             EventAttendee({
                 'user_id': g.user.id,
                 'event_id': e.instance.id

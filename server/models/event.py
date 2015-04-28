@@ -1,5 +1,7 @@
 from __future__ import absolute_import
-from datetime import timedelta, datetime
+
+from datetime import datetime
+from geodis.city import City
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
@@ -101,7 +103,14 @@ class Event(WigoPersistentModel):
 
     def add_to_global_events(self, remove_empty=False):
         group = self.group
+
         events_key = skey('group', self.group_id, 'events')
+        groups_with_events_key = skey('groups_with_events')
+
+        # add to the list of groups that have events
+        self.db.sorted_set_add(groups_with_events_key, group.id, epoch(self.expires), replicate=False)
+        self.clean_old(groups_with_events_key)
+
         attendees_key = skey(self, 'attendees')
         event_name_key = skey(group, Event, Event.event_key(self.name))
 
@@ -111,7 +120,7 @@ class Event(WigoPersistentModel):
             if remove_empty and (self.owner_id is not None and num_attending == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
-                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, num_attending))
+                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, num_attending))
         else:
             try:
                 existing_event = self.find(group=group, name=self.name)
@@ -127,14 +136,17 @@ class Event(WigoPersistentModel):
 
         current_attending = user.get_attending_id()
         if current_attending and current_attending == self.id:
-            self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 100000))
+            self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, 100000))
             self.clean_old(events_key)
         else:
             num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
             if remove_empty and num_attending == 0:
                 self.db.sorted_set_remove(events_key, self.id)
             else:
-                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, num_attending))
+                distance = City.getLatLonDistance((self.group.latitude, self.group.longitude),
+                                                  (user.group.latitude, user.group.longitude))
+
+                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, distance, num_attending))
                 self.clean_old(events_key)
 
     def add_to_user_attending(self, user, attendee, score=1):
@@ -202,7 +214,7 @@ class EventAttendee(WigoModel):
 
     def validate(self, partial=False, strict=False):
         super(EventAttendee, self).validate(partial, strict)
-        if not self.user.is_invited(self.event):
+        if not self.user.can_see_event(self.event):
             raise ValidationException('Not invited')
 
     def index(self):

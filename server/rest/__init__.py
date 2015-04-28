@@ -318,6 +318,7 @@ def handle_unknown_tz(error):
 
 import server.rest.register
 import server.rest.login
+import server.rest.group
 import server.rest.user
 import server.rest.event
 import server.rest.uploads

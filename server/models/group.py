@@ -4,15 +4,16 @@ import re
 from datetime import datetime, timedelta
 from geodis.city import City
 from pytz import timezone, UTC
+from repoze.lru import lru_cache
 from schematics.types import StringType, BooleanType, FloatType
-from server.models import WigoPersistentModel, DoesNotExist
+from server.db import redis
+from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
 
 
 class Group(WigoPersistentModel):
     indexes = (
         ('group:{city_id}:city_id', True),
         ('group:{code}:code', True),
-        ('group:{name}:name', True),
         ('group', False),
         ('group:locked:{locked}', False),
         ('group:verified:{verified}', False),
@@ -73,19 +74,88 @@ class Group(WigoPersistentModel):
     def find(cls, *args, **kwargs):
         if 'lat' in kwargs and 'lon' in kwargs:
             from server.db import redis
+
             city = City.getByLatLon(kwargs['lat'], kwargs['lon'], redis)
             if not city:
                 raise DoesNotExist()
+
             try:
-                return Group.find(city_id=city.cityId)
+                return get_group_by_city_id(city.cityId)
             except DoesNotExist:
-                return Group({
-                    'name': city.name,
-                    'code': re.sub(r'([^\s\w]|_)+', '_', city.name.lower()),
-                    'latitude': city.lat,
-                    'longitude': city.lon,
-                    'city_id': city.cityId,
-                    'verified': True
-                }).save()
+                city_code = city.name
+                iterations = 0
+                while iterations < 10:
+                    try:
+                        city_code = city_code.decode('unicode_escape').encode('ascii', 'ignore').lower()
+                        city_code = re.sub(r'[^\w]+', '_', city_code)
+
+                        return Group({
+                            'name': city.name,
+                            'code': city_code,
+                            'latitude': city.lat,
+                            'longitude': city.lon,
+                            'city_id': city.cityId,
+                            'verified': True
+                        }).save()
+
+                    except IntegrityException:
+                        iterations += 1
+                        city_code = '{}_{}'.format(city_code, iterations)
+
+                raise DoesNotExist()
 
         return super(Group, cls).find(*args, **kwargs)
+
+    @classmethod
+    def get_events(self, starting_group, current_group, page=1, limit=10):
+        groups = get_close_groups_with_events(starting_group.latitude, starting_group.longitude)
+
+        if groups:
+            if groups[0].id != starting_group.id:
+                groups = [g for g in groups if g.id != starting_group.id]
+                groups.insert(0, starting_group)
+
+
+        events_key = skey('group', self.group_id, 'events')
+
+
+@lru_cache(5000, timeout=60 * 10)
+def get_group_by_city_id(city_id):
+    return Group.find(city_id=city_id)
+
+
+@lru_cache(1000, timeout=60 * 10)
+def get_close_groups_with_events(lat, lon):
+    from server.db import wigo_db
+
+    cities = get_close_cities(lat, lon)
+    close_groups = []
+    for city in cities:
+        try:
+            close_group = get_group_by_city_id(city.cityId)
+            if wigo_db.sorted_set_is_member(skey('groups_with_events'), close_group.id):
+                close_groups.append(close_group)
+        except DoesNotExist:
+            pass
+
+    return close_groups
+
+
+@lru_cache(1000, timeout=60 * 60)
+def get_close_cities(lat, lon):
+    # get all the groups in the radius
+    cities = City.loadByNamedKey('geoname', redis, lat, lon, 100, '')
+
+    # sort by distance from this group
+    if cities:
+        cities.sort(lambda x, y: cmp(
+            City.getLatLonDistance((lat, lon), (x.lat, x.lon)),
+            City.getLatLonDistance((lat, lon), (y.lat, y.lon)),
+        ))
+
+    return cities
+
+
+@lru_cache(1000, timeout=60 * 60)
+def get_biggest_close_cities(lat, lon):
+    return City.getByRadius(lat, lon, 100, redis)

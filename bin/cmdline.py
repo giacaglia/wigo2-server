@@ -14,8 +14,8 @@ from schematics.exceptions import ModelValidationError
 from config import Configuration
 from clize import run, clize
 from server.models import IntegrityException, DoesNotExist
-from server.models.group import Group
-from server.models.user import User, Friend
+from server.models.group import Group, get_group_by_city_id
+from server.models.user import User, Friend, Tap
 
 logger = logging.getLogger('wigo.cmdline')
 
@@ -54,6 +54,7 @@ def deploy():
 def initialize(create_tables=False, import_cities=False):
     if create_tables:
         from server.rdbms import db, DataStrings, DataSets, DataSortedSets, DataExpires, DataIntSets, DataIntSortedSets
+
         db.create_tables([DataStrings, DataSets, DataIntSets,
                           DataSortedSets, DataIntSortedSets, DataExpires], safe=True)
 
@@ -77,13 +78,11 @@ def initialize(create_tables=False, import_cities=False):
         from server.db import redis
         from geodis.city import City
 
-        redis.delete(City.getGeohashIndexKey())
         with open('data/wigo_cities.json') as f:
-            pipe = redis.pipeline()
+            imported = 0
             for line in f:
                 try:
                     row = [x.encode('utf-8') for x in ujson.loads(line)]
-                    print 'importing {}'.format(row[7])
 
                     loc = City(
                         continentId=row[0],
@@ -100,30 +99,39 @@ def initialize(create_tables=False, import_cities=False):
                         population=int(row[11])
                     )
 
-                    loc.save(pipe)
-
                     try:
-                        Group.find(city_id=loc.cityId)
+                        get_group_by_city_id(loc.cityId)
                     except DoesNotExist:
-                        Group({
-                            'name': loc.name,
-                            'code': re.sub(r'([^\s\w]|_)+', '_', loc.name.lower()),
-                            'latitude': loc.lat,
-                            'longitude': loc.lon,
-                            'city_id': loc.cityId,
-                            'verified': True
-                        }).save()
+                        try:
+                            stripped = loc.name.decode('unicode_escape').encode('ascii', 'ignore').lower()
+                            name = re.sub(r'[^\w]+', '_', stripped)
+
+                            Group({
+                                'name': loc.name,
+                                'code': name,
+                                'latitude': loc.lat,
+                                'longitude': loc.lon,
+                                'city_id': loc.cityId,
+                                'verified': True
+                            }).save()
+
+                            imported += 1
+
+                            if (imported % 500) == 0:
+                                logger.info('imported {} cities'.format(imported))
+
+                        except IntegrityException:
+                            logger.warn('could not import duplicate line, {}'.format(line))
 
                 except Exception, e:
                     logging.exception("Could not import line %s: %s", line, e)
                     return
 
-        pipe.execute()
-
-
 
 @clize
-def import_old_db(groups=False, users=False, friends=False):
+def import_old_db(groups=False, users=False, friends=False, taps=False):
+    from server.tasks.predictions import wire_predictions_listeners
+
     logconfig.configure('dev')
     Configuration.CAPTURE_IMAGES = False
 
@@ -134,6 +142,8 @@ def import_old_db(groups=False, users=False, friends=False):
     users_table = rdbms['user']
     follow_table = rdbms['follow']
     aa_table = rdbms['accountassociation']
+
+    wire_predictions_listeners()
 
     if groups:
         for dbgroup in groups_table.find():
@@ -199,12 +209,11 @@ def import_old_db(groups=False, users=False, friends=False):
 
     if friends:
         results = rdbms.query("""
-            select t1.user_id, t1.follow_id from follow t1, follow t2 where t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-            t1.accepted is True and t2.accepted is True and t1.user_id = 19855
+            select t1.user_id, t1.follow_id, t1.created from follow t1, follow t2 where t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
+            t1.accepted is True and t2.accepted is True and t1.user_id in (select id from "user" where group_id = 1)
         """)
 
         for result in results:
-            print result
             try:
                 Friend({
                     'user_id': result[0],
@@ -219,6 +228,76 @@ def import_old_db(groups=False, users=False, friends=False):
             except Exception, e:
                 logger.error('friend import error, {}'.format(e.message))
 
+    if taps:
+        results = rdbms.query("""
+            select user_id, tapped_id from tap where user_id in (select id from "user" where group_id = 1)
+        """)
+
+        for result in results:
+            try:
+                Tap({
+                    'user_id': result[0],
+                    'tapped_id': result[1]
+                }).save()
+
+                num_saved += 1
+
+                if (num_saved % 100) == 0:
+                    logger.info('saved {} taps'.format(num_saved))
+
+            except Exception, e:
+                logger.error('tap import error, {}'.format(e.message))
+
+
+@clize
+def import_predictions():
+    import predictionio
+
+    logconfig.configure('dev')
+
+    rdbms = DataSet(Configuration.DATABASE_URL)
+    users_table = rdbms['user']
+
+    client = predictionio.EventClient(
+        access_key=Configuration.PREDICTION_IO_ACCESS_KEY,
+        url='http://{}:7070'.format(Configuration.PREDICTION_IO_HOST),
+        threads=5,
+        qsize=500
+    )
+
+    def record(user_id, with_user_id, group_id, event):
+        r = client.set_user(user_id)
+
+        if r.status not in (200, 201):
+            raise Exception('Error returned from prediction io')
+
+        r = client.set_item(with_user_id, {'categories': [str(group_id)]})
+
+        if r.status not in (200, 201):
+            raise Exception('Error returned from prediction io')
+
+        r = client.record_user_action_on_item(event, user_id, with_user_id)
+        if r.status not in (200, 201):
+            raise Exception('Error returned from prediction io')
+
+    results = rdbms.query("""
+        select tap.user_id, "user".group_id, tap.tapped_id from tap inner join "user" on tap.user_id = "user".id
+        where tap.created > (now() - interval '30 days')
+    """)
+
+    rows = 0
+
+    for result in results:
+        user_id = result[0]
+        group_id = result[1]
+        with_user_id = result[2]
+        record(user_id, with_user_id, group_id, 'view')
+
+        rows += 1
+
+        if (rows % 500) == 0:
+            logger.info('wrote {} records'.format(rows))
+
 
 if __name__ == '__main__':
-    run((deploy, initialize, import_old_db))
+    run((deploy, initialize, import_old_db, import_predictions))

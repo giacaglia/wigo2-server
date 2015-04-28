@@ -1,11 +1,12 @@
 from __future__ import absolute_import
+
 from functools import wraps
 from flask import request, g, Response
 from flask.ext.restful import abort
 
 from config import Configuration
 from server.models import DoesNotExist
-from server.models.user import User, Role
+from server.models.user import User
 from server.models.group import Group
 
 
@@ -20,6 +21,7 @@ def user_token_required(fn):
             return fn(*args, **kwargs)
         else:
             abort(403, message='Unauthorized')
+
     return decorated
 
 
@@ -35,6 +37,7 @@ def setup_user_by_token():
                     g.user.save()
             elif g.user.group_id:
                 g.group = Group.find(g.user.group_id)
+
         except DoesNotExist:
             pass
 

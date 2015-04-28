@@ -144,13 +144,6 @@ class User(WigoPersistentModel):
         # if you were invited you can see it
         return self.is_directly_invited(event)
 
-    def is_invited(self, event):
-        # you can't be invited to another groups event
-        if event.group_id != self.group_id:
-            return False
-        # check if the user can see the event
-        return self.can_see_event(event)
-
     def is_directly_invited(self, event):
         return self.db.set_is_member(skey(event, 'invited'), self.id)
 
