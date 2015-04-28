@@ -8,6 +8,7 @@ from server.services import push
 from server.models import DoesNotExist, post_model_save, skey
 from server.models.event import EventMessage, EventMessageVote, Event
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
+from utils import epoch
 
 
 logger = logging.getLogger('wigo.notifications')
@@ -183,18 +184,18 @@ def wire_notifications_listeners():
             notify_on_eventmessage_vote.delay(voter_id=instance.user_id, message_id=instance.message_id)
         elif isinstance(instance, Message):
             notify_on_message.delay(message_id=instance.id)
-            instance.to_user.track_meta('last_message')
+            instance.to_user.track_meta('last_message', epoch(instance.created))
         elif isinstance(instance, Friend):
             notify_on_friend.delay(user_id=instance.user_id, friend_id=instance.friend_id, accepted=instance.accepted)
             if not instance.accepted:
-                instance.friend.track_meta('last_friend_request')
+                instance.friend.track_meta('last_friend_request', epoch(instance.created))
         elif isinstance(instance, Tap):
             notify_on_tap.delay(user_id=instance.user_id, tapped_id=instance.tapped_id)
         elif isinstance(instance, Invite):
             notify_on_invite.delay(inviter_id=instance.user_id,
                                    invited_id=instance.invited_id, event_id=instance.event_id)
         elif isinstance(instance, Notification):
-            instance.user.track_meta('last_notification')
+            instance.user.track_meta('last_notification', epoch(instance.created))
 
     post_model_save.connect(notifications_model_listener, weak=False)
 
