@@ -1,4 +1,4 @@
-GitPython==0.3.6
+GitPython==1.0.0
 bpython
 freezegun==0.3.2
 httpretty==0.8.8
