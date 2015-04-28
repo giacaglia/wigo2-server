@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 
 import ujson
-from server.models.event import Event, EventAttendee
-from server.models.user import User
 from tests import client, api_post, api_get, api_delete, make_friends, create_event
 
 
 def test_create_event():
+    from server.models.event import Event
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')
@@ -49,6 +50,9 @@ def test_create_event():
 
 
 def test_private_event():
+    from server.models.event import Event, EventAttendee
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')
@@ -77,6 +81,9 @@ def test_private_event():
 
 
 def test_user_events():
+    from server.models.event import Event
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')
@@ -100,6 +107,9 @@ def test_user_events():
 
 
 def test_attending():
+    from server.models.event import Event, EventAttendee
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')
@@ -121,6 +131,9 @@ def test_attending():
 
 
 def test_events_with_friends():
+    from server.models.event import Event
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')

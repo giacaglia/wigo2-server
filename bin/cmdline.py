@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 import sys
 import os
+import geodis
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-import re
 import logging
 import logconfig
 import ujson
@@ -14,7 +14,7 @@ from schematics.exceptions import ModelValidationError
 from config import Configuration
 from clize import run, clize
 from server.models import IntegrityException, DoesNotExist
-from server.models.group import Group, get_group_by_city_id
+from server.models.group import Group
 from server.models.user import User, Friend, Tap
 
 logger = logging.getLogger('wigo.cmdline')
@@ -52,6 +52,8 @@ def deploy():
 
 @clize
 def initialize(create_tables=False, import_cities=False):
+    logconfig.configure('dev')
+
     if create_tables:
         from server.rdbms import db, DataStrings, DataSets, DataSortedSets, DataExpires, DataIntSets, DataIntSortedSets
 
@@ -78,7 +80,11 @@ def initialize(create_tables=False, import_cities=False):
         from server.db import redis
         from geodis.city import City
 
-        with open('data/wigo_cities.json') as f:
+        redis.delete(City.getGeohashIndexKey())
+        cities_file = os.path.join(geodis.__path__[0], 'data', 'cities1000.json')
+        with open(cities_file) as f:
+            pipe = redis.pipeline()
+
             imported = 0
             for line in f:
                 try:
@@ -99,33 +105,19 @@ def initialize(create_tables=False, import_cities=False):
                         population=int(row[11])
                     )
 
-                    try:
-                        get_group_by_city_id(loc.cityId)
-                    except DoesNotExist:
-                        try:
-                            stripped = loc.name.decode('unicode_escape').encode('ascii', 'ignore').lower()
-                            name = re.sub(r'[^\w]+', '_', stripped)
+                    loc.save(pipe)
 
-                            Group({
-                                'name': loc.name,
-                                'code': name,
-                                'latitude': loc.lat,
-                                'longitude': loc.lon,
-                                'city_id': loc.cityId,
-                                'verified': True
-                            }).save()
+                    imported += 1
 
-                            imported += 1
-
-                            if (imported % 500) == 0:
-                                logger.info('imported {} cities'.format(imported))
-
-                        except IntegrityException:
-                            logger.warn('could not import duplicate line, {}'.format(line))
+                    if (imported % 2000) == 0:
+                        logger.info('imported {}'.format(imported))
+                        pipe.execute()
 
                 except Exception, e:
                     logging.exception("Could not import line %s: %s", line, e)
                     return
+
+        pipe.execute()
 
 
 @clize

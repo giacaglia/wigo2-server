@@ -3,7 +3,8 @@ import logging
 
 import ujson
 
-from mock import patch
+from rq import decorators
+from mock import Mock
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from mockredis import mock_redis_client
@@ -14,15 +15,17 @@ Configuration.ENVIRONMENT = 'test'
 Configuration.PUSH_ENABLED = False
 
 NEXT_ID = 1
+patches = []
 
-@contextmanager
-def mocks():
-    class MockQueue(object):
-        pass
 
-    with patch('rq.decorators.Queue', autospec=True):
-        with patch('redis.Redis', mock_redis_client):
-            yield
+def setup():
+    import server.db
+
+    decorators.Queue = Mock()
+    mock_redis = mock_redis_client()
+    server.db.redis = mock_redis
+    server.db.wigo_db.redis = mock_redis
+
 
 @contextmanager
 def client():
@@ -30,71 +33,70 @@ def client():
     logging.getLogger('web').setLevel(level=logging.FATAL)
     logging.getLogger('wigo').setLevel(level=logging.FATAL)
 
-    with mocks():
-        from web import app
-        from server.db import wigo_db
-        from server.models.group import Group
-        from geodis.city import City
-        from server.models.user import User
+    from web import app
+    from server.db import wigo_db
+    from server.models.group import Group
+    from geodis.city import City
+    from server.models.user import User
 
-        app.debug = True
-        wigo_db.redis.flushdb()
+    app.debug = True
+    wigo_db.redis.flushdb()
 
-        def zscan_iter(name, match=None, count=None):
-            cursor = '0'
-            while cursor != 0:
-                cursor, data = wigo_db.redis.zscan(name, cursor=cursor, match=match, count=count)
-                for item in data:
-                    yield item
+    def zscan_iter(name, match=None, count=None):
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = wigo_db.redis.zscan(name, cursor=cursor, match=match, count=count)
+            for item in data:
+                yield item
 
-        wigo_db.redis.zscan_iter = zscan_iter
+    wigo_db.redis.zscan_iter = zscan_iter
 
-        def new_id():
-            global NEXT_ID
-            next_id = NEXT_ID
-            NEXT_ID += 1
-            return next_id
+    def new_id():
+        global NEXT_ID
+        next_id = NEXT_ID
+        NEXT_ID += 1
+        return next_id
 
-        wigo_db.gen_id = new_id
+    wigo_db.gen_id = new_id
 
-        city = City(cityId=4930956, name='Boston', lat=42.3584, lon=-71.0598)
-        city.save(wigo_db.redis)
+    city = City(cityId=4930956, name='Boston', lat=42.3584, lon=-71.0598)
+    city.save(wigo_db.redis)
 
-        city = City(cityId=5391811, name='San Diego', lat=32.7153, lon=-117.157)
-        city.save(wigo_db.redis)
+    city = City(cityId=5391811, name='San Diego', lat=32.7153, lon=-117.157)
+    city.save(wigo_db.redis)
 
-        boston = Group({
-            'name': 'Boston', 'code': 'boston', 'city_id': 4930956,
-            'latitude': 42.3584, 'longitude': -71.0598
-        }).save()
+    boston = Group({
+        'name': 'Boston', 'code': 'boston', 'city_id': 4930956,
+        'latitude': 42.3584, 'longitude': -71.0598
+    }).save()
 
-        san_diego = Group({
-            'name': 'San Diego', 'code': 'san_diego', 'city_id': 5391811,
-            'latitude': 32.7153, 'longitude': -117.157
-        }).save()
+    san_diego = Group({
+        'name': 'San Diego', 'code': 'san_diego', 'city_id': 5391811,
+        'latitude': 32.7153, 'longitude': -117.157
+    }).save()
 
-        u = User({
-            'username': 'test',
-            'group_id': boston.id,
-            'facebook_id': 'xxx1',
-            'facebook_token': 'xxx1',
-            'facebook_token_expires': datetime.utcnow() + timedelta(days=7),
-            'email': 'test@test.com',
-            'key': 'test'
-        }).save()
+    u = User({
+        'username': 'test',
+        'group_id': boston.id,
+        'facebook_id': 'xxx1',
+        'facebook_token': 'xxx1',
+        'facebook_token_expires': datetime.utcnow() + timedelta(days=7),
+        'email': 'test@test.com',
+        'key': 'test'
+    }).save()
 
-        u = User({
-            'username': 'test2',
-            'group_id': boston.id,
-            'facebook_id': 'xxx2',
-            'facebook_token': 'xxx2',
-            'facebook_token_expires': datetime.utcnow() + timedelta(days=7),
-            'email': 'test2@test.com',
-            'key': 'test2'
-        }).save()
+    u = User({
+        'username': 'test2',
+        'group_id': boston.id,
+        'facebook_id': 'xxx2',
+        'facebook_token': 'xxx2',
+        'facebook_token_expires': datetime.utcnow() + timedelta(days=7),
+        'email': 'test2@test.com',
+        'key': 'test2'
+    }).save()
 
-        with app.test_client() as client:
-            yield client
+    with app.test_client() as client:
+        yield client
 
 
 def get_headers(user, api_version='2.0.0', lat=None, lon=None):

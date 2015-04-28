@@ -1,12 +1,13 @@
 from __future__ import absolute_import
-import ujson
-from server.models.group import Group
 
-from server.models.user import User
+import ujson
 from tests import client, api_post, api_delete, make_friends, api_get
 
 
 def test_update_user():
+    from server.models.group import Group
+    from server.models.user import User
+
     with client() as c:
         user = User.find(key='test')
 
@@ -22,6 +23,9 @@ def test_update_user():
 
 
 def test_update_user_group():
+    from server.models.group import Group
+    from server.models.user import User
+
     with client() as c:
         user = User.find(key='test')
         g = user.group
@@ -39,6 +43,9 @@ def test_update_user_group():
         assert User.find(key='test').group.name == 'Boston'
 
 def test_friends():
+    from server.models.group import Group
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')
@@ -74,6 +81,8 @@ def test_friends():
 
 
 def test_messages():
+    from server.models.user import User
+
     with client() as c:
         user1 = User.find(key='test')
         user2 = User.find(key='test2')
