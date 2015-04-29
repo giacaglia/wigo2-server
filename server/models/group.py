@@ -1,17 +1,21 @@
 from __future__ import absolute_import
 
 import re
+import logging
+import redis_lock
+import requests
+
 from datetime import datetime, timedelta
 from geodis.city import City
 from time import time
 from pytz import timezone, UTC
-import redis_lock
 from repoze.lru import CacheMaker
-import requests
 from schematics.types import StringType, BooleanType, FloatType
+
 from server.db import redis
 from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
 
+logger = logging.getLogger('wigo.model')
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 
@@ -93,7 +97,7 @@ class Group(WigoPersistentModel):
 
     @classmethod
     def create_from_city(cls, city):
-        timezone = get_timezone(city.lat, city.lon)
+        tz = get_timezone(city.lat, city.lon)
         city_code = city.name.decode('unicode_escape').encode('ascii', 'ignore').lower()
         city_code = re.sub(r'[^\w]+', '_', city_code)
 
@@ -112,7 +116,7 @@ class Group(WigoPersistentModel):
                             'latitude': city.lat,
                             'longitude': city.lon,
                             'city_id': city.cityId,
-                            'timezone': timezone or 'US/Eastern',
+                            'timezone': tz or 'US/Eastern',
                             'verified': True
                         }).save()
 
@@ -189,6 +193,11 @@ def get_timezone(lat, lon):
                         'key=AIzaSyD5qSwGfZiRLIVkf3Ij7if3FVFGDcZdGi0'.format(lat, lon, int(time())))
 
     if resp.status_code == 200:
-        return resp.json().get('timeZoneId')
+        timezone_id = resp.json().get('timeZoneId')
+        try:
+            timezone(timezone_id)
+            return timezone_id
+        except:
+            logger.warn('could not parse timezone {}'.format(timezone_id))
 
     return None
