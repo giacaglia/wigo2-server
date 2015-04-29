@@ -38,6 +38,11 @@ def client():
     from server.models.group import Group
     from geodis.city import City
     from server.models.user import User
+    from server.rest.event import cache_maker as rest_event_cache_maker
+    from server.models.group import cache_maker as group_cache_maker
+
+    rest_event_cache_maker.clear()
+    group_cache_maker.clear()
 
     app.debug = True
     wigo_db.redis.flushdb()

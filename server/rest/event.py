@@ -4,7 +4,7 @@ import math
 
 from flask import g, request
 from flask.ext.restful import abort
-from repoze.lru import lru_cache
+from repoze.lru import CacheMaker
 from server.db import wigo_db
 from server.models import skey, user_eventmessages_key, AlreadyExistsException, user_attendees_key
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
@@ -12,6 +12,8 @@ from server.models.group import get_group_by_city_id, Group, get_close_groups_wi
 from server.models.user import User
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
 from server.security import user_token_required
+
+cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 
 @api.route('/events/')
@@ -328,14 +330,14 @@ class EventMessageVoteResource(WigoResource):
         return {'success': True}
 
 
-@lru_cache(1000, timeout=60)
+@cache_maker.expiring_lrucache()
 def get_global_attendees(event_id):
     from server.db import wigo_db
 
     return wigo_db.sorted_set_rrange(skey('event', event_id, 'attendees'), 0, -1)
 
 
-@lru_cache(1000, timeout=60)
+@cache_maker.expiring_lrucache()
 def get_global_messages(event_id):
     from server.db import wigo_db
 

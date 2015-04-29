@@ -4,10 +4,12 @@ import re
 from datetime import datetime, timedelta
 from geodis.city import City
 from pytz import timezone, UTC
-from repoze.lru import lru_cache
+from repoze.lru import CacheMaker
 from schematics.types import StringType, BooleanType, FloatType
 from server.db import redis
 from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
+
+cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 
 class Group(WigoPersistentModel):
@@ -110,12 +112,12 @@ class Group(WigoPersistentModel):
         return self.name
 
 
-@lru_cache(5000, timeout=60 * 10)
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 10)
 def get_group_by_city_id(city_id):
     return Group.find(city_id=city_id)
 
 
-@lru_cache(1000, timeout=60 * 10)
+@cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 10)
 def get_close_groups_with_events(lat, lon):
     from server.db import wigo_db
 
@@ -132,7 +134,7 @@ def get_close_groups_with_events(lat, lon):
     return close_groups
 
 
-@lru_cache(1000, timeout=60 * 60)
+@cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
 def get_close_cities(lat, lon):
     # get all the groups in the radius
     cities = City.loadByNamedKey('geoname', redis, lat, lon, 100, '')
@@ -147,6 +149,6 @@ def get_close_cities(lat, lon):
     return cities
 
 
-@lru_cache(1000, timeout=60 * 60)
+@cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
 def get_biggest_close_cities(lat, lon):
     return City.getByRadius(lat, lon, 100, redis)
