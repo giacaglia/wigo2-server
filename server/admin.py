@@ -49,7 +49,10 @@ def actions_formatter(view, context, model, name):
 
 
 def group_formatter(view, context, model, name):
-    return Markup(model.group.name) if model.group else ""
+    try:
+        return Markup(model.group.name) if model.group else ""
+    except DoesNotExist:
+        return ""
 
 
 class WigoModelView(BaseModelView):
