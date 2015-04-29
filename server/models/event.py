@@ -109,11 +109,6 @@ class Event(WigoPersistentModel):
         group = self.group
 
         events_key = skey('group', self.group_id, 'events')
-        groups_with_events_key = skey('groups_with_events')
-
-        # add to the list of groups that have events
-        self.db.sorted_set_add(groups_with_events_key, group.id, epoch(self.expires), replicate=False)
-        self.clean_old(groups_with_events_key)
 
         attendees_key = skey(self, 'attendees')
         event_name_key = skey(group, Event, Event.event_key(self.name))

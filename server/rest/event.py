@@ -38,7 +38,7 @@ class EventListResource(WigoDbListResource):
         groups = [group]
 
         # append all of the close groups
-        close_groups = get_close_groups_with_events(group.latitude, group.longitude)
+        close_groups = get_close_groups_with_events(group)
 
         if group in close_groups:
             close_groups.remove(group)
@@ -284,7 +284,7 @@ class EventMessagesMetaListResource(WigoResource):
     def get(self, event_id):
         message_meta = {}
 
-        message_ids = wigo_db.sorted_set_range(skey('event', event_id, 'messages'), 0, -1)
+        message_ids = wigo_db.sorted_set_range(skey('event', event_id, 'messages'))
         for message_id in message_ids:
             message_meta[message_id] = {
                 'num_votes': wigo_db.get_sorted_set_size(skey('message', message_id, 'votes')),
@@ -305,7 +305,7 @@ class UserEventMessagesMetaListResource(WigoResource):
     def get(self, user_id, event_id):
         message_meta = {}
 
-        message_ids = wigo_db.sorted_set_range(user_eventmessages_key(g.user, event_id), 0, -1)
+        message_ids = wigo_db.sorted_set_range(user_eventmessages_key(g.user, event_id))
         for message_id in message_ids:
             message_meta[message_id] = {
                 'num_votes': wigo_db.get_sorted_set_size(skey('message', message_id, 'votes')),

@@ -210,7 +210,7 @@ class WigoModel(Model):
                 applicable_indexes = [key_tmpl for key_tmpl, unique in cls.indexes if kwarg in key_tmpl]
                 for key_tmpl in applicable_indexes:
                     key = index_key(key_tmpl, {kwarg: kwargs.get(kwarg)})
-                    model_ids = wigo_db.sorted_set_range(key, 0, -1)
+                    model_ids = wigo_db.sorted_set_range(key)
                     if model_ids:
                         return cls.find(model_ids[0])
 

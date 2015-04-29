@@ -1,20 +1,20 @@
 from __future__ import absolute_import
 import logging
-from time import time
 
 from rq.decorators import job
-from server.db import rate_limit, redis, wigo_db
+from server.db import rate_limit
 from server.services import push
-from server.models import DoesNotExist, post_model_save, skey
+from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage, EventMessageVote, Event
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
+from server.tasks import redis_queues
 from utils import epoch
 
 
 logger = logging.getLogger('wigo.notifications')
 
 
-@job('notifications', connection=redis, timeout=30, result_ttl=0)
+@job('notifications', connection=redis_queues, timeout=30, result_ttl=0)
 def notify_on_eventmessage(message_id):
     try:
         message = EventMessage.find(message_id)
@@ -42,7 +42,7 @@ def notify_on_eventmessage(message_id):
             send_notification_push.delay(notification_id=notification.id)
 
 
-@job('notifications', connection=redis, timeout=30, result_ttl=0)
+@job('notifications', connection=redis_queues, timeout=30, result_ttl=0)
 def notify_on_eventmessage_vote(voter_id, message_id):
     voter = User.find(voter_id)
     message = EventMessage.find(message_id)
@@ -69,7 +69,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
             send_notification_push.delay(notification_id=notification.id)
 
 
-@job('notifications', connection=redis, timeout=30, result_ttl=0)
+@job('notifications', connection=redis_queues, timeout=30, result_ttl=0)
 def notify_on_message(message_id):
     message = Message.find(message_id)
     user = message.to_user
@@ -91,7 +91,7 @@ def notify_on_message(message_id):
     }, enterprise=user.enterprise)
 
 
-@job('notifications', connection=redis, timeout=30, result_ttl=0)
+@job('notifications', connection=redis_queues, timeout=30, result_ttl=0)
 def notify_on_tap(user_id, tapped_id):
     tapped = User.find(tapped_id)
     expires = tapped.group.get_day_end()
@@ -110,7 +110,7 @@ def notify_on_tap(user_id, tapped_id):
             send_notification_push.delay(notification_id=notification.id)
 
 
-@job('notifications', connection=redis, timeout=30, result_ttl=0)
+@job('notifications', connection=redis_queues, timeout=30, result_ttl=0)
 def notify_on_invite(inviter_id, invited_id, event_id):
     inviter = User.find(inviter_id)
     invited = User.find(invited_id)
@@ -129,7 +129,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
     send_notification_push.delay(notification_id=notification.id)
 
 
-@job('notifications', connection=redis, timeout=30, result_ttl=0)
+@job('notifications', connection=redis_queues, timeout=30, result_ttl=0)
 def notify_on_friend(user_id, friend_id, accepted):
     user = User.find(user_id)
     friend = User.find(friend_id)
@@ -154,7 +154,7 @@ def notify_on_friend(user_id, friend_id, accepted):
         __send_notification_push(notification)
 
 
-@job('push', connection=redis, timeout=30, result_ttl=0)
+@job('push', connection=redis_queues, timeout=30, result_ttl=0)
 def send_notification_push(notification_id):
     notification = Notification.find(notification_id)
     __send_notification_push(notification)
@@ -198,5 +198,3 @@ def wire_notifications_listeners():
             instance.user.track_meta('last_notification', epoch(instance.created))
 
     post_model_save.connect(notifications_model_listener, weak=False)
-
-

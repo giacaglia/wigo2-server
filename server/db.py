@@ -94,7 +94,7 @@ class WigoDB(object):
     def sorted_set_remove_by_score(self, key, min, max, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_range(self, key, start, end, withscores=False, dt=None):
+    def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
         raise NotImplementedError()
 
     def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
@@ -243,7 +243,7 @@ class WigoRedisDB(WigoDB):
     def get_sorted_set_size(self, key, dt=None):
         return self.redis.zcard(key)
 
-    def sorted_set_range(self, key, start, end, withscores=False, dt=None):
+    def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
         results = self.redis.zrange(key, start, end, withscores=withscores)
         if withscores:
             return [(self.decode(v, dt), score) for v, score in results]
@@ -465,7 +465,7 @@ class WigoRdbms(WigoDB):
         stype = self.get_sorted_set_type(dt)
         return stype.select().where(stype.key == key).count()
 
-    def sorted_set_range(self, key, start, end, withscores=False, dt=None):
+    def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)
         return stype.select().where(
             stype.key == key,
@@ -559,6 +559,7 @@ def rate_limit(key, expires):
 
 redis_url = urlparse(Configuration.REDIS_URL)
 redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+
 wigo_queued_db = WigoQueuedDB(redis) if Configuration.RDBMS_REPLICATE else None
 wigo_rdbms = WigoRdbms()
 

@@ -7,7 +7,7 @@ import requests
 
 from rq.decorators import job
 
-from server.db import redis
+from server.tasks import redis_queues
 from server.models import post_model_save
 from server.models.user import User
 from config import Configuration
@@ -15,7 +15,7 @@ from config import Configuration
 logger = logging.getLogger('wigo.parse')
 
 
-@job('parse', connection=redis, timeout=30, result_ttl=0)
+@job('parse', connection=redis_queues, timeout=30, result_ttl=0)
 def sync_parse(self, user_id, data=None):
     user = User.find(user_id)
 

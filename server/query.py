@@ -270,7 +270,7 @@ class SelectQuery(object):
                 if applicable_indexes:
                     for key_tmpl in applicable_indexes:
                         key = index_key(key_tmpl, {kwarg: self._where.get(kwarg)})
-                        model_ids = wigo_db.sorted_set_range(key, 0, -1)
+                        model_ids = wigo_db.sorted_set_range(key)
                         if model_ids:
                             instances = self._model_class.find(model_ids)
                             return len(instances), instances

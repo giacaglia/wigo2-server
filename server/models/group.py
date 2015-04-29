@@ -118,16 +118,29 @@ def get_group_by_city_id(city_id):
 
 
 @cache_maker.expiring_lrucache(maxsize=1000, timeout=60)
-def get_close_groups_with_events(lat, lon, radius=50):
+def get_close_groups_with_events(group):
     from server.db import wigo_db
 
+    # fetch the groups close to this group that have events
+    group_ids = wigo_db.sorted_set_range(skey(group, 'close_groups_with_events'))
+    groups = Group.find(group_ids)
+
+    # re-sort by distance
+    groups.sort(key=lambda other: City.getLatLonDistance(
+        (group.latitude, group.longitude),
+        (other.latitude, other.longitude),
+    ))
+
+    return groups
+
+
+@cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
+def get_close_groups(lat, lon, radius=50):
     close_groups = []
     cities = get_close_cities(lat, lon, radius)
     for city in cities:
         try:
-            close_group = get_group_by_city_id(city.cityId)
-            if wigo_db.sorted_set_is_member(skey('groups_with_events'), close_group.id):
-                close_groups.append(close_group)
+            close_groups.append(get_group_by_city_id(city.cityId))
         except DoesNotExist:
             pass
 

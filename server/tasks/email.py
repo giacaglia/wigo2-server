@@ -3,10 +3,11 @@ import logging
 from rq.decorators import job
 
 from config import Configuration
-from server.db import wigo_db, redis
+from server.db import wigo_db
 from server.models.user import User
 from sendgrid import SendGridClient, Mail
 from jinja2 import Environment, PackageLoader, Template
+from server.tasks import redis_queues
 
 
 logger = logging.getLogger('wigo.web')
@@ -16,7 +17,7 @@ def create_sendgrid():
     return SendGridClient(Configuration.MAIL_USERNAME, Configuration.MAIL_PASSWORD, raise_errors=True)
 
 
-@job('email', connection=redis, timeout=30, result_ttl=0)
+@job('email', connection=redis_queues, timeout=30, result_ttl=0)
 def send_email_verification(user_id, resend=False):
     if not Configuration.PUSH_ENABLED:
         return
@@ -32,7 +33,7 @@ def send_email_verification(user_id, resend=False):
     })
 
     verify_link = '{}://{}/c/{}'.format('https' if Configuration.ENVIRONMENT != 'dev' else 'http',
-                                        Configuration.WIGO_WEB_HOST, verify_code)
+                                        Configuration.WEB_HOST, verify_code)
 
     logger.info('generated verify code for user "%s", "%s"' % (user.email, verify_code))
 
@@ -70,7 +71,7 @@ def send_email_verification(user_id, resend=False):
     logger.info('sent verification email to "%s"' % user.email)
 
 
-@job('email', connection=redis, timeout=30, result_ttl=0)
+@job('email', connection=redis_queues, timeout=30, result_ttl=0)
 def send_custom_email(user, subject, category, html, text, template_params=None):
     sendgrid = create_sendgrid()
 
@@ -114,6 +115,6 @@ def get_template(template):
     return env.get_template(template)
 
 
-def render_template(template, *args, **kwargs):
-    template = get_template(template)
+def render_template(template_name, *args, **kwargs):
+    template = get_template(template_name)
     return template.render(*args, **kwargs)
