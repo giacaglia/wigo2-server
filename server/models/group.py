@@ -3,8 +3,11 @@ from __future__ import absolute_import
 import re
 from datetime import datetime, timedelta
 from geodis.city import City
+from time import time
 from pytz import timezone, UTC
+import redis_lock
 from repoze.lru import CacheMaker
+import requests
 from schematics.types import StringType, BooleanType, FloatType
 from server.db import redis
 from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
@@ -84,29 +87,41 @@ class Group(WigoPersistentModel):
             try:
                 return get_group_by_city_id(city.cityId)
             except DoesNotExist:
-                city_code = city.name
-                iterations = 0
-                while iterations < 10:
-                    try:
-                        city_code = city_code.decode('unicode_escape').encode('ascii', 'ignore').lower()
-                        city_code = re.sub(r'[^\w]+', '_', city_code)
+                return cls.create_from_city(city)
 
+        return super(Group, cls).find(*args, **kwargs)
+
+    @classmethod
+    def create_from_city(cls, city):
+        timezone = get_timezone(city.lat, city.lon)
+        city_code = city.name.decode('unicode_escape').encode('ascii', 'ignore').lower()
+        city_code = re.sub(r'[^\w]+', '_', city_code)
+
+        for i in range(1, 10):
+            lock = redis_lock.Lock(redis, 'group_create:{}'.format(city.cityId), 60)
+            if lock.acquire(blocking=False):
+                try:
+                    # look for the city one more time with the lock
+                    return get_group_by_city_id(city.cityId)
+                except DoesNotExist:
+                    # create a new group with the lock acquired
+                    try:
                         return Group({
                             'name': city.name,
                             'code': city_code,
                             'latitude': city.lat,
                             'longitude': city.lon,
                             'city_id': city.cityId,
+                            'timezone': timezone or 'US/Eastern',
                             'verified': True
                         }).save()
 
                     except IntegrityException:
-                        iterations += 1
-                        city_code = '{}_{}'.format(city_code, iterations)
+                        city_code = '{}_{}'.format(city_code, i)
+                finally:
+                    lock.release()
 
-                raise DoesNotExist()
-
-        return super(Group, cls).find(*args, **kwargs)
+        raise DoesNotExist()
 
     def __repr__(self):
         return self.name
@@ -165,3 +180,15 @@ def get_close_cities(lat, lon, radius=50):
 @cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
 def get_biggest_close_cities(lat, lon):
     return City.getByRadius(lat, lon, 100, redis)
+
+
+@cache_maker.lrucache(maxsize=100)
+def get_timezone(lat, lon):
+    resp = requests.get('https://maps.googleapis.com/maps/api/timezone/json?'
+                        'location={},{}&timestamp={}&sensor=false&'
+                        'key=AIzaSyD5qSwGfZiRLIVkf3Ij7if3FVFGDcZdGi0'.format(lat, lon, int(time())))
+
+    if resp.status_code == 200:
+        return resp.json().get('timeZoneId')
+
+    return None
