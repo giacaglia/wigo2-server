@@ -57,12 +57,6 @@ class Configuration(object):
     DEFAULT_MAIL_SENDER = 'support@wigo.us'
     MAIL_DEBUG = False
 
-    BROKER_TRANSPORT_OPTIONS = {
-        'visibility_timeout': 3600,
-        'fanout_prefix': True,
-        'fanout_patterns': True
-    }
-
     FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID', None)
     FACEBOOK_APP_SECRET = os.environ.get('FACEBOOK_APP_SECRET', None)
     FACEBOOK_APP_NAMESPACE = os.environ.get('FACEBOOK_APP_NAMESPACE', 'wigo')

@@ -21,9 +21,11 @@ def event_landed_in_group(group_id):
     group = Group.find(group_id)
 
     # tell each close group that this group just had a new event
-    for group in get_close_groups(group.latitude, group.longitude, 100):
-        key = skey(group, 'close_groups_with_events')
-        wigo_db.sorted_set_add(key, group_id, time(), replicate=False)
+    for close_group in get_close_groups(group.latitude, group.longitude, 100):
+        key = skey(close_group, 'close_groups_with_events')
+
+        if close_group.id != group.id:
+            wigo_db.sorted_set_add(key, group_id, time(), replicate=False)
 
         # remove groups that haven't had events in 8 days
         wigo_db.sorted_set_remove_by_score(key, 0, epoch(datetime.utcnow() - timedelta(days=8)))
