@@ -66,7 +66,6 @@ class WigoResource(Resource):
             abort(400, message='Field {} is required'.format(field))
         return self.get_id(value)
 
-
     def check_get(self, instance):
         pass
 
@@ -189,20 +188,11 @@ class WigoResource(Resource):
 
         return prim
 
-    def serialize_list(self, model_class, objects, count=None):
+    def serialize_list(self, model_class, objects, count=None, next=None):
         objects = self.annotate_list(model_class, objects)
-        if count is None:
-            count = len(objects)
-
-        page = self.get_page()
-        limit = self.get_limit()
-        request_arguments = request.args.copy()
-        pages = int(math.ceil(float(count) / limit))
 
         data = {
-            'meta': {
-                'total': count,
-            },
+            'meta': {},
             'objects'.format(model_class.__name__.lower()): [self.serialize_object(i) for i in objects if i]
         }
 
@@ -242,11 +232,26 @@ class WigoResource(Resource):
         resolve_nested(objects, nested, set([o.id for o in objects]))
         data['include'] = [self.serialize_object(i) for i in nested]
 
-        if page > 1:
-            request_arguments['page'] = page - 1
-            data['meta']['previous'] = '%s?%s' % (request.path, url_encode(request_arguments))
-        if page < pages:
-            request_arguments['page'] = page + 1
+        request_arguments = request.args.copy()
+
+        if next is None:
+            if count is None:
+                count = len(objects)
+
+            data['meta']['total'] = count
+
+            page = self.get_page()
+            limit = self.get_limit()
+            pages = int(math.ceil(float(count) / limit))
+
+            if page > 1:
+                request_arguments['page'] = page - 1
+                data['meta']['previous'] = '%s?%s' % (request.path, url_encode(request_arguments))
+            if page < pages:
+                request_arguments['page'] = page + 1
+                data['meta']['next'] = '%s?%s' % (request.path, url_encode(request_arguments))
+        elif next:
+            request_arguments.update(next)
             data['meta']['next'] = '%s?%s' % (request.path, url_encode(request_arguments))
 
         return data

@@ -149,7 +149,7 @@ class FriendIdsListResource(WigoResource):
     @api.response(200, 'Success')
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        return wigo_db.sorted_set_range(skey(user, 'friends'), 0, -1)
+        return wigo_db.sorted_set_rrange(skey(user, 'friends'), 0, -1)
 
 
 # noinspection PyUnresolvedReferences

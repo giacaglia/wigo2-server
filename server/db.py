@@ -94,16 +94,16 @@ class WigoDB(object):
     def sorted_set_remove_by_score(self, key, min, max, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_range(self, key, start, end, dt=None):
+    def sorted_set_range(self, key, start, end, withscores=False, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_rrange(self, key, start, end, dt=None):
+    def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, dt=None):
+    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, withscores=False, dt=None):
         raise NotImplementedError()
 
-    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, dt=None):
+    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, withscores=False, dt=None):
         raise NotImplementedError()
 
 
@@ -243,17 +243,33 @@ class WigoRedisDB(WigoDB):
     def get_sorted_set_size(self, key, dt=None):
         return self.redis.zcard(key)
 
-    def sorted_set_range(self, key, start, end, dt=None):
-        return self.decode(self.redis.zrange(key, start, end), dt)
+    def sorted_set_range(self, key, start, end, withscores=False, dt=None):
+        results = self.redis.zrange(key, start, end, withscores=withscores)
+        if withscores:
+            return [(self.decode(v, dt), score) for v, score in results]
+        else:
+            return self.decode(results, dt)
 
-    def sorted_set_rrange(self, key, start, end, dt=None):
-        return self.decode(self.redis.zrevrange(key, start, end), dt)
+    def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
+        results = self.redis.zrevrange(key, start, end, withscores=withscores)
+        if withscores:
+            return [(self.decode(v, dt), score) for v, score in results]
+        else:
+            return self.decode(results, dt)
 
-    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, dt=None):
-        return self.decode(self.redis.zrangebyscore(key, min, max, start, limit), dt)
+    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, withscores=False, dt=None):
+        results = self.redis.zrangebyscore(key, min, max, start, limit, withscores=withscores)
+        if withscores:
+            return [(self.decode(v, dt), score) for v, score in results]
+        else:
+            return self.decode(results, dt)
 
-    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, dt=None):
-        return self.decode(self.redis.zrevrangebyscore(key, max, min, start, limit), dt)
+    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, withscores=False, dt=None):
+        results = self.redis.zrevrangebyscore(key, max, min, start, limit, withscores=withscores)
+        if withscores:
+            return [(self.decode(v, dt), score) for v, score in results]
+        else:
+            return self.decode(results, dt)
 
     def sorted_set_remove(self, key, value, dt=None):
         result = self.redis.zrem(key, self.encode(value, dt))
@@ -272,7 +288,6 @@ class WigoRedisDB(WigoDB):
         return self.redis.zremrangebyrank(key, start, stop)
 
 
-# noinspection PyAbstractClass
 class WigoQueuedDB(WigoDB):
     def __init__(self, redis):
         super(WigoQueuedDB, self).__init__()
@@ -450,7 +465,7 @@ class WigoRdbms(WigoDB):
         stype = self.get_sorted_set_type(dt)
         return stype.select().where(stype.key == key).count()
 
-    def sorted_set_range(self, key, start, end, dt=None):
+    def sorted_set_range(self, key, start, end, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)
         return stype.select().where(
             stype.key == key,
@@ -458,7 +473,7 @@ class WigoRdbms(WigoDB):
             stype.score <= end
         ).order_by(stype.score.asc())
 
-    def sorted_set_rrange(self, key, start, end, dt=None):
+    def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)
         return [v[0] for v in stype.select(stype.value).where(
             stype.key == key,
@@ -466,7 +481,7 @@ class WigoRdbms(WigoDB):
             stype.score <= max
         ).order_by(stype.score.asc()).offset(start).limit(end - start)]
 
-    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, dt=None):
+    def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)
         min = get_range_val(min)
         max = get_range_val(max)
@@ -476,7 +491,7 @@ class WigoRdbms(WigoDB):
             stype.score <= max
         ).order_by(stype.score.asc()).offset(start).limit(limit).tuples()]
 
-    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, dt=None):
+    def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)
         min = get_range_val(min)
         max = get_range_val(max)
@@ -568,4 +583,3 @@ if Configuration.ENVIRONMENT != 'test':
     wigo_db = WigoRedisDB(sharded_redis, wigo_queued_db)
 else:
     wigo_db = WigoRedisDB(redis, wigo_queued_db)
-

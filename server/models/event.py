@@ -99,6 +99,10 @@ class Event(WigoPersistentModel):
     def index(self):
         super(Event, self).index()
         self.add_to_global_events()
+
+        # TODO on privacy change iterate the attendees of event and update attending
+        # TODO also the global event needs to be updated
+
         self.clean_old(skey('group', self.group_id, 'events'))
 
     def add_to_global_events(self, remove_empty=False):
@@ -157,6 +161,7 @@ class Event(WigoPersistentModel):
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # add the attendees photos to the users view
+        # TODO this is adding all of the photos the attendee can see, not just the ones i should see
         emessages_key = user_eventmessages_key(user, self)
         for message_id, score in self.db.sorted_set_iter(user_eventmessages_key(attendee, self)):
             self.db.sorted_set_add(emessages_key, message_id, score)
@@ -191,20 +196,28 @@ class Event(WigoPersistentModel):
         from server.db import wigo_db
 
         for event in events:
-            if user:
-                event.num_attending = wigo_db.get_sorted_set_size(user_attendees_key(user, event))
-            else:
-                event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
+            if not hasattr(event, 'num_attending'):
+                if user:
+                    event.num_attending = wigo_db.get_sorted_set_size(user_attendees_key(user, event))
+                else:
+                    event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
 
-        count, attendees_by_event = EventAttendee.select().events(events).user(user).limit(attendees_limit).execute()
+        # only add attendees to events missing the attendees field
+        events_to_annotate = [e for e in events if not hasattr(e, 'attendees')]
+        count, attendees_by_event = EventAttendee.select().events(events_to_annotate)\
+            .user(user).limit(attendees_limit).execute()
         if count:
-            for event, attendees in zip(events, attendees_by_event):
+            for event, attendees in zip(events_to_annotate, attendees_by_event):
                 event.attendees = attendees
 
-        count, messages_by_event = EventMessage.select().events(events).user(user).limit(messages_limit).execute()
+        # only add messages to events missing the messages field
+        events_to_annotate = [e for e in events if not hasattr(e, 'messages')]
+        count, messages_by_event = EventMessage.select().events(events_to_annotate)\
+            .user(user).limit(messages_limit).execute()
         if count:
-            for event, messages in zip(events, messages_by_event):
+            for event, messages in zip(events_to_annotate, messages_by_event):
                 event.messages = messages
+
         return events
 
 

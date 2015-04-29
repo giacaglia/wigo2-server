@@ -1,11 +1,15 @@
 from __future__ import absolute_import
+
+import math
+
 from flask import g, request
 from flask.ext.restful import abort
+from repoze.lru import lru_cache
 from server.db import wigo_db
-from server.models import skey, user_eventmessages_key, AlreadyExistsException
-
+from server.models import skey, user_eventmessages_key, AlreadyExistsException, user_attendees_key
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
-from server.models.group import get_group_by_city_id, Group
+from server.models.group import get_group_by_city_id, Group, get_close_groups_with_events
+from server.models.user import User
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
 from server.security import user_token_required
 
@@ -17,8 +21,65 @@ class EventListResource(WigoDbListResource):
     @user_token_required
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self):
-        count, instances = self.select().group(g.group).execute()
-        return self.serialize_list(self.model, instances, count)
+        limit = self.get_limit()
+        page = self.get_page()
+
+        group = g.group
+
+        current_group_id = int(request.args.get('cg', 0))
+        current_group = Group.find(current_group_id) if current_group_id else group
+
+        # if this is the first request, get the event the user is currently attending
+        attending = get_global_attending_event() if current_group_id == 0 and page == 1 else None
+
+        # start with the users own group no matter what
+        groups = [group]
+
+        # append all of the close groups
+        close_groups = get_close_groups_with_events(group.latitude, group.longitude)
+
+        if group in close_groups:
+            close_groups.remove(group)
+
+        groups.extend(close_groups)
+
+        remaining_groups = groups[groups.index(current_group):]
+
+        all_events = []
+
+        if attending:
+            all_events.append(attending)
+
+        for remaining_group in list(remaining_groups):
+            query = Event.select().group(remaining_group).limit(limit).page(page)
+            count, events = query.execute()
+            pages = int(math.ceil(float(count) / limit))
+
+            while True:
+                for event in events:
+                    if event != attending:
+                        all_events.append(event)
+
+                if page >= pages:
+                    remaining_groups.remove(remaining_group)
+                    page = 1
+                    break
+
+                if len(all_events) >= limit:
+                    break
+
+                page += 1
+                query = query.page(page)
+                count, events = query.execute()
+
+            if len(all_events) >= limit:
+                break
+
+        next = {}
+        if remaining_groups:
+            next = {'page': page, 'cg': remaining_groups[0].id}
+
+        return self.serialize_list(Event, all_events, next=next)
 
     @user_token_required
     @api.expect(Event.to_doc_list_model(api))
@@ -267,3 +328,62 @@ class EventMessageVoteResource(WigoResource):
         return {'success': True}
 
 
+@lru_cache(1000, timeout=60)
+def get_global_attendees(event_id):
+    from server.db import wigo_db
+
+    return wigo_db.sorted_set_rrange(skey('event', event_id, 'attendees'), 0, -1)
+
+
+@lru_cache(1000, timeout=60)
+def get_global_messages(event_id):
+    from server.db import wigo_db
+
+    return wigo_db.sorted_set_rrange(skey('event', event_id, 'messages'), 0, -1)
+
+
+def get_global_attending_event():
+    """ Get the global view of the event the current user is attending. """
+
+    event_id = g.user.get_attending_id()
+    if event_id is None:
+        return None
+
+    event = Event.find(event_id)
+    attending_ids = get_global_attending_attendees(event)
+    message_ids = get_global_attending_messages(event)
+    event.num_attending = len(attending_ids)
+
+    alimit = int(request.args.get('attendees_limit', 5))
+    mlimit = int(request.args.get('messages_limit', 5))
+
+    if attending_ids:
+        event.attendees = (len(attending_ids), User.find(attending_ids[0:alimit]))
+
+    if message_ids:
+        event.messages = (len(message_ids), EventMessage.find(message_ids[0:mlimit]))
+
+    return event
+
+
+def get_global_attending_attendees(event):
+    """ Get the global view of the attendees of the event the current user is attending. """
+
+    attending_ids = wigo_db.sorted_set_rrange(user_attendees_key(g.user, event), 0, -1)
+    attending_set = set(attending_ids)
+    for attendee_id in get_global_attendees(event.id):
+        if attendee_id not in attending_set:
+            attending_ids.append(attendee_id)
+    return attending_ids
+
+
+def get_global_attending_messages(event):
+    """ Get the global view of the messages of the event the current user is attending. """
+
+    # TODO need to combine messages in a smarter way. should be ordered by time
+    message_ids = wigo_db.sorted_set_rrange(user_eventmessages_key(g.user, event), 0, -1)
+    message_set = set(message_ids)
+    for message_id in get_global_messages(event.id):
+        if message_id not in message_set:
+            message_ids.append(message_id)
+    return message_ids

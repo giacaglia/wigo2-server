@@ -106,17 +106,8 @@ class Group(WigoPersistentModel):
 
         return super(Group, cls).find(*args, **kwargs)
 
-    @classmethod
-    def get_events(self, starting_group, current_group, page=1, limit=10):
-        groups = get_close_groups_with_events(starting_group.latitude, starting_group.longitude)
-
-        if groups:
-            if groups[0].id != starting_group.id:
-                groups = [g for g in groups if g.id != starting_group.id]
-                groups.insert(0, starting_group)
-
-
-        events_key = skey('group', self.group_id, 'events')
+    def __repr__(self):
+        return self.name
 
 
 @lru_cache(5000, timeout=60 * 10)
