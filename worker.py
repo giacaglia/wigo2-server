@@ -1,6 +1,10 @@
 from __future__ import absolute_import
 
+import logconfig
 from config import Configuration
+
+logconfig.configure(Configuration.ENVIRONMENT)
+
 from server.tasks.data import wire_data_listeners
 from server.tasks.parse import wire_parse_listeners
 from server.tasks.predictions import wire_predictions_listeners
