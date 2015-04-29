@@ -580,6 +580,7 @@ if Configuration.ENVIRONMENT != 'test':
     shard.SHARD_METHODS.add('zscan')
     shard.SHARD_METHODS.add('zscan_iter')
 
+    logger.info('configuring sharded redis with servers {}'.format(servers))
     sharded_redis = RedisShardAPI(servers, hash_method='md5')
     wigo_db = WigoRedisDB(sharded_redis, wigo_queued_db)
 else:
