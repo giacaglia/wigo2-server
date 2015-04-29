@@ -112,17 +112,17 @@ class Group(WigoPersistentModel):
         return self.name
 
 
-@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 10)
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
 def get_group_by_city_id(city_id):
     return Group.find(city_id=city_id)
 
 
-@cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 10)
-def get_close_groups_with_events(lat, lon):
+@cache_maker.expiring_lrucache(maxsize=1000, timeout=60)
+def get_close_groups_with_events(lat, lon, radius=50):
     from server.db import wigo_db
 
-    cities = get_close_cities(lat, lon)
     close_groups = []
+    cities = get_close_cities(lat, lon, radius)
     for city in cities:
         try:
             close_group = get_group_by_city_id(city.cityId)
@@ -135,9 +135,9 @@ def get_close_groups_with_events(lat, lon):
 
 
 @cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
-def get_close_cities(lat, lon):
+def get_close_cities(lat, lon, radius=50):
     # get all the groups in the radius
-    cities = City.loadByNamedKey('geoname', redis, lat, lon, 100, '')
+    cities = City.loadByNamedKey('geoname', redis, lat, lon, radius, '')
 
     # sort by distance from this group
     if cities:

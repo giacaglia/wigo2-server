@@ -81,11 +81,14 @@ def initialize(create_tables=False, import_cities=False):
         from geodis.city import City
 
         redis.delete(City.getGeohashIndexKey())
+
         cities_file = os.path.join(geodis.__path__[0], 'data', 'cities1000.json')
         with open(cities_file) as f:
             pipe = redis.pipeline()
 
+            lines = 0
             imported = 0
+            skipped = 0
             for line in f:
                 try:
                     row = [x.encode('utf-8') for x in ujson.loads(line)]
@@ -105,12 +108,16 @@ def initialize(create_tables=False, import_cities=False):
                         population=int(row[11])
                     )
 
-                    loc.save(pipe)
+                    if loc.population > 15000:
+                        loc.save(pipe)
+                        imported += 1
+                    else:
+                        skipped += 1
 
-                    imported += 1
+                    lines += 1
 
-                    if (imported % 2000) == 0:
-                        logger.info('imported {}'.format(imported))
+                    if (lines % 2000) == 0:
+                        logger.info('imported {}, skipped {}'.format(imported, skipped))
                         pipe.execute()
 
                 except Exception, e:
