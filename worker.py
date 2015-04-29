@@ -9,7 +9,7 @@ from server.tasks.images import wire_images_listeners
 from server.tasks.notifications import wire_notifications_listeners
 
 
-REDIS_URL = Configuration.REDIS_URL
+REDIS_URL = Configuration.REDIS_QUEUES_URL
 QUEUES = ['email', 'images', 'notifications', 'push', 'parse', 'predictions', 'data']
 
 wire_notifications_listeners()

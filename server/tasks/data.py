@@ -10,9 +10,13 @@ from server.models import post_model_save, skey
 from server.models.event import Event
 from utils import epoch
 
+logger = logging.getLogger('wigo.tasks.data')
+
 
 @job('data', connection=redis_queues, timeout=30, result_ttl=0)
 def event_landed_in_group(group_id):
+    logger.info('recording event landed in group {}'.format(group_id))
+
     group = Group.find(group_id)
 
     # tell each close group that this group just had a new event
