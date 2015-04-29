@@ -222,7 +222,7 @@ class SelectQuery(object):
             if min is None:
                 min = epoch(datetime.utcnow() - timedelta(days=7))
             if max is None:
-                max = epoch(self._group.get_day_end())
+                max = epoch(self._group.get_day_end() + timedelta(hours=1))  # add 1 hour to account for sub-score
 
         if self._order == 'desc':
             range_f = self.db.sorted_set_rrange_by_score

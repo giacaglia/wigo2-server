@@ -8,6 +8,7 @@ logconfig.configure(Configuration.ENVIRONMENT)
 import os
 import ujson
 import logging
+import requests
 
 from datetime import datetime
 from urlparse import urlparse
@@ -37,6 +38,7 @@ from server.models.group import Group
 from server.models import Config, DoesNotExist
 from server.security import check_basic_auth, setup_user_by_token
 
+requests.packages.urllib3.disable_warnings()
 
 logger = logging.getLogger('wigo.web')
 

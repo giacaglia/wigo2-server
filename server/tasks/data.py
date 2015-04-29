@@ -19,9 +19,18 @@ def event_landed_in_group(group_id):
     logger.info('recording event landed in group {}'.format(group_id))
 
     group = Group.find(group_id)
+    population = group.population or 50000
+    radius = 100
+
+    if population >= 500000:
+        radius = 20
+    elif population >= 100000:
+        radius = 30
+    elif population >= 50000:
+        radius = 50
 
     # tell each close group that this group just had a new event
-    for close_group in get_close_groups(group.latitude, group.longitude, 100):
+    for close_group in get_close_groups(group.latitude, group.longitude, radius):
         key = skey(close_group, 'close_groups_with_events')
 
         if close_group.id != group.id:

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 from flask.ext.restplus import fields as docfields
 import re
+from geodis.location import Location
 
 from schematics.models import Model
 from schematics.transforms import blacklist

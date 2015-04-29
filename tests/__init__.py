@@ -8,6 +8,7 @@ from mock import Mock
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from mockredis import mock_redis_client
+from server.models.location import WigoCity
 from config import Configuration
 
 
@@ -36,7 +37,6 @@ def client():
     from web import app
     from server.db import wigo_db
     from server.models.group import Group
-    from geodis.city import City
     from server.models.user import User
     from server.rest.event import cache_maker as rest_event_cache_maker
     from server.models.group import cache_maker as group_cache_maker
@@ -64,10 +64,10 @@ def client():
 
     wigo_db.gen_id = new_id
 
-    city = City(cityId=4930956, name='Boston', lat=42.3584, lon=-71.0598)
+    city = WigoCity(city_id=4930956, name='Boston', lat=42.3584, lon=-71.0598)
     city.save(wigo_db.redis)
 
-    city = City(cityId=5391811, name='San Diego', lat=32.7153, lon=-117.157)
+    city = WigoCity(city_id=5391811, name='San Diego', lat=32.7153, lon=-117.157)
     city.save(wigo_db.redis)
 
     boston = Group({

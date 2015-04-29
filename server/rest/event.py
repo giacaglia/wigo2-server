@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from datetime import datetime, timedelta
 
 import math
 
@@ -12,6 +13,7 @@ from server.models.group import get_group_by_city_id, Group, get_close_groups_wi
 from server.models.user import User
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
 from server.security import user_token_required
+from utils import epoch
 
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
@@ -28,11 +30,8 @@ class EventListResource(WigoDbListResource):
 
         group = g.group
 
-        current_group_id = int(request.args.get('cg', 0))
-        current_group = Group.find(current_group_id) if current_group_id else group
-
-        # if this is the first request, get the event the user is currently attending
-        attending = get_global_attending_event() if current_group_id == 0 and page == 1 else None
+        current_time = int(request.args.get('t', 1))
+        current_group = int(request.args.get('g', 0))
 
         # start with the users own group no matter what
         groups = [group]
@@ -45,41 +44,71 @@ class EventListResource(WigoDbListResource):
 
         groups.extend(close_groups)
 
-        remaining_groups = groups[groups.index(current_group):]
+        now = datetime.utcnow()
+        times = [None] + [now - timedelta(days=i) for i in range(9)]
 
         all_events = []
 
-        if attending:
-            all_events.append(attending)
+        time_index = 0
+        group_index = 0
 
-        for remaining_group in list(remaining_groups):
-            query = Event.select().group(remaining_group).limit(limit).page(page)
-            count, events = query.execute()
-            pages = int(math.ceil(float(count) / limit))
+        for time_index, time in enumerate(times[current_time:], current_time):
+            for group_index, group in enumerate(groups[current_group:], current_group):
+                remaining = limit - len(all_events)
 
-            while True:
-                for event in events:
-                    if event != attending:
+                if remaining <= 0:
+                    break
+
+                query = Event.select().group(group).limit(remaining).page(page)
+
+                # if time is None, 1st iteration, max is group day end
+                max_time = times[time_index - 1]
+                if max_time is None:
+                    max_time = group.get_day_end() + timedelta(hours=1)  # add 1 hour to account for sub-score
+
+                query = query.min(epoch(time)).max(epoch(max_time))
+                count, events = query.execute()
+
+                pages = int(math.ceil(float(count) / remaining))
+
+                while count > 0:
+                    for event in events:
                         all_events.append(event)
 
-                if page >= pages:
-                    remaining_groups.remove(remaining_group)
+                    if page >= pages:
+                        page = 1
+                        current_group += 1
+                        break
+
+                    page += 1
+
+                    # if the result set is full, break out
+                    if len(all_events) >= limit:
+                        break
+
+                    query = query.page(page)
+                    count, events = query.execute()
+                else:
                     page = 1
-                    break
-
-                if len(all_events) >= limit:
-                    break
-
-                page += 1
-                query = query.page(page)
-                count, events = query.execute()
+                    current_group += 1
 
             if len(all_events) >= limit:
                 break
+            else:
+                # done with all the groups, so go back to group 0, page 1 for the next time
+                current_group = 0
+                page = 1
 
         next = {}
-        if remaining_groups:
-            next = {'page': page, 'cg': remaining_groups[0].id}
+        if len(all_events) >= limit and time_index < len(times) and current_group < len(groups):
+            next = {'page': page, 't': time_index, 'g': current_group}
+
+        # if this is the first request, get the event the user is currently attending
+        attending = get_global_attending_event() if current_group == 0 and page == 1 else None
+        if attending:
+            if attending in all_events:
+                all_events.remove(attending)
+            all_events.insert(0, attending)
 
         return self.serialize_list(Event, all_events, next=next)
 
@@ -352,6 +381,10 @@ def get_global_attending_event():
         return None
 
     event = Event.find(event_id)
+    global_num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
+    if global_num_attending < 50:
+        pass
+
     attending_ids = get_global_attending_attendees(event)
     message_ids = get_global_attending_messages(event)
     event.num_attending = len(attending_ids)

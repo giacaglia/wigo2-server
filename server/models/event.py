@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from datetime import datetime
-from geodis.city import City
+from geodis.location import Location
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
@@ -142,8 +142,8 @@ class Event(WigoPersistentModel):
             if remove_empty and num_attending == 0:
                 self.db.sorted_set_remove(events_key, self.id)
             else:
-                distance = City.getLatLonDistance((self.group.latitude, self.group.longitude),
-                                                  (user.group.latitude, user.group.longitude))
+                distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
+                                                      (user.group.latitude, user.group.longitude))
 
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, distance, num_attending))
                 self.clean_old(events_key)
@@ -199,7 +199,7 @@ class Event(WigoPersistentModel):
 
         # only add attendees to events missing the attendees field
         events_to_annotate = [e for e in events if not hasattr(e, 'attendees')]
-        count, attendees_by_event = EventAttendee.select().events(events_to_annotate)\
+        count, attendees_by_event = EventAttendee.select().events(events_to_annotate) \
             .user(user).limit(attendees_limit).execute()
         if count:
             for event, attendees in zip(events_to_annotate, attendees_by_event):
@@ -207,7 +207,7 @@ class Event(WigoPersistentModel):
 
         # only add messages to events missing the messages field
         events_to_annotate = [e for e in events if not hasattr(e, 'messages')]
-        count, messages_by_event = EventMessage.select().events(events_to_annotate)\
+        count, messages_by_event = EventMessage.select().events(events_to_annotate) \
             .user(user).limit(messages_limit).execute()
         if count:
             for event, messages in zip(events_to_annotate, messages_by_event):

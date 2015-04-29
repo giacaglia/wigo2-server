@@ -2,13 +2,14 @@ from __future__ import absolute_import
 
 import sys
 import os
-import geodis
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 import logging
 import logconfig
 import ujson
+import geodis
+from server.models.location import WigoCity
 from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
 from config import Configuration
@@ -78,9 +79,8 @@ def initialize(create_tables=False, import_cities=False):
 
     if import_cities:
         from server.db import redis
-        from geodis.city import City
 
-        redis.delete(City.getGeohashIndexKey())
+        redis.delete(WigoCity.getGeohashIndexKey())
 
         cities_file = os.path.join(geodis.__path__[0], 'data', 'cities1000.json')
         with open(cities_file) as f:
@@ -93,22 +93,21 @@ def initialize(create_tables=False, import_cities=False):
                 try:
                     row = [x.encode('utf-8') for x in ujson.loads(line)]
 
-                    loc = City(
-                        continentId=row[0],
+                    loc = WigoCity(
+                        continent_id=row[0],
                         continent=row[1],
-                        countryId=row[2],
+                        country_id=row[2],
                         country=row[3],
-                        stateId=row[4],
+                        state_id=row[4],
                         state=row[5],
-                        cityId=row[6],
+                        city_id=row[6],
                         name=row[7],
                         lat=float(row[8]),
                         lon=float(row[9]),
-                        aliases=row[10],
                         population=int(row[11])
                     )
 
-                    if loc.population > 15000:
+                    if loc.population > 40000:
                         loc.save(pipe)
                         imported += 1
                     else:

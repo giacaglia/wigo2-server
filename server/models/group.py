@@ -2,18 +2,18 @@ from __future__ import absolute_import
 
 import re
 import logging
-import redis_lock
 import requests
 
+from geodis.location import Location
 from datetime import datetime, timedelta
-from geodis.city import City
 from time import time
 from pytz import timezone, UTC
 from repoze.lru import CacheMaker
-from schematics.types import StringType, BooleanType, FloatType
+from schematics.types import StringType, BooleanType, FloatType, IntType
 
 from server.db import redis
 from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
+from server.models.location import WigoCity
 
 logger = logging.getLogger('wigo.model')
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
@@ -38,6 +38,7 @@ class Group(WigoPersistentModel):
 
     country = StringType()
     continent = StringType()
+    population = IntType()
 
     timezone = StringType(default='US/Eastern', required=True)
     locked = BooleanType(default=True, required=True)
@@ -84,12 +85,12 @@ class Group(WigoPersistentModel):
         if 'lat' in kwargs and 'lon' in kwargs:
             from server.db import redis
 
-            city = City.getByLatLon(kwargs['lat'], kwargs['lon'], redis)
+            city = WigoCity.getByLatLon(kwargs['lat'], kwargs['lon'], redis)
             if not city:
                 raise DoesNotExist()
 
             try:
-                return get_group_by_city_id(city.cityId)
+                return get_group_by_city_id(city.city_id)
             except DoesNotExist:
                 return cls.create_from_city(city)
 
@@ -102,11 +103,11 @@ class Group(WigoPersistentModel):
         city_code = re.sub(r'[^\w]+', '_', city_code)
 
         for i in range(1, 10):
-            lock = redis_lock.Lock(redis, 'group_create:{}'.format(city.cityId), 60)
-            if lock.acquire(blocking=False):
+            lock = redis.lock('locks:group_create:{}'.format(city.city_id), timeout=10)
+            if lock.acquire(blocking=True, blocking_timeout=.1):
                 try:
                     # look for the city one more time with the lock
-                    return get_group_by_city_id(city.cityId)
+                    return get_group_by_city_id(city.city_id)
                 except DoesNotExist:
                     # create a new group with the lock acquired
                     try:
@@ -115,8 +116,9 @@ class Group(WigoPersistentModel):
                             'code': city_code,
                             'latitude': city.lat,
                             'longitude': city.lon,
-                            'city_id': city.cityId,
+                            'city_id': city.city_id,
                             'timezone': tz or 'US/Eastern',
+                            'population': int(city.population),
                             'verified': True
                         }).save()
 
@@ -145,7 +147,7 @@ def get_close_groups_with_events(group):
     groups = Group.find(group_ids)
 
     # re-sort by distance
-    groups.sort(key=lambda other: City.getLatLonDistance(
+    groups.sort(key=lambda other: Location.getLatLonDistance(
         (group.latitude, group.longitude),
         (other.latitude, other.longitude),
     ))
@@ -159,7 +161,7 @@ def get_close_groups(lat, lon, radius=50):
     cities = get_close_cities(lat, lon, radius)
     for city in cities:
         try:
-            close_groups.append(get_group_by_city_id(city.cityId))
+            close_groups.append(get_group_by_city_id(city.city_id))
         except DoesNotExist:
             pass
 
@@ -169,21 +171,7 @@ def get_close_groups(lat, lon, radius=50):
 @cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
 def get_close_cities(lat, lon, radius=50):
     # get all the groups in the radius
-    cities = City.loadByNamedKey('geoname', redis, lat, lon, radius, '')
-
-    # sort by distance from this group
-    if cities:
-        cities.sort(lambda x, y: cmp(
-            City.getLatLonDistance((lat, lon), (x.lat, x.lon)),
-            City.getLatLonDistance((lat, lon), (y.lat, y.lon)),
-        ))
-
-    return cities
-
-
-@cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
-def get_biggest_close_cities(lat, lon):
-    return City.getByRadius(lat, lon, 100, redis)
+    return WigoCity.get_by_radius(lat, lon, radius)
 
 
 @cache_maker.lrucache(maxsize=100)

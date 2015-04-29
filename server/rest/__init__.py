@@ -232,7 +232,7 @@ class WigoResource(Resource):
         resolve_nested(objects, nested, set([o.id for o in objects]))
         data['include'] = [self.serialize_object(i) for i in nested]
 
-        request_arguments = request.args.copy()
+        request_arguments = request.args.copy().to_dict()
 
         if next is None:
             if count is None:
