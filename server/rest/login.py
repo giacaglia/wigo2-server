@@ -32,6 +32,7 @@ class LoginResource(WigoResource):
         facebook_token = data.get('facebook_access_token')
         facebook_token_expires = datetime.utcnow() + timedelta(
             seconds=data.get('facebook_access_token_expires') or 1728000)
+        properties = data.get('properties')
 
         if not facebook_id or not facebook_token:
             abort(400, message='Missing facebook id or token')
@@ -58,6 +59,16 @@ class LoginResource(WigoResource):
             user.facebook_token = facebook_token
             user.facebook_token_expires = facebook_token_expires
             user.save()
+
+        if properties:
+            changed = False
+            for key, value in properties.items():
+                if user.get_custom_property(key) != value:
+                    user.set_custom_property(key, value)
+                    changed = True
+
+            if changed:
+                user.save()
 
         g.user = user
 
