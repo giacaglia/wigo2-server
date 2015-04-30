@@ -168,7 +168,8 @@ class WigoModelView(BaseModelView):
                 f = self._filters[flt]
                 query = f.apply(query, flt_name, value)
 
-        return query.execute()
+        count, page, instances = query.execute()
+        return count, instances
 
     def get_one(self, id):
         return self.model.find(id)

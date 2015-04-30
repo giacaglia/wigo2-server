@@ -1,11 +1,12 @@
 from __future__ import absolute_import
 
 import ujson
+from server.models import skey
+from server.models.user import Friend
 from tests import client, api_post, api_delete, make_friends, api_get
 
 
 def test_update_user():
-    from server.models.group import Group
     from server.models.user import User
 
     with client() as c:
@@ -78,6 +79,30 @@ def test_friends():
         assert resp.status_code == 200, 'oops {}'.format(resp.data)
         assert 0 == User.select().user(user1).friends().count()
         assert 0 == User.select().user(user2).friends().count()
+
+
+def test_private_friends():
+    from server.db import wigo_db
+    from server.models.user import User
+
+    with client() as c:
+        user1 = User.find(key='test')
+        user2 = User.find(key='test2')
+        user2.privacy = 'private'
+        user2.save()
+
+        Friend({
+            'user_id': user1.id,
+            'friend_id': user2.id,
+            'accepted': True
+        }).save()
+
+        assert wigo_db.set_is_member(skey(user1, 'friends', 'private'), user2.id)
+
+        user2.privacy = 'public'
+        user2.save()
+
+        assert not wigo_db.set_is_member(skey(user1, 'friends', 'private'), user2.id)
 
 
 def test_messages():

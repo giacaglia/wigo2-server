@@ -7,10 +7,9 @@ from flask import g, request
 from flask.ext.restful import abort
 from repoze.lru import CacheMaker
 from server.db import wigo_db
-from server.models import skey, user_eventmessages_key, AlreadyExistsException, user_attendees_key
+from server.models import skey, user_eventmessages_key, AlreadyExistsException
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
 from server.models.group import get_group_by_city_id, Group, get_close_groups_with_events
-from server.models.user import User
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api
 from server.security import user_token_required
 from utils import epoch
@@ -67,7 +66,7 @@ class EventListResource(WigoDbListResource):
                     max_time = group.get_day_end() + timedelta(hours=1)  # add 1 hour to account for sub-score
 
                 query = query.min(epoch(time)).max(epoch(max_time))
-                count, events = query.execute()
+                count, page, events = query.execute()
 
                 pages = int(math.ceil(float(count) / remaining))
 
@@ -87,7 +86,7 @@ class EventListResource(WigoDbListResource):
                         break
 
                     query = query.page(page)
-                    count, events = query.execute()
+                    count, page, events = query.execute()
                 else:
                     page = 1
                     current_group += 1
@@ -104,11 +103,13 @@ class EventListResource(WigoDbListResource):
             next = {'page': page, 't': time_index, 'g': current_group}
 
         # if this is the first request, get the event the user is currently attending
-        attending = get_global_attending_event() if current_group == 0 and page == 1 else None
-        if attending:
-            if attending in all_events:
-                all_events.remove(attending)
-            all_events.insert(0, attending)
+        if current_group == 0 and page == 1:
+            attending_id = g.user.get_attending_id()
+            if attending_id:
+                attending = Event.find(attending_id)
+                if attending in all_events:
+                    all_events.remove(attending)
+                all_events.insert(0, attending)
 
         return self.serialize_list(Event, all_events, next=next)
 
@@ -147,7 +148,6 @@ class EventListResource(WigoDbListResource):
         return super(EventListResource, self).handle_already_exists_exception(e)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:model_id>')
 @api.response(403, 'If not invited')
 class EventResource(WigoDbResource):
@@ -174,7 +174,6 @@ class EventResource(WigoDbResource):
         abort(501, message='Not implemented')
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/events/')
 class UserEventListResource(WigoResource):
     model = Event
@@ -182,11 +181,10 @@ class UserEventListResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self, user_id):
-        count, instances = self.select().user(g.user).execute()
+        count, page, instances = self.select().user(g.user).execute()
         return self.serialize_list(self.model, instances, count)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/attendees')
 @api.response(403, 'If not invited')
 class EventAttendeeListResource(WigoResource):
@@ -198,7 +196,7 @@ class EventAttendeeListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, instances = self.select().event(event).execute()
+        count, page, instances = self.select().event(event).execute()
         return self.serialize_list(self.model, instances, count)
 
     @user_token_required
@@ -215,7 +213,6 @@ class EventAttendeeListResource(WigoResource):
         abort(501, message='Not implemented')
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/attendees/<user_id>')
 @api.response(200, 'Success')
 class DeleteAttendeeResource(WigoResource):
@@ -231,7 +228,6 @@ class DeleteAttendeeResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/events/<int:event_id>/attendees')
 @api.response(403, 'If not invited')
 class UserEventAttendeeListResource(WigoResource):
@@ -243,11 +239,10 @@ class UserEventAttendeeListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, instances = self.select().user(g.user).event(event).execute()
+        count, page, instances = self.select().user(g.user).event(event).execute()
         return self.serialize_list(self.model, instances, count)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/messages')
 @api.response(403, 'If not invited to event')
 class EventMessageListResource(WigoResource):
@@ -259,7 +254,7 @@ class EventMessageListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, messages = self.select().event(event).execute()
+        count, page, messages = self.select().event(event).execute()
         return self.serialize_list(self.model, messages, count)
 
     @user_token_required
@@ -272,7 +267,6 @@ class EventMessageListResource(WigoResource):
         return self.serialize_list(self.model, [message])
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/messages/<int:message_id>')
 @api.response(403, 'If not invited to event')
 class EventMessageResource(WigoResource):
@@ -302,7 +296,6 @@ class EventMessageResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/messages/meta')
 @api.response(200, 'Meta data about event messages')
 class EventMessagesMetaListResource(WigoResource):
@@ -323,7 +316,6 @@ class EventMessagesMetaListResource(WigoResource):
         return message_meta
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/events/<int:event_id>/messages/meta')
 @api.response(200, 'Meta data about event messages')
 class UserEventMessagesMetaListResource(WigoResource):
@@ -357,68 +349,3 @@ class EventMessageVoteResource(WigoResource):
             'user_id': g.user.id
         }).save()
         return {'success': True}
-
-
-@cache_maker.expiring_lrucache()
-def get_global_attendees(event_id):
-    from server.db import wigo_db
-
-    return wigo_db.sorted_set_rrange(skey('event', event_id, 'attendees'), 0, -1)
-
-
-@cache_maker.expiring_lrucache()
-def get_global_messages(event_id):
-    from server.db import wigo_db
-
-    return wigo_db.sorted_set_rrange(skey('event', event_id, 'messages'), 0, -1)
-
-
-def get_global_attending_event():
-    """ Get the global view of the event the current user is attending. """
-
-    event_id = g.user.get_attending_id()
-    if event_id is None:
-        return None
-
-    event = Event.find(event_id)
-    global_num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
-    if global_num_attending < 50:
-        pass
-
-    attending_ids = get_global_attending_attendees(event)
-    message_ids = get_global_attending_messages(event)
-    event.num_attending = len(attending_ids)
-
-    alimit = int(request.args.get('attendees_limit', 5))
-    mlimit = int(request.args.get('messages_limit', 5))
-
-    if attending_ids:
-        event.attendees = (len(attending_ids), User.find(attending_ids[0:alimit]))
-
-    if message_ids:
-        event.messages = (len(message_ids), EventMessage.find(message_ids[0:mlimit]))
-
-    return event
-
-
-def get_global_attending_attendees(event):
-    """ Get the global view of the attendees of the event the current user is attending. """
-
-    attending_ids = wigo_db.sorted_set_rrange(user_attendees_key(g.user, event), 0, -1)
-    attending_set = set(attending_ids)
-    for attendee_id in get_global_attendees(event.id):
-        if attendee_id not in attending_set:
-            attending_ids.append(attendee_id)
-    return attending_ids
-
-
-def get_global_attending_messages(event):
-    """ Get the global view of the messages of the event the current user is attending. """
-
-    # TODO need to combine messages in a smarter way. should be ordered by time
-    message_ids = wigo_db.sorted_set_rrange(user_eventmessages_key(g.user, event), 0, -1)
-    message_set = set(message_ids)
-    for message_id in get_global_messages(event.id):
-        if message_id not in message_set:
-            message_ids.append(message_id)
-    return message_ids

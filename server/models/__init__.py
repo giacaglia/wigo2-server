@@ -56,9 +56,9 @@ class WigoModel(Model):
         return wigo_db
 
     @classmethod
-    def select(self, fields=None):
+    def select(self):
         from server.query import SelectQuery
-        return SelectQuery(self, fields)
+        return SelectQuery(self)
 
     def ttl(self):
         return None
@@ -474,3 +474,4 @@ pre_model_save = signal('pre_model_save')
 post_model_save = signal('post_model_save')
 pre_model_delete = signal('pre_model_delete')
 post_model_delete = signal('post_model_delete')
+user_privacy_change = signal('user_privacy_change')

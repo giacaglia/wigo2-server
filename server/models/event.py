@@ -186,35 +186,6 @@ class Event(WigoPersistentModel):
         except:
             pass
 
-    @classmethod
-    def annotate_list(cls, events, user, attendees_limit=5, messages_limit=5):
-        from server.db import wigo_db
-
-        for event in events:
-            if not hasattr(event, 'num_attending'):
-                if user:
-                    event.num_attending = wigo_db.get_sorted_set_size(user_attendees_key(user, event))
-                else:
-                    event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
-
-        # only add attendees to events missing the attendees field
-        events_to_annotate = [e for e in events if not hasattr(e, 'attendees')]
-        count, attendees_by_event = EventAttendee.select().events(events_to_annotate) \
-            .user(user).limit(attendees_limit).execute()
-        if count:
-            for event, attendees in zip(events_to_annotate, attendees_by_event):
-                event.attendees = attendees
-
-        # only add messages to events missing the messages field
-        events_to_annotate = [e for e in events if not hasattr(e, 'messages')]
-        count, messages_by_event = EventMessage.select().events(events_to_annotate) \
-            .user(user).limit(messages_limit).execute()
-        if count:
-            for event, messages in zip(events_to_annotate, messages_by_event):
-                event.messages = messages
-
-        return events
-
 
 class EventAttendee(WigoModel):
     user_id = LongType(required=True)
@@ -238,11 +209,10 @@ class EventAttendee(WigoModel):
             EventAttendee({'event_id': current_event_id, 'user_id': user.id}).delete()
 
         # first update the global state of the event
-        if user.privacy != 'private':
-            attendees_key = skey(event, 'attendees')
-            self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
-            self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
-            event.add_to_global_events()
+        attendees_key = skey(event, 'attendees')
+        self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
+        self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
+        event.add_to_global_events()
 
         # now update the users view of the events
         # record the exact event the user is currently attending
@@ -315,10 +285,9 @@ class EventMessage(WigoPersistentModel):
         self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
         self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
 
-        if user.privacy == 'public':
-            emessages_key = skey(event, 'messages')
-            self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-            self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
+        emessages_key = skey(event, 'messages')
+        self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
+        self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
 
         for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
             friend = User.find(int(friend_id))

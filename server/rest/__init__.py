@@ -9,8 +9,8 @@ from flask.ext import restplus
 from pytz import UnknownTimeZoneError
 from schematics.exceptions import ModelValidationError
 from werkzeug.urls import url_encode
-from server.models import AlreadyExistsException
-from server.models.event import EventMessage, Event
+from server.models import AlreadyExistsException, user_attendees_key, skey
+from server.models.event import EventMessage, Event, EventAttendee
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
@@ -41,9 +41,9 @@ api = WigoApi()
 class WigoResource(Resource):
     model = None
 
-    def select(self, model=None, fields=None):
+    def select(self, model=None):
         model = model if model else self.model
-        query = self.setup_query(model.select(fields))
+        query = self.setup_query(model.select())
         if request.args.get('ordering') == 'asc':
             query = query.order('asc')
         return query
@@ -136,13 +136,39 @@ class WigoResource(Resource):
 
     def annotate_list(self, model_class, objects):
         if model_class == Event:
-            alimit = int(request.args.get('attendees_limit', 5))
-            mlimit = int(request.args.get('messages_limit', 5))
-
-            context = g.user if '/users/' in request.path else None
-
-            return Event.annotate_list(objects, context, alimit, mlimit)
+            return self.annotate_events(objects)
         return objects
+
+    def annotate_events(self, events):
+        from server.db import wigo_db
+
+        alimit = int(request.args.get('attendees_limit', 5))
+        mlimit = int(request.args.get('messages_limit', 5))
+
+        current_user = g.user
+        user_context = current_user if '/users/' in request.path else None
+
+        for event in events:
+            if user_context:
+                event.num_attending = wigo_db.get_sorted_set_size(user_attendees_key(user_context, event))
+            else:
+                event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
+
+        # only add attendees to events missing the attendees field
+        query = EventAttendee.select().events(events).user(user_context).secure(g.user)
+        count, page, attendees_by_event = query.limit(alimit).execute()
+        if count:
+            for event, attendees in zip(events, attendees_by_event):
+                event.attendees = attendees
+
+        # only add messages to events missing the messages field
+        query = EventMessage.select().events(events).user(user_context).secure(g.user)
+        count, page, messages_by_event = query.limit(mlimit).execute()
+        if count:
+            for event, messages in zip(events, messages_by_event):
+                event.messages = messages
+
+        return events
 
     def serialize_object(self, obj):
         prim = obj.to_primitive(role='www')
@@ -281,7 +307,7 @@ class WigoDbResource(WigoResource):
 class WigoDbListResource(WigoResource):
     @user_token_required
     def get(self):
-        count, instances = self.setup_query(self.model.select()).execute()
+        count, page, instances = self.setup_query(self.model.select()).execute()
         return self.serialize_list(self.model, instances, count)
 
     @user_token_required

@@ -11,15 +11,15 @@ from StringIO import StringIO
 from PIL import Image
 from rq.decorators import job
 from config import Configuration
-from server.tasks import redis_queues
 from server.models import post_model_save
 from server.models.user import User
+from server.tasks import images_queue
 
 
 saving_images = threading.local()
 
 
-@job('images', connection=redis_queues, timeout=60, result_ttl=0)
+@job(images_queue, timeout=60, result_ttl=0)
 def save_images(user_id):
     cache = {}
 

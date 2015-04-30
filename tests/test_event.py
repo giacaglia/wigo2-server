@@ -33,7 +33,7 @@ def test_create_event():
         assert resp.status_code == 200, 'oops {}'.format(resp.data)
         assert data['objects'][0]['id'] == event_id, 'posting with same name should return same event'
         assert 1 == Event.select().count()
-        count, results = Event.select().group(user1.group).execute()
+        count, page, results = Event.select().group(user1.group).execute()
         assert 1 == count
 
         # post again with a different name
@@ -44,7 +44,7 @@ def test_create_event():
         user1 = User.find(key='test')
         assert user1.get_attending_id() == event_id
         assert 2 == Event.select().count(), '2 events total now'
-        count, results = Event.select().group(user1.group).execute()
+        count, page, results = Event.select().group(user1.group).execute()
         assert 1 == count, 'only 1 in the group though, since the other has no attendees now'
         assert results[0].name == 'test event 2'
 
@@ -75,7 +75,7 @@ def test_private_event():
 
         assert resp.status_code == 200, 'oops {}'.format(resp.data)
         assert 1 == Event.select().user(user2).count()
-        count, results = EventAttendee.select().event(event).user(user2).execute()
+        count, page, results = EventAttendee.select().event(event).user(user2).execute()
         assert count == 1
         assert results[0] == user1
 
@@ -97,11 +97,11 @@ def test_user_events():
         assert 2 == Event.select().count(), '2 events total now'
         assert 2 == Event.select().group(user1.group).count()
 
-        count, results = Event.select().user(user1).execute()
+        count, page, results = Event.select().user(user1).execute()
         assert 1 == count
         assert results[0].name == 'test event 1'
 
-        count, results = Event.select().user(user2).execute()
+        count, page, results = Event.select().user(user2).execute()
         assert 1 == count
         assert results[0].name == 'test event 2'
 

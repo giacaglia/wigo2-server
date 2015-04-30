@@ -11,9 +11,8 @@ from utils import returns_clone, epoch
 
 
 class SelectQuery(object):
-    def __init__(self, model_class=None, fields=None):
+    def __init__(self, model_class=None):
         super(SelectQuery, self).__init__()
-        self._fields = fields
         self._model_class = model_class
         self._id = None
         self._ids = None
@@ -33,11 +32,11 @@ class SelectQuery(object):
         self._max = None
         self._lat = None
         self._lon = None
+        self._secure = None
         self._where = {}
 
     def clone(self):
         clone = SelectQuery(self._model_class)
-        clone._fields = self._fields
         clone._id = self._id
         clone._ids = self._ids
         clone._key = self._key
@@ -57,6 +56,7 @@ class SelectQuery(object):
         clone._max = self._max
         clone._lat = self._lat
         clone._lon = self._lon
+        clone._secure = self._secure
         return clone
 
     @property
@@ -145,21 +145,25 @@ class SelectQuery(object):
     def where(self, **kwargs):
         self._where.update(kwargs)
 
+    @returns_clone
+    def secure(self, user):
+        self._secure = user
+
     def count(self):
-        count, results = self.execute()
+        count, page, results = self.execute()
         return count
 
     def execute(self):
         if self._id:
             instance = self._model_class.find(self._id)
             if instance:
-                return 1, [instance]
-            return 0, []
+                return 1, self._page, [instance]
+            return 0, self._page, []
         elif self._ids:
             instances = self._model_class.find(self._ids)
             if len(instances) > 0:
-                return len(instances), instances
-            return 0, []
+                return len(instances), 1, instances
+            return 0, self._page, []
         elif self._key:
             return self.__get_page(self._key)
         elif self._where:
@@ -191,29 +195,28 @@ class SelectQuery(object):
 
     def __iter__(self):
         query = self.clone()
-        count, instances = self.execute()
+        count, page, instances = self.execute()
         pages = int(math.ceil(float(count) / self._limit))
         while True:
             for instance in instances:
                 yield instance
-            if query.page < pages:
-                query = query.page(query._page + 1)
-                count, instances = self.execute()
+            if page < pages:
+                query = query.page(page + 1)
+                count, page, instances = self.execute()
             else:
                 break
 
     def get(self):
-        count, instances = self.execute()
+        count, page, instances = self.execute()
         if len(instances) > 0:
             return instances[0]
         raise DoesNotExist()
 
     def __get_page(self, key):
-        start = (self._page - 1) * self._limit
-
+        page = self._page
         count = self.db.get_sorted_set_size(key)
         if count == 0:
-            return 0, []
+            return 0, self._page, []
 
         min = self._min or '-inf'
         max = self._max or '+inf'
@@ -222,7 +225,8 @@ class SelectQuery(object):
             if min is None:
                 min = epoch(datetime.utcnow() - timedelta(days=7))
             if max is None:
-                max = epoch(self._group.get_day_end() + timedelta(hours=1))  # add 1 hour to account for sub-score
+                # add 1 hour to account for sub-scoring
+                max = epoch(self._group.get_day_end() + timedelta(hours=1))
 
         if self._order == 'desc':
             range_f = self.db.sorted_set_rrange_by_score
@@ -230,18 +234,28 @@ class SelectQuery(object):
         else:
             range_f = self.db.sorted_set_range_by_score
 
-        model_ids = range_f(key, min, max, start, self._limit)
-        if self._fields and 'id' in self._fields:
-            return count, model_ids
-        else:
-            return count, self._model_class.find(model_ids)
+        pages = int(math.ceil(float(count) / self._limit))
+
+        collected = []
+        for i in range(page, pages+1):
+            start = (i-1) * self._limit
+            model_ids = range_f(key, min, max, start, self._limit)
+            instances = self._model_class.find(model_ids)
+            secured = self.__secure_filter(instances)
+            collected.extend(secured)
+
+            # if the results weren't filtered, break
+            if len(secured) == len(collected):
+                break
+
+        return count, page, collected
 
     def __get_group(self):
         try:
             group = Group.find(lat=self._lat, lon=self._lon)
-            return 1, [group]
+            return 1, self._page, [group]
         except:
-            return 0, []
+            return 0, self._page, []
 
     def __get_conversation(self):
         if self._to_user:
@@ -250,12 +264,15 @@ class SelectQuery(object):
             query = User.select().key(
                 skey(self._user, 'conversations')
             ).limit(self._limit).page(self._page).order(self._order)
-            count, users = query.execute()
+
+            count, page, users = query.execute()
+
             message_ids = []
             for user in users:
                 last_message_id = self.db.get(skey(self._user, 'conversation', user.id, 'last_message'))
                 message_ids.append(last_message_id)
-            return count, Message.find(message_ids)
+
+            return count, page, Message.find(message_ids)
 
     def __get_notifications(self):
         return self.__get_page(skey(self._user, 'notifications'))
@@ -273,9 +290,9 @@ class SelectQuery(object):
                         model_ids = wigo_db.sorted_set_range(key)
                         if model_ids:
                             instances = self._model_class.find(model_ids)
-                            return len(instances), instances
+                            return len(instances), self._page, instances
                         else:
-                            return 0, []
+                            return 0, self._page, []
                 else:
                     # not a redis indexed key, so look in the rdbms
                     with db.execution_context(False) as ctx:
@@ -290,10 +307,10 @@ class SelectQuery(object):
                         if instance is not None:
                             instance.prepared()
 
-                    return len(instances), instances
+                    return len(instances), self._page, instances
 
         except DoesNotExist:
-            return 0, []
+            return 0, self._page, []
 
     def __get_by_event(self):
         if self._model_class == EventMessage:
@@ -311,10 +328,7 @@ class SelectQuery(object):
         else:
             raise ValueError('Invalid query')
 
-
     def __get_by_events(self):
-        start = (self._page - 1) * self._limit
-
         keys = []
 
         if self._model_class == EventMessage:
@@ -335,9 +349,27 @@ class SelectQuery(object):
         results = []
         for key in keys:
             count = self.db.get_sorted_set_size(key)
-            ids = self.db.sorted_set_rrange(key, start, start + (self._limit - 1))
-            instances = query_class.find(list(ids))
-            results.append((count, instances))
+            pages = int(math.ceil(float(count) / self._limit))
 
-        return len(results), results
+            collected = []
+            for page in range(1, pages+1):
+                start = (page-1) * self._limit
+                ids = self.db.sorted_set_rrange(key, start, start + (self._limit - 1))
+                instances = query_class.find(list(ids))
 
+                secured = self.__secure_filter(instances)
+                collected.extend(secured)
+
+                # if nothing was filtered, break
+                if len(secured) == len(instances):
+                    break
+
+            results.append((count, collected))
+
+        return len(results), 1, results
+
+    def __secure_filter(self, objects):
+        if not self._secure:
+            return objects
+
+        return objects

@@ -206,9 +206,9 @@ class WigoRedisDB(WigoDB):
             self.queued_db.expire(key, expires, long_term_expires)
         return result
 
-    def set_add(self, key, value, dt=None):
+    def set_add(self, key, value, dt=None, replicate=True):
         result = self.redis.sadd(key, self.encode(value, dt))
-        if self.queued_db:
+        if replicate and self.queued_db:
             self.queued_db.set_add(key, value)
         return result
 
@@ -218,9 +218,9 @@ class WigoRedisDB(WigoDB):
     def get_set_size(self, key, dt=None):
         return self.redis.scard(key)
 
-    def set_remove(self, key, value, dt=None):
+    def set_remove(self, key, value, dt=None, replicate=True):
         result = self.redis.srem(key, self.encode(value, dt))
-        if self.queued_db:
+        if replicate and self.queued_db:
             self.queued_db.set_remove(key, value)
         return result
 
@@ -271,9 +271,9 @@ class WigoRedisDB(WigoDB):
         else:
             return self.decode(results, dt)
 
-    def sorted_set_remove(self, key, value, dt=None):
+    def sorted_set_remove(self, key, value, dt=None, replicate=True):
         result = self.redis.zrem(key, self.encode(value, dt))
-        if self.queued_db:
+        if replicate and self.queued_db:
             self.queued_db.sorted_set_remove(key, value)
         return result
 

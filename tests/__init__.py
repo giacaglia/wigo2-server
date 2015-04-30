@@ -3,10 +3,9 @@ import logging
 
 import ujson
 
-from rq import decorators
-from mock import Mock
 from datetime import datetime, timedelta
 from contextlib import contextmanager
+from mock import Mock
 from mockredis import mock_redis_client
 from server.models.location import WigoCity
 from config import Configuration
@@ -14,6 +13,7 @@ from config import Configuration
 
 Configuration.ENVIRONMENT = 'test'
 Configuration.PUSH_ENABLED = False
+Configuration.REDIS_URL = 'redis://localhost:9999'
 
 NEXT_ID = 1
 patches = []
@@ -21,11 +21,13 @@ patches = []
 
 def setup():
     import server.db
+    import server.tasks
 
-    decorators.Queue = Mock()
     mock_redis = mock_redis_client()
+    server.tasks.notifications_queue = Mock()
     server.db.redis = mock_redis
     server.db.wigo_db.redis = mock_redis
+    server.db.wigo_queued_db.redis = mock_redis
 
 
 @contextmanager

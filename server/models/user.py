@@ -9,7 +9,8 @@ from schematics.types import StringType, BooleanType, DateTimeType, EmailType, L
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from config import Configuration
-from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL
+from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL, \
+    user_privacy_change
 from utils import epoch, ValidationException, memoize, prefix_score
 
 
@@ -179,6 +180,11 @@ class User(WigoPersistentModel):
         wigo_db.redis.hset(meta_key, key, value)
         wigo_db.redis.expire(meta_key, timedelta(days=60))
 
+    def save(self):
+        privacy_changed = self.is_changed(User.privacy.name)
+        saved = super(User, self).save()
+        user_privacy_change.send(self, instance=self)
+        return saved
 
 class Friend(WigoModel):
     user_id = LongType(required=True)
@@ -212,8 +218,15 @@ class Friend(WigoModel):
 
             self.db.sorted_set_add(skey('user', self.user_id, 'friends', 'alpha'),
                                    self.friend_id, prefix_score(self.friend.full_name))
+
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends', 'alpha'),
                                    self.user_id, prefix_score(self.user.full_name))
+
+            if self.user.privacy == 'private':
+                self.db.set_add(skey('user', self.friend_id, 'friends', 'private'), self.user_id)
+
+            if self.friend.privacy == 'private':
+                self.db.set_add(skey('user', self.user_id, 'friends', 'private'), self.friend_id)
 
             for type in ('friend_requests', 'friend_requested'):
                 self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
@@ -237,6 +250,9 @@ class Friend(WigoModel):
 
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id)
+
+            self.db.set_remove(skey('user', self.user_id, 'friends', 'private'), self.friend_id)
+            self.db.set_remove(skey('user', self.friend_id, 'friends', 'private'), self.user_id)
 
             friend_requested_key = skey('user', self.user_id, 'friend_requested')
             self.db.sorted_set_add(friend_requested_key, self.friend_id, epoch(self.created))

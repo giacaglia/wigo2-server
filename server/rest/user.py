@@ -16,7 +16,6 @@ from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api
 from server.security import user_token_required
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<model_id>')
 class UserResource(WigoDbResource):
     model = User
@@ -41,13 +40,20 @@ class UserResource(WigoDbResource):
         abort(501, message='Not implemented')
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/meta')
 class UserMetaResource(WigoResource):
     model = User
 
     @user_token_required
-    @api.response(200, 'Success')
+    @api.response(200, 'Success', model=api.model('UserMeta', {
+        'last_message': fields.DateTime(),
+        'last_friend_request': fields.DateTime(),
+        'last_notification': fields.DateTime(),
+        'is_tapped': fields.Boolean(),
+        'is_friend': fields.Boolean(),
+        'is_blocked': fields.Boolean(),
+        'friend_request': fields.String(),
+    }))
     def get(self, user_id):
         user_id = self.get_id(user_id)
 
@@ -97,11 +103,10 @@ class UserListResource(WigoResource):
             return self.serialize_list(self.model, users)
 
         else:
-            count, instances = self.setup_query(self.model.select().group(g.group)).execute()
+            count, page, instances = self.setup_query(self.model.select().group(g.group)).execute()
             return self.serialize_list(self.model, instances, count)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends')
 class FriendsListResource(WigoResource):
     model = Friend
@@ -110,7 +115,7 @@ class FriendsListResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, friends = self.setup_query(self.select(User).user(user).friends()).execute()
+        count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
         return self.serialize_list(User, friends, count)
 
     @user_token_required
@@ -152,29 +157,26 @@ class FriendIdsListResource(WigoResource):
         return wigo_db.sorted_set_rrange(skey(user, 'friends'), 0, -1)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/requested')
 class FriendRequestedListResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, friends = self.setup_query(self.select(User).user(user).friend_requested()).execute()
+        count, page, friends = self.setup_query(self.select(User).user(user).friend_requested()).execute()
         return self.serialize_list(User, friends, count)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/requests')
 class FriendRequestsListResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, friends = self.setup_query(self.select(User).user(user).friend_requests()).execute()
+        count, page, friends = self.setup_query(self.select(User).user(user).friend_requests()).execute()
         return self.serialize_list(User, friends, count)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/<int:friend_id>')
 class DeleteFriendResource(WigoResource):
     model = Friend
@@ -190,7 +192,6 @@ class DeleteFriendResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/common/<int:with_user_id>/count')
 class FriendsInCommonCountResource(WigoResource):
     model = Friend
@@ -201,7 +202,6 @@ class FriendsInCommonCountResource(WigoResource):
         return {'count': len(ids)}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/friends/common/<int:with_user_id>')
 @api.response(200, 'Success', model=User.to_doc_list_model(api))
 class FriendsInCommonResource(WigoResource):
@@ -214,7 +214,6 @@ class FriendsInCommonResource(WigoResource):
         return self.serialize_list(User, users)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/events/<int:event_id>/invites')
 class InviteListResource(WigoResource):
     model = Invite
@@ -266,7 +265,6 @@ class InviteListResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/taps')
 class TapListResource(WigoResource):
     model = Tap
@@ -290,7 +288,6 @@ class TapListResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/blocks')
 class BlockListResource(WigoResource):
     model = Block
@@ -314,7 +311,6 @@ class BlockListResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/taps/<int:tapped_id>')
 class DeleteTapResource(WigoResource):
     model = Friend
@@ -343,7 +339,6 @@ class MessageListResource(WigoDbListResource):
         return super(MessageListResource, self).post()
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/messages/<int:model_id>')
 class MessageResource(WigoDbResource):
     model = Message
@@ -373,11 +368,10 @@ class ConversationsResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self):
-        count, instances = self.select().user(g.user).execute()
+        count, page, instances = self.select().user(g.user).execute()
         return self.serialize_list(self.model, instances, count)
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/conversations/<int:with_user_id>')
 class ConversationWithUserResource(WigoResource):
     model = Message
@@ -386,7 +380,7 @@ class ConversationWithUserResource(WigoResource):
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, with_user_id):
         with_user = User.find(with_user_id)
-        count, instances = self.select().user(g.user).to_user(with_user).execute()
+        count, page, instances = self.select().user(g.user).to_user(with_user).execute()
         return self.serialize_list(self.model, instances, count)
 
     @user_token_required
@@ -396,7 +390,6 @@ class ConversationWithUserResource(WigoResource):
         return {'success': True}
 
 
-# noinspection PyUnresolvedReferences
 @api.route('/users/<user_id>/notifications')
 class NotificationsResource(WigoResource):
     model = Notification
@@ -404,6 +397,6 @@ class NotificationsResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, user_id):
-        count, instances = self.select().user(g.user).execute()
+        count, page, instances = self.select().user(g.user).execute()
         return self.serialize_list(self.model, instances, count)
 

@@ -6,7 +6,7 @@ from pytz import UTC, timezone
 
 from rq.decorators import job
 
-from server.tasks import redis_queues
+from server.tasks import predictions_queue
 from server.models import post_model_save
 from server.models.user import User, Tap, Message, Invite, Friend
 from config import Configuration
@@ -20,7 +20,7 @@ client = predictionio.EventClient(
   qsize=500
 )
 
-@job('predictions', connection=redis_queues, timeout=30, result_ttl=0)
+@job(predictions_queue, timeout=30, result_ttl=0)
 def capture_interaction(user_id, with_user_id, t, action='view'):
     logger.info('capturing prediction event data between {} and {}'.format(user_id, with_user_id))
 
