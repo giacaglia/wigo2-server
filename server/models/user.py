@@ -14,12 +14,6 @@ from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_a
 from utils import epoch, ValidationException, memoize, prefix_score
 
 
-class Role(object):
-    def __init__(self, name):
-        super(Role, self).__init__()
-        self.name = name
-
-
 class User(WigoPersistentModel):
     indexes = (
         ('user:{facebook_id}:facebook_id', True),
@@ -79,10 +73,6 @@ class User(WigoPersistentModel):
     tags = ListType(StringType)
 
     properties = JsonType(default=lambda: {})
-
-    @property
-    def roles(self):
-        return [Role(self.role)]
 
     @property
     def images(self):
