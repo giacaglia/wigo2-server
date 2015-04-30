@@ -71,6 +71,10 @@ class UserMetaResource(WigoResource):
             elif g.user.is_friend_request_received(user_id):
                 meta['friend_request'] = 'received'
 
+            if request.args.get('num_friends_in_common') == 'true':
+                meta['num_friends_in_common'] = len(g.user.get_friend_ids_in_common(user_id))
+
+
         meta['num_friends'] = wigo_db.get_sorted_set_size(skey('user', user_id, 'friends'))
         return meta
 
