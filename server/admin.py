@@ -38,7 +38,7 @@ class WigoAjaxModelLoader(AjaxModelLoader):
 
     def get_list(self, query, offset=0, limit=DEFAULT_PAGE_SIZE):
         model = self.options['model']
-        return list(model.select().where(name=query).limit(limit))
+        return list(model.select().where(code=query).limit(limit))
 
     def format(self, model):
         return (model.id, model.name) if model else None
