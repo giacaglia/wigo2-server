@@ -53,6 +53,7 @@ class UserMetaResource(WigoResource):
         'is_friend': fields.Boolean(),
         'is_blocked': fields.Boolean(),
         'friend_request': fields.String(),
+        'num_friends_in_common': fields.Integer()
     }))
     def get(self, user_id):
         user_id = self.get_id(user_id)
@@ -73,7 +74,6 @@ class UserMetaResource(WigoResource):
 
             if request.args.get('num_friends_in_common') == 'true':
                 meta['num_friends_in_common'] = len(g.user.get_friend_ids_in_common(user_id))
-
 
         meta['num_friends'] = wigo_db.get_sorted_set_size(skey('user', user_id, 'friends'))
         return meta

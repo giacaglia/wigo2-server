@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from time import time
 from schematics.transforms import blacklist
-from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType
+from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType, DateType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from config import Configuration
@@ -49,9 +49,12 @@ class User(WigoPersistentModel):
     first_name = StringType()
     last_name = StringType()
     bio = StringType()
-    birthdate = DateTimeType()
+    birthdate = DateType()
+    education = StringType()
+    work = StringType()
     gender = StringType()
     phone = StringType()
+
     enterprise = BooleanType(default=False, required=True)
 
     email = EmailType()

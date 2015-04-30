@@ -20,12 +20,14 @@ msgpack-python==0.4.6
 parse==1.6.6
 peewee==2.5.1
 psycopg2==2.6
+python-dateutil==2.4.2
 pytz==2015.2
 redis==2.10.3
 redis-shard==0.3.0
 repoze.lru==0.6
 requests==2.6.0
 requests-oauthlib==0.4.2
+retry==0.9.0
 rq==0.4.6
 rq-dashboard==0.3.4
 rq-gevent-worker==0.1.6

@@ -6,6 +6,7 @@ import re
 
 from datetime import datetime
 from datetime import timedelta
+from dateutil.parser import parse
 from random import randint
 from uuid import uuid4
 from flask import g, request
@@ -47,6 +48,9 @@ class RegisterResource(WigoResource):
         facebook_token_expires = datetime.utcnow() + timedelta(
             seconds=data.get('facebook_access_token_expires') or 1728000)
         email = data.get('email')
+        birthdate = data.get('birthdate')
+        education = data.get('education')
+        work = data.get('work')
 
         properties = data.get('properties')
 
@@ -90,6 +94,15 @@ class RegisterResource(WigoResource):
         user.first_name = user_info.get('first_name') or user_info.get('given_name')
         user.last_name = user_info.get('last_name') or user_info.get('family_name')
         user.gender = user_info.get('gender')
+
+        if birthdate:
+            user.birthdate = parse(birthdate)
+
+        if education:
+            user.education = education
+
+        if work:
+            user.work = work
 
         if g.group:
             user.group_id = g.group.id

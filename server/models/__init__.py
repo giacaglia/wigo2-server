@@ -48,6 +48,7 @@ class WigoModel(Model):
 
     def __init__(self, raw_data=None, deserialize_mapping=None, strict=False):
         self._changes = {}
+        self._dirty = False
         super(WigoModel, self).__init__(raw_data, deserialize_mapping, strict)
 
     @property
@@ -74,9 +75,13 @@ class WigoModel(Model):
 
     def prepared(self):
         self._changes.clear()
+        self._dirty = False
 
     def is_changed(self, *keys):
-        return any(k for k in keys if k in self._changes.keys())
+        if not keys:
+            return self._dirty
+        else:
+            return any(k for k in keys if k in self._changes.keys())
 
     def get_old_value(self, key):
         if self.is_changed(key):
@@ -92,6 +97,7 @@ class WigoModel(Model):
             new_value = self._data.get(key)
             if new_value != old_value:
                 self._changes[key] = (old_value, new_value)
+                self._dirty = True
         return val
 
     def ref_field(self, type, field):
@@ -168,6 +174,7 @@ class WigoModel(Model):
         prev_value = self.properties.get(name)
         if prev_value != value:
             self.properties[name] = value
+            self._dirty = True
 
     def get_custom_property(self, name, default_value=None):
         """ Utility method for getting a value in the .properties map. """
