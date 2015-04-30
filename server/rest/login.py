@@ -66,7 +66,10 @@ class LoginResource(WigoResource):
             user.facebook_token_expires = facebook_token_expires
 
         if birthdate:
-            user.birthdate = parse(birthdate)
+            try:
+                user.birthdate = parse(birthdate)
+            except:
+                logger.info('error parsing birthdate {}'.format(birthdate))
 
         if education:
             user.education = education
