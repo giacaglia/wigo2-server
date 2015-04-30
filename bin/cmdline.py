@@ -65,13 +65,11 @@ def initialize(create_tables=False, import_cities=False):
           CREATE INDEX data_strings_gin ON data_strings USING gin (value);
 
           CREATE INDEX data_strings_first_name ON data_strings(
-              CAST(value->>'group_id' AS int8),
               (value->>'$type'),
               LOWER(value->>'first_name') varchar_pattern_ops
             ) WHERE value->>'$type' = 'User';
 
            CREATE INDEX data_strings_last_name ON data_strings(
-              CAST(value->>'group_id' AS int8),
               (value->>'$type'),
               LOWER(value->>'last_name') varchar_pattern_ops
             ) WHERE value->>'$type' = 'User';

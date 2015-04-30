@@ -90,10 +90,10 @@ class UserListResource(WigoResource):
         if text:
             sql = """
               SELECT value->'id' FROM data_strings WHERE
-              CAST(value->>'group_id' AS int8) = %s AND value->>'$type' = 'User'
+              value->>'$type' = 'User'
             """
-            params = [g.group.id]
 
+            params = []
             split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
             for s in split:
                 sql += "AND ((LOWER(value->>'first_name') LIKE %s) or (LOWER(value->>'last_name') LIKE %s))"
