@@ -95,8 +95,13 @@ class RegisterResource(WigoResource):
         user.last_name = user_info.get('last_name') or user_info.get('family_name')
         user.gender = user_info.get('gender')
 
-        if birthdate:
+        if not birthdate:
+            birthdate = user_info.get('birthday')
+
+        try:
             user.birthdate = parse(birthdate)
+        except:
+            logger.info('error parsing birthdate {}'.format(birthdate))
 
         if education:
             user.education = education
