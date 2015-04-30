@@ -32,11 +32,16 @@ def setup_user_by_token():
             g.user = User.find(key=user_token)
             existing_group = getattr(g, 'group', None)
             if existing_group:
-                if g.user.group_id != existing_group.id:
-                    g.user.group_id = existing_group.id
-                    g.user.save()
+                g.user.group_id = existing_group.id
             elif g.user.group_id:
                 g.group = Group.find(g.user.group_id)
+
+            if hasattr(g, 'latitude') and hasattr(g, 'longitude'):
+                g.user.latitude = g.latitude
+                g.user.longitude = g.longitude
+
+            if g.user.is_changed():
+                g.user.save()
 
         except DoesNotExist:
             pass
