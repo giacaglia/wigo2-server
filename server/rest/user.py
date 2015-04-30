@@ -89,8 +89,8 @@ class UserListResource(WigoResource):
         text = request.args.get('text')
         if text:
             sql = """
-              SELECT value->'id' FROM data_strings WHERE
-              value->>'$type' = 'User'
+                SELECT value->'id' FROM data_strings WHERE
+                value->>'$type' = 'User'
             """
 
             params = []
@@ -100,8 +100,15 @@ class UserListResource(WigoResource):
                 params.append(s)
                 params.append(s)
 
+            sql += """
+                ORDER BY earth_distance(
+                    ll_to_earth({},{}),
+                    ll_to_earth(cast(value->>'latitude' as float), cast(value->>'longitude' as float))
+                ) LIMIT 50
+            """.format(g.user.group.latitude, g.user.group.longitude)
+
             with db.execution_context(False) as ctx:
-                results = list(db.execute_sql('{} limit 20'.format(sql), params))
+                results = list(db.execute_sql(sql, params))
 
             users = User.find([id[0] for id in results])
             return self.serialize_list(self.model, users)

@@ -187,6 +187,8 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
                 user.facebook_id = dbuser['facebook']
                 user.facebook_token = assoc['service_token']
                 user.facebook_token_expires = assoc['service_token_expires']
+                user.latitude = boston.latitude
+                user.longitude = boston.longitude
                 user.validate()
                 user.save()
                 num_saved += 1

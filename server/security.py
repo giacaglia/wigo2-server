@@ -29,19 +29,35 @@ def setup_user_by_token():
     user_token = request.headers.get('X-Wigo-User-Key')
     if user_token:
         try:
-            g.user = User.find(key=user_token)
-            existing_group = getattr(g, 'group', None)
-            if existing_group:
-                g.user.group_id = existing_group.id
-            elif g.user.group_id:
-                g.group = Group.find(g.user.group_id)
+            user = User.find(key=user_token)
+            g.user = user
+
+            group = getattr(g, 'group', None)
+
+            if group:
+                # if a group was passed in via geo, switch the users group
+                user.group_id = group.id
+            elif user.group_id:
+                # if the user has a group defined, use it
+                group = Group.find(user.group_id)
+                g.group = group
+            else:
+                # we need a group, so default to boston
+                group = Group.find(code='boston')
+                user.group_id = group.id
+                g.group = group
 
             if hasattr(g, 'latitude') and hasattr(g, 'longitude'):
-                g.user.latitude = g.latitude
-                g.user.longitude = g.longitude
+                user.latitude = g.latitude
+                user.longitude = g.longitude
+            else:
+                if not user.latitude:
+                    user.latitude = group.latitude
+                if not user.longitude:
+                    user.longitude = group.longitude
 
-            if g.user.is_changed():
-                g.user.save()
+            if user.is_changed():
+                user.save()
 
         except DoesNotExist:
             pass
