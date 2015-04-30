@@ -98,12 +98,14 @@ def setup_request():
     if geolocation:
         parsed_geo = urlparse(geolocation)
         if parsed_geo.scheme == 'geo':
-            lat, long = parsed_geo.path.split(',')
-            g.latitude, g.longitude = float(lat), float(long)
-            try:
-                g.group = Group.find(lat=g.latitude, lon=g.longitude)
-            except DoesNotExist:
-                logger.info('could not resolve group from geo')
+            lat, lon = parsed_geo.path.split(',')
+            lat, lon = float(lat), float(lon)
+            if lat and lon:
+                g.latitude, g.longitude = float(lat), float(lon)
+                try:
+                    g.group = Group.find(lat=g.latitude, lon=g.longitude)
+                except DoesNotExist:
+                    logger.info('could not resolve group from geo')
 
     # setup the user after the geo lookup, since the user might need to update its group
     setup_user_by_token()
