@@ -29,6 +29,13 @@ def sync_parse(self, user_id, data=None):
             'privacy': user.privacy,
         }
 
+        if user.work:
+            data['work'] = user.work
+
+        if user.education:
+            data['education'] = user.education
+
+
     headers = {
         'Content-Type': 'application/json',
         'X-Parse-Application-Id': Configuration.PARSE_APPLICATION_ID,
