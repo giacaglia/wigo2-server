@@ -10,8 +10,8 @@ from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from config import Configuration
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL, \
-    user_privacy_change
-from utils import epoch, ValidationException, memoize, prefix_score
+    user_privacy_change, field_memoize
+from utils import epoch, ValidationException, prefix_score
 
 
 class User(WigoPersistentModel):
@@ -195,7 +195,7 @@ class Friend(WigoModel):
     accepted = BooleanType(required=True, default=False)
 
     @property
-    @memoize('friend_id')
+    @field_memoize('friend_id')
     def friend(self):
         return User.find(self.friend_id)
 
@@ -235,12 +235,14 @@ class Friend(WigoModel):
                 self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
                 self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
 
+            # TODO this is only adding the current attending event
             user_event_id = self.user.get_attending_id()
             if user_event_id:
                 user_event = Event.find(user_event_id)
                 if self.friend.can_see_event(user_event):
                     user_event.add_to_user_attending(self.friend, self.user)
 
+            # TODO this is only adding the current attending event
             friend_event_id = self.friend.get_attending_id()
             if friend_event_id:
                 friend_event = Event.find(friend_event_id)
@@ -308,7 +310,7 @@ class Tap(WigoModel):
         return epoch(self.tapped.group.get_day_end(self.created))
 
     @property
-    @memoize('tapped_id')
+    @field_memoize('tapped_id')
     def tapped(self):
         return User.find(self.tapped_id)
 
@@ -336,7 +338,7 @@ class Block(WigoModel):
     blocked_id = LongType(required=True)
 
     @property
-    @memoize('tapped_id')
+    @field_memoize('tapped_id')
     def blocked(self):
         return User.find(self.blocked_id)
 
@@ -364,7 +366,7 @@ class Invite(WigoModel):
         return DEFAULT_EXPIRING_TTL
 
     @property
-    @memoize('invited_id')
+    @field_memoize('invited_id')
     def invited(self):
         return User.find(self.invited_id)
 
@@ -420,7 +422,7 @@ class Notification(WigoPersistentModel):
         return DEFAULT_EXPIRING_TTL
 
     @property
-    @memoize('from_user_id')
+    @field_memoize('from_user_id')
     def from_user(self):
         return User.find(self.from_user_id)
 
@@ -442,7 +444,7 @@ class Message(WigoPersistentModel):
     message = StringType(required=True)
 
     @property
-    @memoize('to_user_id')
+    @field_memoize('to_user_id')
     def to_user(self):
         return User.find(self.to_user_id)
 

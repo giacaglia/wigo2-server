@@ -256,7 +256,7 @@ class EventMessageListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, page, messages = self.select().event(event).execute()
+        count, page, messages = self.select().event(event).secure(g.user).execute()
         return self.serialize_list(self.model, messages, count, page)
 
     @user_token_required

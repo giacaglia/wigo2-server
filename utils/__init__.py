@@ -134,15 +134,11 @@ def memoize(field=None):
         def decorated(*args, **kw):
             obj = args[0]
             try:
-                cache = obj.__cache
+                cache = obj._cache
             except AttributeError:
-                cache = obj.__cache = {}
+                cache = obj._cache = {}
 
-            if field:
-                val = getattr(obj, field, None)
-                key = (f, val, args[1:], frozenset(kw.items()))
-            else:
-                key = (f, args[1:], frozenset(kw.items()))
+            key = (f, args[1:], frozenset(kw.items()))
 
             try:
                 res = cache[key]

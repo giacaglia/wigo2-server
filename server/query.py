@@ -389,5 +389,7 @@ class SelectQuery(object):
 
         if self._model_class in (User, EventAttendee):
             objects = [u for u in objects if can_see_user(u)]
+        elif self._model_class == EventMessage:
+            objects = [m for m in objects if can_see_user(m.user)]
 
         return objects

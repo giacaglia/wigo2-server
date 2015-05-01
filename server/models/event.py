@@ -7,7 +7,7 @@ from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, \
-    AlreadyExistsException, user_attendees_key, user_eventmessages_key, DEFAULT_EXPIRING_TTL
+    AlreadyExistsException, user_attendees_key, user_eventmessages_key, DEFAULT_EXPIRING_TTL, field_memoize
 from server.models.user import User
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException, memoize
 
@@ -320,6 +320,6 @@ class EventMessageVote(WigoModel):
         return DEFAULT_EXPIRING_TTL
 
     @property
-    @memoize('message_id')
+    @field_memoize('message_id')
     def message(self):
         return EventMessage.find(self.message_id)

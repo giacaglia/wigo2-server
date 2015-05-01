@@ -1,20 +1,18 @@
 from __future__ import absolute_import
+
 import logging
-
 import ujson
+import re
 
+from functools import wraps
 from blinker import signal
 from datetime import datetime, timedelta
-
 from flask.ext.restplus import fields as docfields
-import re
-from geodis.location import Location
-
 from schematics.models import Model
 from schematics.transforms import blacklist
 from schematics.types import BaseType, StringType, DateTimeType, LongType, FloatType, NumberType, BooleanType
 from schematics.types.serializable import serializable
-from utils import dotget, epoch, memoize
+from utils import dotget, epoch
 
 logger = logging.getLogger('wigo.model')
 
@@ -33,6 +31,31 @@ class JsonType(BaseType):
         return value
 
 
+def field_memoize(field=None):
+    def inner(f):
+        @wraps(f)
+        def decorated(*args, **kw):
+            obj = args[0]
+            try:
+                cache = obj._field_cache
+            except AttributeError:
+                cache = obj._field_cache = {}
+
+            val = getattr(obj, field, None)
+            key = (field, val)
+
+            try:
+                res = cache[key]
+            except KeyError:
+                res = cache[key] = f(*args, **kw)
+
+            return res
+
+        return decorated
+
+    return inner
+
+
 class WigoModel(Model):
     indexes = ()
 
@@ -49,16 +72,19 @@ class WigoModel(Model):
     def __init__(self, raw_data=None, deserialize_mapping=None, strict=False):
         self._changes = {}
         self._dirty = False
+        self._field_cache = {}
         super(WigoModel, self).__init__(raw_data, deserialize_mapping, strict)
 
     @property
     def db(self):
         from server.db import wigo_db
+
         return wigo_db
 
     @classmethod
     def select(self):
         from server.query import SelectQuery
+
         return SelectQuery(self)
 
     def ttl(self):
@@ -106,7 +132,7 @@ class WigoModel(Model):
         return None
 
     @property
-    @memoize('user_id')
+    @field_memoize('user_id')
     def user(self):
         user_id = getattr(self, 'user_id', None)
         if user_id:
@@ -122,7 +148,7 @@ class WigoModel(Model):
         return self.ref_field(User, 'user_id')
 
     @property
-    @memoize('owner_id')
+    @field_memoize('owner_id')
     def owner(self):
         if self.owner_id:
             from server.models.user import User
@@ -133,10 +159,11 @@ class WigoModel(Model):
     @serializable(serialized_name='owner', serialize_when_none=False)
     def owner_ref(self):
         from server.models.user import User
+
         return self.ref_field(User, 'owner_id')
 
     @property
-    @memoize('group_id')
+    @field_memoize('group_id')
     def group(self):
         if self.group_id:
             from server.models.group import Group
@@ -151,10 +178,11 @@ class WigoModel(Model):
     @serializable(serialized_name='group', serialize_when_none=False)
     def group_ref(self):
         from server.models.group import Group
+
         return self.ref_field(Group, 'group_id')
 
     @property
-    @memoize('event_id')
+    @field_memoize('event_id')
     def event(self):
         if self.event_id:
             from server.models.event import Event
@@ -165,6 +193,7 @@ class WigoModel(Model):
     @serializable(serialized_name='event', serialize_when_none=False)
     def event_ref(self):
         from server.models.event import Event
+
         return self.ref_field(Event, 'event_id')
 
     def set_custom_property(self, name, value):
@@ -384,7 +413,6 @@ class WigoPersistentModel(WigoModel):
 
     def __eq__(self, other):
         return other.__class__ == self.__class__ and self.id is not None and other.id == self.id
-
 
 
 class Config(WigoPersistentModel):

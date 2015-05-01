@@ -227,25 +227,44 @@ class WigoResource(Resource):
 
         def resolve_nested(objects, nested, resolved):
             nested_ids = defaultdict(set)
+
+            def collect_nested(o, value_class, id_field):
+                id_value = getattr(o, id_field, None)
+                if id_value:
+                    cached = o._field_cache.get((id_field, id_value))
+                    if cached:
+                        resolved.add(id_value)
+                        nested.add(cached)
+                        resolve_nested([cached], nested, resolved)
+                    else:
+                        nested_ids[value_class].add(id_value)
+
             for o in objects:
                 if o is None:
                     continue
+
                 if getattr(o, 'group_id', None):
-                    nested_ids[Group].add(o.group_id)
+                    collect_nested(o, Group, 'group_id')
                 if getattr(o, 'user_id', None):
-                    nested_ids[User].add(o.user_id)
+                    collect_nested(o, User, 'user_id')
                 if getattr(o, 'to_user_id', None):
-                    nested_ids[User].add(o.to_user_id)
+                    collect_nested(o, User, 'to_user_id')
                 if getattr(o, 'from_user_id', None):
-                    nested_ids[User].add(o.from_user_id)
+                    collect_nested(o, User, 'from_user_id')
                 if getattr(o, 'event_id', None):
-                    nested_ids[Event].add(o.event_id)
+                    collect_nested(o, Event, 'event_id')
                 if getattr(o, 'message_id', None):
-                    nested_ids[EventMessage].add(o.message_id)
+                    collect_nested(o, EventMessage, 'message_id')
                 if getattr(o, 'attendees', None):
-                    nested_ids[User].update((u.id for u in o.attendees[1] if u))
+                    users = [u for u in o.attendees[1] if u]
+                    resolved.update((u.id for u in users))
+                    nested.update(users)
+                    resolve_nested(users, nested, resolved)
                 if getattr(o, 'messages', None):
-                    nested_ids[EventMessage].update((m.id for m in o.messages[1] if m))
+                    messages = [m for m in o.messages[1] if m]
+                    resolved.update((m.id for m in messages))
+                    nested.update(messages)
+                    resolve_nested(messages, nested, resolved)
 
             if nested_ids:
                 for nested_type, nested_ids in nested_ids.items():
