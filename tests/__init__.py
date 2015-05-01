@@ -1,13 +1,10 @@
 from __future__ import absolute_import
 import logging
-
 import ujson
-
 from datetime import datetime, timedelta
 from contextlib import contextmanager
-from mock import Mock
+from mock import MagicMock, Mock
 from mockredis import mock_redis_client
-from server.models.location import WigoCity
 from config import Configuration
 
 
@@ -22,9 +19,19 @@ patches = []
 def setup():
     import server.db
     import server.tasks
+    from redis import Redis
 
     mock_redis = mock_redis_client()
-    server.tasks.notifications_queue = Mock()
+    mock_redis_queue = Mock(Redis)
+
+    server.tasks.data_queue.connection = mock_redis_queue
+    server.tasks.predictions_queue.connection = mock_redis_queue
+    server.tasks.parse_queue.connection = mock_redis_queue
+    server.tasks.notifications_queue.connection = mock_redis_queue
+    server.tasks.push_queue.connection = mock_redis_queue
+    server.tasks.images_queue.connection = mock_redis_queue
+    server.tasks.email_queue.connection = mock_redis_queue
+
     server.db.redis = mock_redis
     server.db.wigo_db.redis = mock_redis
     server.db.wigo_queued_db.redis = mock_redis
@@ -42,6 +49,7 @@ def client():
     from server.models.user import User
     from server.rest.event import cache_maker as rest_event_cache_maker
     from server.models.group import cache_maker as group_cache_maker
+    from server.models.location import WigoCity
 
     rest_event_cache_maker.clear()
     group_cache_maker.clear()
