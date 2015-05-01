@@ -31,13 +31,14 @@ class Group(WigoPersistentModel):
     code = StringType()
     name = StringType(required=True)
 
-    city_id = StringType()
+    continent = StringType()
+    country = StringType()
+
+    continent_id = StringType()
     country_id = StringType()
     state_id = StringType()
-    continent_id = StringType()
+    city_id = StringType()
 
-    country = StringType()
-    continent = StringType()
     population = IntType()
 
     timezone = StringType(default='US/Eastern', required=True)
@@ -119,6 +120,12 @@ class Group(WigoPersistentModel):
                             'city_id': city.city_id,
                             'timezone': tz or 'US/Eastern',
                             'population': int(city.population),
+                            'continent': city.continent,
+                            'country': city.country,
+                            'state': city.state,
+                            'continent_id': city.continent_id,
+                            'country_id': city.country_id,
+                            'state_id': city.state_id,
                             'verified': True
                         }).save()
 

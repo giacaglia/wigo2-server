@@ -18,7 +18,7 @@ class WigoGeoboxIndex(GeoboxIndex):
 
 class WigoLocation(Location):
     @classmethod
-    def get_by_radius(cls, lat, lon, radius):
+    def get_by_radius(cls, lat, lon, radius=50):
         from server.db import redis
 
         ids = cls._keys['geoname'].getIds(redis, lat=lat, lon=lon, radius=radius)
@@ -69,3 +69,13 @@ class WigoCity(WigoLocation):
         self.state_id = kwargs.get('state_id', 0)
 
         self.population = kwargs.get('population', 0)
+
+    @classmethod
+    def get_by_population(cls, lat, lon, radius=50):
+        nodes = cls.get_by_radius(lat, lon, radius)
+
+        # sort the events by distance
+        if nodes:
+            nodes.sort(lambda x, y: cmp(y.population, x.population))
+
+        return nodes
