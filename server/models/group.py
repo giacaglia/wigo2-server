@@ -33,6 +33,7 @@ class Group(WigoPersistentModel):
 
     continent = StringType()
     country = StringType()
+    state = StringType()
 
     continent_id = StringType()
     country_id = StringType()
