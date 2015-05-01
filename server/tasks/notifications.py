@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import logging
+from retry import retry
 
 from rq.decorators import job
 from server.db import rate_limit
@@ -158,6 +159,7 @@ def notify_on_friend(user_id, friend_id, accepted):
 
 
 @job(push_queue, timeout=30, result_ttl=0)
+@retry(tries=3, delay=2, backoff=2)
 def send_notification_push(notification_id):
     notification = Notification.find(notification_id)
     __send_notification_push(notification)
