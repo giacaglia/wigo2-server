@@ -73,6 +73,9 @@ class WigoDB(object):
     def set_remove(self, key, value, dt=None):
         raise NotImplementedError()
 
+    def set_members(self, key, dt=None):
+        raise NotImplementedError()
+
     def sorted_set_add(self, key, value, score, dt=None):
         raise NotImplementedError()
 
@@ -214,6 +217,9 @@ class WigoRedisDB(WigoDB):
 
     def set_is_member(self, key, value, dt=None):
         return self.redis.sismember(key, self.encode(value, dt))
+
+    def set_members(self, key, dt=None):
+        return self.decode(self.redis.smembers(key), dt)
 
     def get_set_size(self, key, dt=None):
         return self.redis.scard(key)
@@ -409,6 +415,10 @@ class WigoRdbms(WigoDB):
             stype.key == key, stype.value == value
         ).exists()
 
+    def set_members(self, key, dt=None):
+        stype = self.get_sorted_set_type(dt)
+        return [r[0] for r in stype.select(stype.value).where(stype.key == key).tuples()]
+
     def get_set_size(self, key, dt=None):
         stype = self.get_set_type(dt)
         return stype.select_non_expired().where(stype.key == key).count()
@@ -467,11 +477,11 @@ class WigoRdbms(WigoDB):
 
     def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)
-        return stype.select().where(
+        return [r[0] for r in stype.select(stype.value).where(
             stype.key == key,
             stype.score >= start,
             stype.score <= end
-        ).order_by(stype.score.asc())
+        ).order_by(stype.score.asc()).tuples()]
 
     def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
         stype = self.get_sorted_set_type(dt)

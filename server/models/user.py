@@ -156,7 +156,7 @@ class User(WigoPersistentModel):
     def get_private_friend_ids(self):
         from server.db import wigo_db
 
-        return wigo_db.sorted_set_rrange(skey(self, 'friends', 'private'), 0, -1)
+        return wigo_db.set_members(skey(self, 'friends', 'private'))
 
     def get_tapped_ids(self):
         from server.db import wigo_db
