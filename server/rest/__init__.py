@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import logging
 
 import math
 
@@ -17,6 +18,8 @@ from server.security import user_token_required
 from utils import ValidationException
 from utils import SecurityException
 
+
+logger = logging.getLogger('wigo.web')
 
 api_blueprint = Blueprint('api', __name__, url_prefix='/api')
 
@@ -326,16 +329,19 @@ class WigoDbListResource(WigoResource):
 
 @api.errorhandler(ModelValidationError)
 def handle_model_validation_error(error):
+    logger.warn('validation error {}'.format(error.message))
     return {'message': error.message}, 400
 
 
 @api.errorhandler(ValidationException)
 def handle_validation_exception(error):
+    logger.warn('validation error {}'.format(error.message))
     return {'message': error.message}, 400
 
 
 @api.errorhandler(SecurityException)
 def handle_security_exception(error):
+    logger.error('security error {}'.format(error.message))
     return {'message': error.message}, 403
 
 
@@ -346,6 +352,7 @@ def handle_not_implemented(error):
 
 @api.errorhandler(UnknownTimeZoneError)
 def handle_unknown_tz(error):
+    logger.warn('validation error {}'.format(error.message))
     return {'message': 'Unknown timezone'}, 400
 
 
