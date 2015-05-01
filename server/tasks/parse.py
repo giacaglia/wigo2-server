@@ -16,27 +16,25 @@ logger = logging.getLogger('wigo.parse')
 
 
 @job(parse_queue, timeout=30, result_ttl=0)
-def sync_parse(self, user_id, data=None):
+def sync_parse(self, user_id):
     logger.info('syncing parse for user {}'.format(user_id))
 
     user = User.find(user_id)
 
-    if not data:
-        data = {
-            'group_id': user.group_id,
-            'group_name': user.group.name,
-            'group_locked': user.group.locked,
-            'gender': user.gender,
-            'status': user.status,
-            'privacy': user.privacy,
-        }
+    data = {
+        'group_id': user.group_id,
+        'group_name': user.group.name,
+        'group_locked': user.group.locked,
+        'gender': user.gender,
+        'status': user.status,
+        'privacy': user.privacy,
+    }
 
-        if user.work:
-            data['work'] = user.work
+    if user.work:
+        data['work'] = user.work
 
-        if user.education:
-            data['education'] = user.education
-
+    if user.education:
+        data['education'] = user.education
 
     headers = {
         'Content-Type': 'application/json',
