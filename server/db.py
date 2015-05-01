@@ -564,7 +564,7 @@ def rate_limit(key, expires):
             yield True
         else:
             yield False
-            redis.setex(key, True, expires - datetime.datetime.utcnow())
+            redis.setex(key, True, expires - datetime.utcnow())
 
 
 redis_url = urlparse(Configuration.REDIS_URL)
