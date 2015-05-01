@@ -45,8 +45,6 @@ class Configuration(object):
     if not REDIS_URLS:
         REDIS_URLS.append(REDIS_URL)
 
-    REDIS_QUEUES_URL = os.environ.get('REDIS_QUEUES_URL', REDIS_URL)
-
     DATABASE_URL = os.environ.get('DATABASE_URL', 'postgres://wigo:4090ejsAdff3@localhost/wigo')
     OLD_DATABASE_URL = os.environ.get('OLD_DATABASE_URL', DATABASE_URL)
     RDBMS_REPLICATE = os.environ.get('RDBMS_REPLICATE', 'true' if ENVIRONMENT != 'test' else 'false') == 'true'

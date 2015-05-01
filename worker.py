@@ -17,7 +17,7 @@ from server.tasks.notifications import wire_notifications_listeners
 requests.packages.urllib3.disable_warnings()
 
 
-REDIS_URL = Configuration.REDIS_QUEUES_URL
+REDIS_URL = Configuration.REDIS_URL
 
 QUEUES = ['email', 'images', 'notifications',
           'push', 'parse', 'predictions', 'data']
