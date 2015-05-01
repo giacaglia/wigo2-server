@@ -213,10 +213,10 @@ class SelectQuery(object):
         raise DoesNotExist()
 
     def __get_page(self, key):
-        page = self._page
+        start_page = self._page
         count = self.db.get_sorted_set_size(key)
         if count == 0:
-            return 0, self._page, []
+            return 0, start_page, []
 
         min = self._min or '-inf'
         max = self._max or '+inf'
@@ -237,15 +237,16 @@ class SelectQuery(object):
         pages = int(math.ceil(float(count) / self._limit))
 
         collected = []
-        for i in range(page, pages+1):
-            start = (i-1) * self._limit
+        page = start_page
+        for page in range(start_page, pages+1):
+            start = (page-1) * self._limit
             model_ids = range_f(key, min, max, start, self._limit)
             instances = self._model_class.find(model_ids)
             secured = self.__secure_filter(instances)
             collected.extend(secured)
 
             # if the results weren't filtered, break
-            if len(secured) == len(collected):
+            if len(secured) == len(instances):
                 break
 
         return count, page, collected
@@ -371,5 +372,22 @@ class SelectQuery(object):
     def __secure_filter(self, objects):
         if not self._secure:
             return objects
+        if self._model_class not in (User, EventAttendee, EventMessage):
+            return objects
+
+        secure_user = self._secure
+        private_friends = secure_user.get_private_friend_ids()
+
+        def can_see_user(u):
+            if u == secure_user:
+                return True
+            if u.privacy == 'public':
+                return True
+            if u.id in private_friends:
+                return True
+            return False
+
+        if self._model_class in (User, EventAttendee):
+            objects = [u for u in objects if can_see_user(u)]
 
         return objects

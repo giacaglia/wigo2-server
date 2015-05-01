@@ -214,7 +214,7 @@ class WigoResource(Resource):
 
         return prim
 
-    def serialize_list(self, model_class, objects, count=None, next=None):
+    def serialize_list(self, model_class, objects, count=None, page=1, next=None):
         objects = self.annotate_list(model_class, objects)
 
         data = {
@@ -266,12 +266,14 @@ class WigoResource(Resource):
 
             data['meta']['total'] = count
 
-            page = self.get_page()
             limit = self.get_limit()
             pages = int(math.ceil(float(count) / limit))
 
-            if page > 1:
-                request_arguments['page'] = page - 1
+            # starting page can be diff from page if the query was filtered
+            starting_page = self.get_page()
+
+            if starting_page > 1:
+                request_arguments['page'] = starting_page - 1
                 data['meta']['previous'] = '%s?%s' % (request.path, url_encode(request_arguments))
             if page < pages:
                 request_arguments['page'] = page + 1
@@ -308,7 +310,7 @@ class WigoDbListResource(WigoResource):
     @user_token_required
     def get(self):
         count, page, instances = self.setup_query(self.model.select()).execute()
-        return self.serialize_list(self.model, instances, count)
+        return self.serialize_list(self.model, instances, count, page)
 
     @user_token_required
     def post(self):

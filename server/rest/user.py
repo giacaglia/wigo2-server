@@ -115,7 +115,7 @@ class UserListResource(WigoResource):
 
         else:
             count, page, instances = self.setup_query(self.model.select().group(g.group)).execute()
-            return self.serialize_list(self.model, instances, count)
+            return self.serialize_list(self.model, instances, count, page)
 
 
 @api.route('/users/<user_id>/friends')
@@ -127,7 +127,7 @@ class FriendsListResource(WigoResource):
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
         count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
-        return self.serialize_list(User, friends, count)
+        return self.serialize_list(User, friends, count, page)
 
     @user_token_required
     @api.expect(api.model('NewFriend', {
@@ -165,7 +165,7 @@ class FriendIdsListResource(WigoResource):
     @api.response(200, 'Success')
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        return wigo_db.sorted_set_rrange(skey(user, 'friends'), 0, -1)
+        return user.get_friend_ids()
 
 
 @api.route('/users/<user_id>/friends/requested')
@@ -175,7 +175,7 @@ class FriendRequestedListResource(WigoResource):
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
         count, page, friends = self.setup_query(self.select(User).user(user).friend_requested()).execute()
-        return self.serialize_list(User, friends, count)
+        return self.serialize_list(User, friends, count, page)
 
 
 @api.route('/users/<user_id>/friends/requests')
@@ -185,7 +185,7 @@ class FriendRequestsListResource(WigoResource):
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
         count, page, friends = self.setup_query(self.select(User).user(user).friend_requests()).execute()
-        return self.serialize_list(User, friends, count)
+        return self.serialize_list(User, friends, count, page)
 
 
 @api.route('/users/<user_id>/friends/<int:friend_id>')
@@ -259,7 +259,7 @@ class InviteListResource(WigoResource):
         for user in users:
             user.invited = user.is_directly_invited(event)
 
-        return self.serialize_list(self.model, users, num_friends)
+        return self.serialize_list(self.model, users, num_friends, page)
 
     @user_token_required
     @api.expect(api.model('NewInvite', {
@@ -380,7 +380,7 @@ class ConversationsResource(WigoResource):
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self):
         count, page, instances = self.select().user(g.user).execute()
-        return self.serialize_list(self.model, instances, count)
+        return self.serialize_list(self.model, instances, count, page)
 
 
 @api.route('/conversations/<int:with_user_id>')
@@ -392,7 +392,7 @@ class ConversationWithUserResource(WigoResource):
     def get(self, with_user_id):
         with_user = User.find(with_user_id)
         count, page, instances = self.select().user(g.user).to_user(with_user).execute()
-        return self.serialize_list(self.model, instances, count)
+        return self.serialize_list(self.model, instances, count, page)
 
     @user_token_required
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
@@ -409,5 +409,5 @@ class NotificationsResource(WigoResource):
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, user_id):
         count, page, instances = self.select().user(g.user).execute()
-        return self.serialize_list(self.model, instances, count)
+        return self.serialize_list(self.model, instances, count, page)
 

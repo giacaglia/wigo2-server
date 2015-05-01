@@ -148,6 +148,16 @@ class User(WigoPersistentModel):
         with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', with_user_id, 'friends'), 0, -1))
         return friend_ids & with_friend_ids
 
+    def get_friend_ids(self):
+        from server.db import wigo_db
+
+        return wigo_db.sorted_set_rrange(skey(self, 'friends'), 0, -1)
+
+    def get_private_friend_ids(self):
+        from server.db import wigo_db
+
+        return wigo_db.sorted_set_rrange(skey(self, 'friends', 'private'), 0, -1)
+
     def get_tapped_ids(self):
         from server.db import wigo_db
 

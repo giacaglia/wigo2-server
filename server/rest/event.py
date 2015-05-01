@@ -182,7 +182,7 @@ class UserEventListResource(WigoResource):
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self, user_id):
         count, page, instances = self.select().user(g.user).execute()
-        return self.serialize_list(self.model, instances, count)
+        return self.serialize_list(self.model, instances, count, page)
 
 
 @api.route('/events/<int:event_id>/attendees')
@@ -196,15 +196,17 @@ class EventAttendeeListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, page, instances = self.select().event(event).execute()
-        return self.serialize_list(self.model, instances, count)
+        count, page, instances = self.select().event(event).secure(g.user).execute()
+        return self.serialize_list(self.model, instances, count, page)
 
     @user_token_required
     @api.expect(EventAttendee.to_doc_list_model(api))
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
     def post(self, event_id):
-        data = dict(request.get_json())
-        data['event_id'] = event_id
+        data = {
+            'user_id': g.user.id,
+            'event_id': event_id
+        }
         attendee = self.create(data)
         return {'success': True}
 
@@ -240,7 +242,7 @@ class UserEventAttendeeListResource(WigoResource):
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
         count, page, instances = self.select().user(g.user).event(event).execute()
-        return self.serialize_list(self.model, instances, count)
+        return self.serialize_list(self.model, instances, count, page)
 
 
 @api.route('/events/<int:event_id>/messages')
@@ -255,7 +257,7 @@ class EventMessageListResource(WigoResource):
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
         count, page, messages = self.select().event(event).execute()
-        return self.serialize_list(self.model, messages, count)
+        return self.serialize_list(self.model, messages, count, page)
 
     @user_token_required
     @api.expect(EventMessage.to_doc_list_model(api))
