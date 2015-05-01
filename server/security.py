@@ -64,7 +64,7 @@ def setup_user_by_token():
 
 
 def check_auth(username, password):
-    return username == 'admin' and password == Configuration.ADMIN_PASSWORD
+    return username == 'admin' and password in (Configuration.ADMIN_PASSWORD, Configuration.DEV_ADMIN_PASSWORD)
 
 
 def check_basic_auth():

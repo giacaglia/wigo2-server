@@ -36,6 +36,7 @@ class Configuration(object):
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'test')
+    DEV_ADMIN_PASSWORD = os.environ.get('DEV_ADMIN_PASSWORD', 'vv309409r4jd')
 
     API_KEY = os.environ.get('WIGO_API_KEY', 'oi34u53205ju34ik23')
     API_HOOK_KEY = os.environ.get('WIGO_API_HOOK_KEY', '9tejvdoikkf')
