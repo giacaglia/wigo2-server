@@ -7,7 +7,7 @@ import requests
 
 from rq.decorators import job
 
-from server.tasks import redis_queues, parse_queue
+from server.tasks import parse_queue
 from server.models import post_model_save
 from server.models.user import User
 from config import Configuration
