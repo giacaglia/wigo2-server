@@ -17,6 +17,8 @@ logger = logging.getLogger('wigo.parse')
 
 @job(parse_queue, timeout=30, result_ttl=0)
 def sync_parse(self, user_id, data=None):
+    logger.info('syncing parse for user {}'.format(user_id))
+
     user = User.find(user_id)
 
     if not data:
@@ -57,6 +59,7 @@ def sync_parse(self, user_id, data=None):
                 continue
 
             installation_id = installation.get('objectId')
+            logger.info('syncing parse installation {} for user {}'.format(installation_id, user_id))
             resp = requests.put('https://api.parse.com/1/installations/%s' % installation_id,
                                 ujson.dumps(data), headers=headers)
 
