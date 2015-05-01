@@ -26,7 +26,6 @@ class Configuration(object):
 
     WEB_HOST = os.environ.get('WEB_HOST', 'localhost:5100')
     API_HOST = os.environ.get('API_HOST', WEB_HOST.replace('verify', 'api'))
-    SERVER_NAME = os.environ.get('SERVER_NAME', API_HOST)
 
     PERMANENT_SESSION_LIFETIME = timedelta(days=365)
     SESSION_COOKIE_HTTPONLY=True
