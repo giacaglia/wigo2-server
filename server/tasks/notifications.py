@@ -87,7 +87,10 @@ def notify_on_message(message_id):
         }
     }, where={
         'wigo_id': user.id,
-        'deviceType': 'ios'
+        'deviceType': 'ios',
+        'api_version_num': {
+            '$gte': 2
+        }
     }, enterprise=user.enterprise)
 
 
@@ -169,7 +172,10 @@ def __send_notification_push(notification):
         }
     }, where={
         'wigo_id': notification.user_id,
-        'deviceType': 'ios'
+        'deviceType': 'ios',
+        'api_version_num': {
+            '$gte': 2
+        }
     }, enterprise=notification.user.enterprise)
 
 

@@ -35,6 +35,36 @@ def strip_unicode(s):
     return response
 
 
+class Version(object):
+    def __init__(self, version):
+        super(Version, self).__init__()
+
+        parts = version.split('.')
+        cleaned = []
+        for part in parts[0:3]:
+            if len(part) == 0:
+                cleaned.append(0)
+            elif len(parts) == 2 and len(part) > 1 and part.startswith('0'):
+                cleaned.append(0)
+                cleaned.append(int(part))
+            else:
+                cleaned.append(int(part))
+
+        while len(cleaned) < 3:
+            cleaned.append(0)
+
+        self.version = tuple(cleaned[0:3])
+
+    def __eq__(self, other):
+        return self.version == other.version
+
+    def __hash__(self):
+        return hash(self.version)
+
+    def __cmp__(self, other):
+        return cmp(self.version, other.version)
+
+
 class SecurityException(Exception):
     def __init__(self, message=None):
         super(SecurityException, self).__init__(message)

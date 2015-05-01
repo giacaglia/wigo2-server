@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
+from utils import Version, ValidationException
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -84,6 +85,15 @@ def setup_request():
 
     if api_key:
         g.api_key = api_key
+
+    api_version = request.headers.get('X-Wigo-API-Version')
+    if not api_version:
+        api_version = '1000000000.0.0'
+
+    try:
+        g.api_version = Version(api_version)
+    except:
+        raise ValidationException('Invalid version number', 'X-Wigo-API-Version')
 
     if request.path.startswith('/api/hooks/'):
         # webhooks do their own auth
