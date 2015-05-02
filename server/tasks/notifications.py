@@ -6,7 +6,7 @@ from rq.decorators import job
 from server.db import rate_limit
 from server.services import push
 from server.models import DoesNotExist, post_model_save
-from server.models.event import EventMessage, EventMessageVote, Event
+from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
 from server.tasks import notifications_queue, push_queue
 from utils import epoch
@@ -28,7 +28,7 @@ def notify_on_eventmessage(message_id):
         if limited:
             return
 
-        for friend in User.select().user(message.user).event(message.event):
+        for friend in EventAttendee.select().user(message.user).event(message.event):
             message_text = '{name} posted a photo in {event}'.format(
                 name=user.full_name.encode('utf-8'), event=message.event.name.encode('utf-8'))
 
