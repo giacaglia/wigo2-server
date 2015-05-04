@@ -34,7 +34,7 @@ def setup_user_by_token():
 
             group = getattr(g, 'group', None)
 
-            if group:
+            if group and not user.location_locked:
                 # if a group was passed in via geo, switch the users group
                 user.group_id = group.id
             elif user.group_id:
@@ -47,7 +47,7 @@ def setup_user_by_token():
                 user.group_id = group.id
                 g.group = group
 
-            if hasattr(g, 'latitude') and hasattr(g, 'longitude'):
+            if not user.location_locked and hasattr(g, 'latitude') and hasattr(g, 'longitude'):
                 user.latitude = g.latitude
                 user.longitude = g.longitude
             else:

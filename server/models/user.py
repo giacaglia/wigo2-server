@@ -70,6 +70,8 @@ class User(WigoPersistentModel):
     latitude = FloatType()
     longitude = FloatType()
 
+    location_locked = BooleanType(default=False, required=True)
+
     tags = ListType(StringType)
 
     properties = JsonType(default=lambda: {})

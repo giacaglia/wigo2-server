@@ -89,12 +89,17 @@ def fill_in_photo_history(event_id, user_id, attendee_id):
     user_messages_key = user_eventmessages_key(user, event)
     attendees_view = wigo_db.sorted_set_iter(user_eventmessages_key(attendee, event))
     for message_id, score in attendees_view:
-        message = EventMessage.find(message_id)
+        try:
+            message = EventMessage.find(message_id)
+        except DoesNotExist:
+            continue
+
         # only care about the messages the user themselves created
         if message.user_id == attendee_id:
             wigo_db.sorted_set_add(user_messages_key, message_id, score)
 
     wigo_db.expire(user_messages_key, DEFAULT_EXPIRING_TTL)
+
 
 def wire_data_listeners():
     def data_save_listener(sender, instance, created):
