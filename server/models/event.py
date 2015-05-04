@@ -149,6 +149,8 @@ class Event(WigoPersistentModel):
                 self.clean_old(events_key)
 
     def add_to_user_attending(self, user, attendee, score=1):
+        from server.tasks.data import fill_in_photo_history
+
         # add to the users view of who is attending
         attendees_key = user_attendees_key(user, self)
 
@@ -156,11 +158,7 @@ class Event(WigoPersistentModel):
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # add the attendees photos to the users view
-        # TODO this is adding all of the photos the attendee can see, not just the ones i should see
-        emessages_key = user_eventmessages_key(user, self)
-        for message_id, score in self.db.sorted_set_iter(user_eventmessages_key(attendee, self)):
-            self.db.sorted_set_add(emessages_key, message_id, score)
-        self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
+        fill_in_photo_history.delay(event_id=self.id, user_id=user.id, attendee_id=attendee.id)
 
         # add to the users current events list
         self.add_to_user_events(user)
