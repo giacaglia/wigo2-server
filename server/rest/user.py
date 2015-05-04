@@ -52,6 +52,7 @@ class UserMetaResource(WigoResource):
         'is_tapped': fields.Boolean(),
         'is_friend': fields.Boolean(),
         'is_blocked': fields.Boolean(),
+        'attending_event_id': fields.Integer(),
         'friend_request': fields.String(),
         'num_friends_in_common': fields.Integer()
     }))
@@ -63,10 +64,12 @@ class UserMetaResource(WigoResource):
             user_meta = wigo_db.redis.hgetall(skey('user', user_id, 'meta'))
             if user_meta:
                 meta.update({k: datetime.utcfromtimestamp(float(v)).isoformat() for k, v in user_meta.items()})
+            meta['attending_event_id'] = g.user.get_attending_id()
         else:
             meta['is_tapped'] = g.user.is_tapped(user_id)
             meta['is_friend'] = g.user.is_friend(user_id)
             meta['is_blocked'] = g.user.is_blocked(user_id)
+
             if g.user.is_friend_request_sent(user_id):
                 meta['friend_request'] = 'sent'
             elif g.user.is_friend_request_received(user_id):

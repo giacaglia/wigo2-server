@@ -110,6 +110,7 @@ class EventListResource(WigoDbListResource):
                 if attending in all_events:
                     all_events.remove(attending)
                 all_events.insert(0, attending)
+                attending.current_user_attending = True
 
         return self.serialize_list(Event, all_events, next=next)
 

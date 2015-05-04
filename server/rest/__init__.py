@@ -162,7 +162,15 @@ class WigoResource(Resource):
         count, page, attendees_by_event = query.limit(alimit).execute()
         if count:
             for event, attendees in zip(events, attendees_by_event):
+                if hasattr(event, 'current_user_attending'):
+                    count, attendees = attendees
+                    if attendees[0] != g.user:
+                        if g.user in attendees:
+                            attendees.remove(g.user)
+                        attendees.insert(0, g.user)
+                    attendees = (count, attendees)
                 event.attendees = attendees
+
 
         # only add messages to events missing the messages field
         query = EventMessage.select().events(events).user(user_context).secure(g.user)
