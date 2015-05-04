@@ -168,7 +168,7 @@ class User(WigoPersistentModel):
     def get_blocked_ids(self):
         from server.db import wigo_db
 
-        return wigo_db.sorted_set_range_by_score(skey(self, 'blocked'), 0, 'inf')
+        return wigo_db.sorted_set_range(skey(self, 'blocked'), 0, -1)
 
     def track_friend_interaction(self, user):
         from server.db import wigo_db

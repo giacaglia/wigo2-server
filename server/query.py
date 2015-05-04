@@ -377,10 +377,13 @@ class SelectQuery(object):
 
         secure_user = self._secure
         private_friends = secure_user.get_private_friend_ids()
+        blocked = secure_user.get_blocked_ids()
 
         def can_see_user(u):
             if u == secure_user:
                 return True
+            if u.id in blocked:
+                return False
             if u.privacy == 'public':
                 return True
             if u.id in private_friends:
