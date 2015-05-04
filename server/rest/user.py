@@ -88,23 +88,22 @@ class UserListResource(WigoResource):
     def get(self):
         text = request.args.get('text')
         if text:
-            sql = """
-                SELECT value->'id' FROM data_strings WHERE
-                value->>'$type' = 'User'
-            """
+            sql = "SELECT id FROM users WHERE "
 
             params = []
             split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
-            for s in split:
-                sql += "AND ((LOWER(value->>'first_name') LIKE %s) or (LOWER(value->>'last_name') LIKE %s))"
+            for index, s in enumerate(split):
+                if index > 0:
+                    sql += 'AND'
+                sql += "((LOWER(first_name) LIKE %s) or (LOWER(last_name) LIKE %s))"
                 params.append(s)
                 params.append(s)
 
             sql += """
                 ORDER BY earth_distance(
                     ll_to_earth({},{}),
-                    ll_to_earth(cast(value->>'latitude' as float), cast(value->>'longitude' as float))
-                ), value->>'first_name', value->>'last_name' LIMIT 50
+                    ll_to_earth(latitude, longitude)
+                ), first_name, last_name LIMIT 50
             """.format(g.user.group.latitude, g.user.group.longitude)
 
             with db.execution_context(False) as ctx:
@@ -129,20 +128,20 @@ class FriendsListResource(WigoResource):
         text = request.args.get('text')
         if text:
             sql = """
-                select data_strings.value->>'id' from data_int_sorted_sets
-                inner join data_strings on data_strings.key = format('{{user:%%s}}', data_int_sorted_sets.value)
+                select users.id from data_int_sorted_sets
+                inner join users on users.key = format('{{user:%%s}}', data_int_sorted_sets.value)
                 where data_int_sorted_sets.key = '{{user:{}}}:friends'
             """.format(user.id)
 
             params = []
             split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
             for s in split:
-                sql += "AND ((LOWER(data_strings.value->>'first_name') LIKE %s) or " \
-                       "(LOWER(data_strings.value->>'last_name') LIKE %s))"
+                sql += "AND ((LOWER(first_name) LIKE %s) or " \
+                       "(LOWER(last_name) LIKE %s))"
                 params.append(s)
                 params.append(s)
 
-            sql += "ORDER BY data_strings.value->>'first_name', data_strings.value->>'last_name'"
+            sql += "ORDER BY first_name, last_name"
 
             with db.execution_context(False) as ctx:
                 results = list(db.execute_sql(sql, params))
