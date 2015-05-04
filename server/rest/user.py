@@ -104,7 +104,7 @@ class UserListResource(WigoResource):
                 ORDER BY earth_distance(
                     ll_to_earth({},{}),
                     ll_to_earth(cast(value->>'latitude' as float), cast(value->>'longitude' as float))
-                ) LIMIT 50
+                ), value->>'first_name', value->>'last_name' LIMIT 50
             """.format(g.user.group.latitude, g.user.group.longitude)
 
             with db.execution_context(False) as ctx:
@@ -141,6 +141,8 @@ class FriendsListResource(WigoResource):
                        "(LOWER(data_strings.value->>'last_name') LIKE %s))"
                 params.append(s)
                 params.append(s)
+
+            sql += "ORDER BY data_strings.value->>'first_name', data_strings.value->>'last_name'"
 
             with db.execution_context(False) as ctx:
                 results = list(db.execute_sql(sql, params))
