@@ -29,6 +29,9 @@ def notify_on_eventmessage(message_id):
             return
 
         for friend in EventAttendee.select().user(message.user).event(message.event):
+            if friend == user:
+                continue
+
             message_text = '{name} posted a photo in {event}'.format(
                 name=user.full_name.encode('utf-8'), event=message.event.name.encode('utf-8'))
 
