@@ -126,8 +126,30 @@ class FriendsListResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id):
         user = User.find(self.get_id(user_id))
-        count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
-        return self.serialize_list(User, friends, count, page)
+        text = request.args.get('text')
+        if text:
+            sql = """
+                select data_strings.value->>'id' from data_int_sorted_sets
+                inner join data_strings on data_strings.key = format('{{user:%%s}}', data_int_sorted_sets.value)
+                where data_int_sorted_sets.key = '{{user:{}}}:friends'
+            """.format(user.id)
+
+            params = []
+            split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
+            for s in split:
+                sql += "AND ((LOWER(data_strings.value->>'first_name') LIKE %s) or " \
+                       "(LOWER(data_strings.value->>'last_name') LIKE %s))"
+                params.append(s)
+                params.append(s)
+
+            with db.execution_context(False) as ctx:
+                results = list(db.execute_sql(sql, params))
+
+            users = User.find([id[0] for id in results])
+            return self.serialize_list(self.model, users)
+        else:
+            count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
+            return self.serialize_list(User, friends, count, page)
 
     @user_token_required
     @api.expect(api.model('NewFriend', {
