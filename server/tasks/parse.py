@@ -17,8 +17,6 @@ logger = logging.getLogger('wigo.parse')
 
 @job(parse_queue, timeout=30, result_ttl=0)
 def sync_parse(user_id):
-    logger.info('syncing parse for user {}'.format(user_id))
-
     user = User.find(user_id)
 
     data = {

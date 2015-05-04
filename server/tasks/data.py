@@ -6,9 +6,9 @@ from datetime import timedelta, datetime
 from rq.decorators import job
 from server.db import wigo_db
 from server.models.group import Group, get_close_groups
-from server.models.user import User
+from server.models.user import User, Friend
 from server.tasks import data_queue
-from server.models import post_model_save, skey, user_privacy_change
+from server.models import post_model_save, skey, user_privacy_change, DoesNotExist
 from server.models.event import Event
 from utils import epoch
 
@@ -53,8 +53,40 @@ def privacy_changed(user_id):
             wigo_db.set_add(skey('user', friend_id, 'friends', 'private'), user_id)
 
 
+@job(data_queue, timeout=60, result_ttl=0)
+def new_friend(user_id, friend_id):
+    """ Process a new friend. """
+
+    user = User.find(user_id)
+    friend = User.find(user_id)
+
+    # tells each friend about the event history of the other
+    def capture_attending(u, f):
+        for event_id in wigo_db.sorted_set_iter(u, 'events'):
+            try:
+                event = Event.find(event_id)
+            except DoesNotExist:
+                continue
+
+            if u.is_attending(event) and f.can_see_event(event):
+                event.add_to_user_attending(f, u)
+
+    capture_attending(user, friend)
+    capture_attending(friend, user)
+
+
 def wire_data_listeners():
     def data_save_listener(sender, instance, created):
+        if isinstance(instance, Friend) and created:
+            if instance.accepted:
+                try:
+                    new_friend.delay(instance.user_id, instance.friend_id)
+                except Exception, e:
+                    logger.error('error creating new_friend job for ({}, {})'.format(
+                        instance.user_id,
+                        instance.friend_id
+                    ))
+
         if isinstance(instance, Event):
             try:
                 event_landed_in_group.delay(instance.group_id)

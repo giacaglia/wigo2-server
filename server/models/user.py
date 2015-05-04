@@ -235,20 +235,6 @@ class Friend(WigoModel):
                 self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
                 self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
 
-            # TODO this is only adding the current attending event
-            user_event_id = self.user.get_attending_id()
-            if user_event_id:
-                user_event = Event.find(user_event_id)
-                if self.friend.can_see_event(user_event):
-                    user_event.add_to_user_attending(self.friend, self.user)
-
-            # TODO this is only adding the current attending event
-            friend_event_id = self.friend.get_attending_id()
-            if friend_event_id:
-                friend_event = Event.find(friend_event_id)
-                if self.user.can_see_event(friend_event):
-                    friend_event.add_to_user_attending(self.user, self.friend)
-
         else:
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
