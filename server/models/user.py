@@ -191,6 +191,7 @@ class User(WigoPersistentModel):
         user_privacy_change.send(self, instance=self)
         return saved
 
+
 class Friend(WigoModel):
     user_id = LongType(required=True)
     friend_id = LongType(required=True)

@@ -19,6 +19,7 @@ patches = []
 def setup():
     import server.db
     import server.tasks
+    import server.tasks.data
     from redis import Redis
 
     mock_redis = mock_redis_client()
@@ -31,7 +32,6 @@ def setup():
     server.tasks.push_queue.connection = mock_redis_queue
     server.tasks.images_queue.connection = mock_redis_queue
     server.tasks.email_queue.connection = mock_redis_queue
-
     server.db.redis = mock_redis
     server.db.wigo_db.redis = mock_redis
     server.db.wigo_queued_db.redis = mock_redis

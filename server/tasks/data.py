@@ -4,7 +4,9 @@ import logging
 
 from time import time
 from datetime import timedelta, datetime
+from contextlib import contextmanager
 from rq.decorators import job
+from config import Configuration
 from server.db import wigo_db, redis
 from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite
@@ -195,8 +197,12 @@ def privacy_changed(user_id):
                 wigo_db.set_add(skey('user', friend_id, 'friends', 'private'), user_id)
 
 
+@contextmanager
 def user_lock(user_id):
-    with redis.lock('locks:user:{}'.format(user_id), timeout=30):
+    if Configuration.ENVIRONMENT != 'test':
+        with redis.lock('locks:user:{}'.format(user_id), timeout=30):
+            yield
+    else:
         yield
 
 

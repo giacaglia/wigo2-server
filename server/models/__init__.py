@@ -134,11 +134,10 @@ class WigoModel(Model):
     @property
     @field_memoize('user_id')
     def user(self):
-        user_id = getattr(self, 'user_id', None)
-        if user_id:
+        if hasattr(self, 'user_id') and self.user_id:
             from server.models.user import User
 
-            return User.find(user_id)
+            return User.find(self.user_id)
         return None
 
     @serializable(serialized_name='user', serialize_when_none=False)
@@ -150,7 +149,7 @@ class WigoModel(Model):
     @property
     @field_memoize('owner_id')
     def owner(self):
-        if self.owner_id:
+        if hasattr(self, 'owner_id') and self.owner_id:
             from server.models.user import User
 
             return User.find(self.owner_id)
