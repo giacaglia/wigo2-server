@@ -328,13 +328,18 @@ class WigoModel(Model):
     def index(self):
         for key, id_value, unique in self.__each_index():
             self.db.sorted_set_add(key, id_value, self.get_index_score())
-            self.clean_old(key)
+
+            ttl = self.ttl()
+            if ttl is not None:
+                self.clean_old(key, ttl)
+                self.db.expire(key, ttl)
 
     def delete(self):
+        pre_model_delete.send(self, instance=self)
         if hasattr(self, 'id'):
             self.db.delete(skey(self))
-
         self.remove_index()
+        post_model_delete.send(self, instance=self)
         return self
 
     def remove_index(self):
@@ -451,9 +456,15 @@ def user_attendees_key(user, event):
     return skey(user, event, 'attendees')
 
 
-def user_eventmessages_key(user, event):
+def user_eventmessages_key(user, event, by_votes=False):
     event_id = event.id if isinstance(event, Model) else event
-    return skey(user, 'event', event_id, 'messages')
+    return (skey(user, 'event', event_id, 'messages', 'by_votes') if by_votes else
+            skey(user, 'event', event_id, 'messages'))
+
+
+def user_votes_key(user, message):
+    message_id = message.id if isinstance(message, Model) else message
+    return skey(user, 'message', message_id, 'votes')
 
 
 def skey(*keys):

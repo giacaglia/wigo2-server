@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+
 import logging
 
 from time import time
@@ -6,11 +7,10 @@ from datetime import timedelta, datetime
 from rq.decorators import job
 from server.db import wigo_db
 from server.models.group import Group, get_close_groups
-from server.models.user import User, Friend
+from server.models.user import User, Friend, Invite
 from server.tasks import data_queue
-from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, user_eventmessages_key, \
-    DEFAULT_EXPIRING_TTL
-from server.models.event import Event, EventMessage
+from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete
+from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
 from utils import epoch
 
 logger = logging.getLogger('wigo.tasks.data')
@@ -43,6 +43,115 @@ def event_landed_in_group(group_id):
 
 
 @job(data_queue, timeout=60, result_ttl=0)
+def user_invited(event_id, inviter_id, invited_id):
+    event = Event.find(event_id)
+    inviter = User.find(inviter_id)
+    invited = User.find(invited_id)
+
+    # make sure i am seeing all my friends attending now
+    for friend_id, score in wigo_db.sorted_set_iter(skey(invited, 'friends')):
+        friend = User.find(friend_id)
+        if friend.is_attending(event):
+            event.add_to_user_attending(invited, friend, score)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friends_user_attending(user_id, event_id):
+    user = User.find(user_id)
+    event = Event.find(event_id)
+
+    if user.is_attending(event):
+        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+            friend = User.find(int(friend_id))
+            if friend.can_see_event(event):
+                event.add_to_user_attending(friend, user, score)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friends_user_not_attending(user_id, event_id):
+    user = User.find(user_id)
+    event = Event.find(event_id)
+
+    if not user.is_attending(event):
+        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+            friend = User.find(int(friend_id))
+            event.remove_from_user_attending(friend, user)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friends_event_message(message_id):
+    message = EventMessage.find(message_id)
+    user = message.user
+
+    for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+        friend = User.find(int(friend_id))
+        message.record_for_user(friend)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friends_delete_event_message(user_id, event_id, message_id):
+    message = EventMessage({
+        'id': message_id,
+        'user_id': user_id,
+        'event_id': event_id
+    })
+
+    for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
+        friend = User.find(int(friend_id))
+        message.remove_for_user(friend)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friends_about_vote(message_id, user_id):
+    vote = EventMessageVote({
+        'message_id': message_id,
+        'user_id': user_id
+    })
+
+    for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
+        friend = User.find(int(friend_id))
+        vote.record_for_user(friend)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
+def new_friend(user_id, friend_id):
+    user = User.find(user_id)
+    friend = User.find(friend_id)
+
+    # tells each friend about the event history of the other
+    def capture_history(u, f):
+        # capture photo votes first, so when adding the photos they can be sorted by vote
+        for message_id, score in wigo_db.sorted_set_iter(skey(u, 'votes')):
+            try:
+                EventMessageVote({
+                    'user_id': u.id,
+                    'message_id': message_id
+                }).record_for_user(f)
+            except DoesNotExist:
+                pass
+
+        # capture each of the users posted photos
+        for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
+            try:
+                message = EventMessage.find(message_id)
+                message.record_for_user(f)
+            except DoesNotExist:
+                pass
+
+        # capture the events being attended
+        for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
+            try:
+                event = Event.find(event_id)
+                if u.is_attending(event) and f.can_see_event(event):
+                    event.add_to_user_attending(f, u)
+            except DoesNotExist:
+                pass
+
+    capture_history(user, friend)
+    capture_history(friend, user)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
 def privacy_changed(user_id):
     user = User.find(user_id)
 
@@ -54,77 +163,32 @@ def privacy_changed(user_id):
             wigo_db.set_add(skey('user', friend_id, 'friends', 'private'), user_id)
 
 
-@job(data_queue, timeout=60, result_ttl=0)
-def new_friend(user_id, friend_id):
-    """ Process a new friend. """
-
-    user = User.find(user_id)
-    friend = User.find(friend_id)
-
-    # tells each friend about the event history of the other
-    def capture_attending(u, f):
-        for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
-            try:
-                event = Event.find(event_id)
-            except DoesNotExist:
-                continue
-
-            if u.is_attending(event) and f.can_see_event(event):
-                event.add_to_user_attending(f, u)
-
-    capture_attending(user, friend)
-    capture_attending(friend, user)
-
-
-@job(data_queue, timeout=60, result_ttl=0)
-def fill_in_photo_history(event_id, user_id, attendee_id):
-    """
-    This fills in all of the attendees photos for an event into the users view.
-    """
-
-    event = Event.find(event_id)
-    user = User.find(user_id)
-    attendee = User.find(attendee_id)
-
-    user_messages_key = user_eventmessages_key(user, event)
-    attendees_view = wigo_db.sorted_set_iter(user_eventmessages_key(attendee, event))
-    for message_id, score in attendees_view:
-        try:
-            message = EventMessage.find(message_id)
-        except DoesNotExist:
-            continue
-
-        # only care about the messages the user themselves created
-        if message.user_id == attendee_id:
-            wigo_db.sorted_set_add(user_messages_key, message_id, score)
-
-    wigo_db.expire(user_messages_key, DEFAULT_EXPIRING_TTL)
-
-
 def wire_data_listeners():
     def data_save_listener(sender, instance, created):
         if isinstance(instance, Friend) and created:
             if instance.accepted:
-                try:
-                    new_friend.delay(instance.user_id, instance.friend_id)
-                except Exception, e:
-                    logger.error('error creating new_friend job for ({}, {})'.format(
-                        instance.user_id,
-                        instance.friend_id
-                    ))
+                new_friend.delay(instance.user_id, instance.friend_id)
+        elif isinstance(instance, Event):
+            event_landed_in_group.delay(instance.group_id)
+        elif isinstance(instance, Invite):
+            user_invited.delay(instance.event_id, instance.user_id, instance.invited_id)
+        elif isinstance(instance, EventAttendee):
+            tell_friends_user_attending.delay(instance.user_id, instance.event_id)
+        elif isinstance(instance, EventMessage):
+            tell_friends_event_message.delay(instance.id)
+        elif isinstance(instance, EventMessageVote):
+            tell_friends_about_vote.delay(instance.message_id, instance.user_id)
 
-        if isinstance(instance, Event):
-            try:
-                event_landed_in_group.delay(instance.group_id)
-            except Exception, e:
-                logger.exception('error adding group to close groups, {}'.format(instance.group_id))
+    def data_delete_listener(sender, instance):
+        if isinstance(instance, EventMessage):
+            tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
+        if isinstance(instance, EventAttendee):
+            tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
 
     def privacy_changed_listener(sender, instance):
-        try:
-            privacy_changed.delay(instance.id)
-        except Exception, e:
-            logger.exception('error creating privacy change job for user {}'.format(instance.id))
+        privacy_changed.delay(instance.id)
 
     post_model_save.connect(data_save_listener, weak=False)
+    post_model_delete.connect(data_delete_listener, weak=False)
     user_privacy_change.connect(privacy_changed_listener, weak=False)
 

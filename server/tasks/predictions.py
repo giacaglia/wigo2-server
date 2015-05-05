@@ -49,19 +49,14 @@ def capture_interaction(user_id, with_user_id, t, action='view'):
 def wire_predictions_listeners():
     def predictions_listener(sender, instance, created):
         if isinstance(instance, Tap):
-            capture_interaction.delay(user_id=instance.user_id, with_user_id=instance.tapped_id,
-                                      t=instance.created)
+            capture_interaction.delay(instance.user_id, instance.tapped_id, instance.created)
         elif isinstance(instance, Message):
-            capture_interaction.delay(user_id=instance.user_id, with_user_id=instance.to_user_id,
-                                      t=instance.created)
+            capture_interaction.delay(instance.user_id, instance.to_user_id, instance.created)
         elif isinstance(instance, Invite):
-            capture_interaction.delay(user_id=instance.user_id, with_user_id=instance.invited_id,
-                                      t=instance.created)
+            capture_interaction.delay(instance.user_id, instance.invited_id, instance.created)
         elif isinstance(instance, Friend) and instance.accepted:
-            capture_interaction.delay(user_id=instance.user_id, with_user_id=instance.friend_id,
-                                      t=instance.created, action='buy')
-            capture_interaction.delay(user_id=instance.friend_id, with_user_id=instance.user_id,
-                                      t=instance.created, action='buy')
+            capture_interaction.delay(instance.user_id, instance.friend_id, instance.created, action='buy')
+            capture_interaction.delay(instance.friend_id, instance.user_id, instance.created, action='buy')
 
     post_model_save.connect(predictions_listener, weak=False)
 

@@ -25,6 +25,7 @@ class SelectQuery(object):
         self._group = None
         self._event = None
         self._events = None
+        self._by_votes = False
         self._friends = False
         self._friend_requested = False
         self._friend_requests = False
@@ -45,6 +46,7 @@ class SelectQuery(object):
         clone._order = self._order
         clone._event = self._event
         clone._events = list(self._events) if self._events is not None else None
+        clone._by_votes = self._by_votes
         clone._group = self._group
         clone._user = self._user
         clone._to_user = self._to_user
@@ -100,6 +102,10 @@ class SelectQuery(object):
     @returns_clone
     def events(self, events):
         self._events = events
+
+    @returns_clone
+    def by_votes(self, by_votes=True):
+        self._by_votes = by_votes
 
     @returns_clone
     def friends(self):
@@ -316,9 +322,9 @@ class SelectQuery(object):
     def __get_by_event(self):
         if self._model_class == EventMessage:
             if self._user:
-                key = self.db.user_eventmessages_key(self._user, self._event)
+                key = user_eventmessages_key(self._user, self._event, self._by_votes)
             else:
-                key = skey(self._event, 'messages')
+                key = skey(self._event, 'messages', 'by_votes') if self._by_votes else skey(self._event, 'messages')
             return self.__get_page(key)
         elif self._model_class == EventAttendee:
             if self._user:
@@ -337,7 +343,8 @@ class SelectQuery(object):
             if self._user:
                 keys = [user_eventmessages_key(self._user, event) for event in self._events]
             else:
-                keys = [skey(event, 'messages') for event in self._events]
+                keys = [skey(event, 'messages', 'by_votes') if self._by_votes else
+                        skey(event, 'messages') for event in self._events]
         elif self._model_class == EventAttendee:
             query_class = User
             if self._user:

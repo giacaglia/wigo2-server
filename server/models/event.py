@@ -1,15 +1,15 @@
 from __future__ import absolute_import
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from geodis.location import Location
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, \
-    AlreadyExistsException, user_attendees_key, user_eventmessages_key, DEFAULT_EXPIRING_TTL, field_memoize
-from server.models.user import User
-from utils import strip_unicode, strip_punctuation, epoch, ValidationException, memoize
+    AlreadyExistsException, user_attendees_key, user_eventmessages_key, DEFAULT_EXPIRING_TTL, field_memoize, \
+    user_votes_key
+from utils import strip_unicode, strip_punctuation, epoch, ValidationException
 
 EVENT_LEADING_STOP_WORDS = {"a", "the"}
 
@@ -109,7 +109,6 @@ class Event(WigoPersistentModel):
         group = self.group
 
         events_key = skey('group', self.group_id, 'events')
-
         attendees_key = skey(self, 'attendees')
         event_name_key = skey(group, Event, Event.event_key(self.name))
 
@@ -149,24 +148,18 @@ class Event(WigoPersistentModel):
                 self.clean_old(events_key)
 
     def add_to_user_attending(self, user, attendee, score=1):
-        from server.tasks.data import fill_in_photo_history
-
         # add to the users view of who is attending
         attendees_key = user_attendees_key(user, self)
-
         self.db.sorted_set_add(attendees_key, attendee.id, score)
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
-
-        # add the attendees photos to the users view
-        fill_in_photo_history.delay(event_id=self.id, user_id=user.id, attendee_id=attendee.id)
 
         # add to the users current events list
         self.add_to_user_events(user)
 
     def remove_from_user_attending(self, user, attendee):
-        # add to the users view of who is attending
+        # remove from the users view of who is attending
         self.db.sorted_set_remove(user_attendees_key(user, self), attendee.id)
-        # add to the users current events list
+        # update the users event list for this event, removing if now empty
         self.add_to_user_events(user, remove_empty=True)
 
     def remove_index(self):
@@ -221,14 +214,8 @@ class EventAttendee(WigoModel):
         self.db.sorted_set_add(attendees_key, user.id, 'inf')
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
-        # record the event into the events the user can see, as the most important one
+        # record the event into the events the user can see
         event.add_to_user_events(user)
-
-        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
-            # add to each of the users friends that this user is attending
-            if friend.can_see_event(event):
-                event.add_to_user_attending(friend, user, score)
 
     def remove_index(self):
         super(EventAttendee, self).remove_index()
@@ -244,12 +231,13 @@ class EventAttendee(WigoModel):
         self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
         event.add_to_user_events(user, remove_empty=True)
 
-        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
-            event.remove_from_user_attending(friend, user)
-
 
 class EventMessage(WigoPersistentModel):
+    indexes = (
+        ('event:{event_id}:messages', False),
+        ('user:{user_id}:event_messages', False),
+    )
+
     class Options:
         roles = {
             'www': blacklist('vote_boost'),
@@ -276,39 +264,47 @@ class EventMessage(WigoPersistentModel):
 
     def index(self):
         super(EventMessage, self).index()
-        user = self.user
+
         event = self.event
 
-        emessages_key = user_eventmessages_key(user, event)
-        self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-        self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
+        # record to the global by_votes sort
+        by_votes_key = skey(event, 'messages', 'by_votes')
+        sub_sort = epoch(self.created) / epoch(event.expires + timedelta(days=365))
+        self.db.sorted_set_add(by_votes_key, self.id, sub_sort)
+        self.db.expire(by_votes_key, DEFAULT_EXPIRING_TTL)
 
-        emessages_key = skey(event, 'messages')
-        self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-        self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
+        self.record_for_user(self.user)
 
-        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
-            emessages_key = user_eventmessages_key(friend, event)
-            self.db.sorted_set_add(emessages_key, self.id, epoch(self.created))
-            self.db.expire(emessages_key, DEFAULT_EXPIRING_TTL)
+    def record_for_user(self, user):
+        event = self.event
+
+        # record into users list of messages by time
+        user_emessages_key = user_eventmessages_key(user, event)
+        self.db.sorted_set_add(user_emessages_key, self.id, epoch(self.created))
+        self.db.expire(user_emessages_key, DEFAULT_EXPIRING_TTL)
+
+        # record into users list by vote count
+        num_votes = self.db.get_set_size(user_votes_key(user, self.message))
+        sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
+        by_votes_key = user_eventmessages_key(user, event, True)
+        self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort, replicate=False)
+        self.db.expire(by_votes_key, self.ttl())
 
     def remove_index(self):
         super(EventMessage, self).remove_index()
-        user = self.user
+        self.db.sorted_set_remove(skey(self.event, 'messages', 'by_votes'), self.id)
+        self.remove_for_user(self.user)
+
+    def remove_for_user(self, user):
         event = self.event
-
-        messages_key = skey(event, 'messages')
-        self.db.sorted_set_remove(messages_key, self.id)
-
-        for friend_id, score in self.db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
-            self.db.sorted_set_remove(user_eventmessages_key(friend, event), user.id)
+        self.db.sorted_set_remove(user_eventmessages_key(user, event), self.id)
+        self.db.sorted_set_remove(user_eventmessages_key(user, event, True), self.id)
 
 
 class EventMessageVote(WigoModel):
     indexes = (
-        ('message:{message_id}:votes={user_id}', False),
+        ('eventmessage:{message_id}:votes={user_id}', False),
+        ('user:{user_id}:votes={message_id}', False),
     )
 
     message_id = LongType(required=True)
@@ -321,3 +317,41 @@ class EventMessageVote(WigoModel):
     @field_memoize('message_id')
     def message(self):
         return EventMessage.find(self.message_id)
+
+    def index(self):
+        super(EventMessageVote, self).index()
+
+        user = self.user
+        message = self.message
+        event = message.event
+
+        # record the vote into the global "by_votes" sort order
+        num_votes = self.db.get_sorted_set_size(skey(message, 'votes'))
+        sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
+        by_votes = skey(event, 'messages', 'by_votes')
+        self.db.sorted_set_add(by_votes, self.message_id, num_votes + sub_sort, replicate=False)
+        self.db.expire(by_votes, self.ttl())
+
+        # record the vote into the users view of votes
+        # a job will take care of recording the vote for friends
+        self.record_for_user(user)
+
+    def record_for_user(self, user):
+        message = self.message
+        event = message.event
+
+        user_votes = user_votes_key(user, self.message)
+        self.db.set_add(user_votes, self.user.id, replicate=False)
+        self.db.expire(user_votes, self.ttl())
+
+        # this forces the message to update its indexes for the user
+        message.record_for_user(user)
+
+    def remove_index(self):
+        super(EventMessageVote, self).remove_index()
+
+        message = self.message
+        event = message.event
+
+        self.db.sorted_set_remove(skey(event, 'messages', 'by_votes'), self.message_id, replicate=False)
+

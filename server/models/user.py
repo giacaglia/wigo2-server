@@ -222,16 +222,16 @@ class Friend(WigoModel):
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, 1)
 
             self.db.sorted_set_add(skey('user', self.user_id, 'friends', 'alpha'),
-                                   self.friend_id, prefix_score(self.friend.full_name))
+                                   self.friend_id, prefix_score(self.friend.full_name), replicate=False)
 
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends', 'alpha'),
-                                   self.user_id, prefix_score(self.user.full_name))
+                                   self.user_id, prefix_score(self.user.full_name), replicate=False)
 
             if self.user.privacy == 'private':
-                self.db.set_add(skey('user', self.friend_id, 'friends', 'private'), self.user_id)
+                self.db.set_add(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
 
             if self.friend.privacy == 'private':
-                self.db.set_add(skey('user', self.user_id, 'friends', 'private'), self.friend_id)
+                self.db.set_add(skey('user', self.user_id, 'friends', 'private'), self.friend_id, replicate=False)
 
             for type in ('friend_requests', 'friend_requested'):
                 self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
@@ -241,11 +241,11 @@ class Friend(WigoModel):
             self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
             self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
 
-            self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id)
-            self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id)
+            self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id, replicate=False)
+            self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id, replicate=False)
 
-            self.db.set_remove(skey('user', self.user_id, 'friends', 'private'), self.friend_id)
-            self.db.set_remove(skey('user', self.friend_id, 'friends', 'private'), self.user_id)
+            self.db.set_remove(skey('user', self.user_id, 'friends', 'private'), self.friend_id, replicate=False)
+            self.db.set_remove(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
 
             friend_requested_key = skey('user', self.user_id, 'friend_requested')
             self.db.sorted_set_add(friend_requested_key, self.friend_id, epoch(self.created))
@@ -264,8 +264,11 @@ class Friend(WigoModel):
         self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
 
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id)
-        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id)
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id, replicate=False)
+        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id, replicate=False)
+
+        self.db.set_remove(skey('user', self.user_id, 'friends', 'private'), self.friend_id, replicate=False)
+        self.db.set_remove(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
 
         # clean it out of the current users friend_requests and friend_requested but
         # leave the request on the other side of the relationship so it still seems to be pending
@@ -375,19 +378,6 @@ class Invite(WigoModel):
         super(Invite, self).save()
         self.user.track_friend_interaction(self.invited)
         return self
-
-    def index(self):
-        super(Invite, self).index()
-
-        event = self.event
-        inviter = self.user
-        invited = self.invited
-
-        # make sure i am seeing all my friends attending now
-        for friend_id, score in self.db.sorted_set_iter(skey(invited, 'friends')):
-            friend = User.find(friend_id)
-            if friend.is_attending(event):
-                event.add_to_user_attending(invited, friend, score)
 
     def delete(self):
         pass

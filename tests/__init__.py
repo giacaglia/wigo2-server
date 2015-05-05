@@ -4,7 +4,7 @@ import ujson
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from mock import MagicMock, Mock
-from mockredis import mock_redis_client
+from mockredis import mock_redis_client, MockRedis
 from config import Configuration
 
 
@@ -39,17 +39,21 @@ def setup():
 
 @contextmanager
 def client():
+
     logging.getLogger().setLevel(level=logging.FATAL)
     logging.getLogger('web').setLevel(level=logging.FATAL)
     logging.getLogger('wigo').setLevel(level=logging.FATAL)
 
     from web import app
-    from server.db import wigo_db
+    from server.db import wigo_db, redis
     from server.models.group import Group
     from server.models.user import User
     from server.rest.event import cache_maker as rest_event_cache_maker
     from server.models.group import cache_maker as group_cache_maker
     from server.models.location import WigoCity
+
+    assert isinstance(wigo_db.redis, MockRedis)
+    assert isinstance(redis, MockRedis)
 
     rest_event_cache_maker.clear()
     group_cache_maker.clear()
@@ -110,6 +114,16 @@ def client():
         'key': 'test2'
     }).save()
 
+    u = User({
+        'username': 'test3',
+        'group_id': boston.id,
+        'facebook_id': 'xxx3',
+        'facebook_token': 'xxx3',
+        'facebook_token_expires': datetime.utcnow() + timedelta(days=7),
+        'email': 'test3@test.com',
+        'key': 'test3'
+    }).save()
+
     with app.test_client() as client:
         yield client
 
@@ -135,7 +149,23 @@ def make_friends(c, user1, user2):
 
 
 def create_event(c, user, title, privacy='public'):
-    return api_post(c, user, '/api/events/', {'name': title, 'privacy': privacy})
+    resp = api_post(c, user, '/api/events/', {'name': title, 'privacy': privacy})
+    assert resp.status_code == 200, 'oops {}'.format(resp.data)
+    return ujson.loads(resp.data)['objects'][0]['id']
+
+
+def create_event_message(c, user, event, media):
+    resp = api_post(c, user, '/api/events/{}/messages'.format(event.id), {
+        'media': media, 'media_mime_type': 'image/jpeg'
+    })
+    assert resp.status_code == 200, 'oops {}'.format(resp.data)
+    return ujson.loads(resp.data)['objects'][0]['id']
+
+
+def create_event_message_vote(c, user, event, message):
+    resp = api_post(c, user, '/api/events/{}/messages/{}/votes'.format(event.id, message.id), {})
+    assert resp.status_code == 200, 'oops {}'.format(resp.data)
+    return resp
 
 
 def api_get(client, user, url, api_version='2.0.0', lat=None, lon=None):

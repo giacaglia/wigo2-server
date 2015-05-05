@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from itertools import tee
 
 import re
 import six
@@ -163,6 +164,11 @@ def prefix_score(v, next=False):
         score += 1
     score *= 258 ** max(0, 7 - len(v))
     return repr(bigint_to_float(score))
+
+
+def partition(iterable, pred):
+    t1, t2 = tee(iterable)
+    return [item for item in t1 if pred(item)], [item for item in t2 if not pred(item)]
 
 
 def bigint_to_float(v):

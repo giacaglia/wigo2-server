@@ -43,7 +43,7 @@ def notify_on_eventmessage(message_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification_id=notification.id)
+            send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -70,7 +70,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification_id=notification.id)
+            send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -114,7 +114,7 @@ def notify_on_tap(user_id, tapped_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification_id=notification.id)
+            send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -133,7 +133,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
         'message': message_text
     }).save()
 
-    send_notification_push.delay(notification_id=notification.id)
+    send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -156,7 +156,7 @@ def notify_on_friend(user_id, friend_id, accepted):
 
     if accepted:
         notification.save()
-        send_notification_push.delay(notification_id=notification.id)
+        send_notification_push.delay(notification.id)
     else:
         __send_notification_push(notification)
 
@@ -190,21 +190,20 @@ def wire_notifications_listeners():
             return
 
         if isinstance(instance, EventMessage):
-            notify_on_eventmessage.delay(message_id=instance.id)
+            notify_on_eventmessage.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
-            notify_on_eventmessage_vote.delay(voter_id=instance.user_id, message_id=instance.message_id)
+            notify_on_eventmessage_vote.delay(instance.user_id, instance.message_id)
         elif isinstance(instance, Message):
-            notify_on_message.delay(message_id=instance.id)
+            notify_on_message.delay(instance.id)
             instance.to_user.track_meta('last_message', epoch(instance.created))
         elif isinstance(instance, Friend):
-            notify_on_friend.delay(user_id=instance.user_id, friend_id=instance.friend_id, accepted=instance.accepted)
+            notify_on_friend.delay(instance.user_id, instance.friend_id, instance.accepted)
             if not instance.accepted:
                 instance.friend.track_meta('last_friend_request', epoch(instance.created))
         elif isinstance(instance, Tap):
-            notify_on_tap.delay(user_id=instance.user_id, tapped_id=instance.tapped_id)
+            notify_on_tap.delay(instance.user_id, instance.tapped_id)
         elif isinstance(instance, Invite):
-            notify_on_invite.delay(inviter_id=instance.user_id,
-                                   invited_id=instance.invited_id, event_id=instance.event_id)
+            notify_on_invite.delay(instance.user_id, instance.invited_id, instance.event_id)
         elif isinstance(instance, Notification):
             instance.user.track_meta('last_notification', epoch(instance.created))
 

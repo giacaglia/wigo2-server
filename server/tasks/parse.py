@@ -73,7 +73,7 @@ def wire_parse_listeners():
 
     def sync_parse_listener(sender, instance, created):
         if isinstance(instance, User):
-            sync_parse.delay(user_id=instance.id)
+            sync_parse.delay(instance.id)
 
     post_model_save.connect(sync_parse_listener, weak=False)
 

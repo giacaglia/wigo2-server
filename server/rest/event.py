@@ -312,7 +312,7 @@ class EventMessagesMetaListResource(WigoResource):
         message_ids = wigo_db.sorted_set_range(skey('event', event_id, 'messages'))
         for message_id in message_ids:
             message_meta[message_id] = {
-                'num_votes': wigo_db.get_sorted_set_size(skey('message', message_id, 'votes')),
+                'num_votes': wigo_db.get_sorted_set_size(skey('eventmessage', message_id, 'votes')),
                 'voted': wigo_db.sorted_set_is_member(skey('message', message_id, 'votes'), g.user.id)
             }
 

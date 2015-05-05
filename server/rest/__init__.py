@@ -15,7 +15,7 @@ from server.models.event import EventMessage, Event, EventAttendee
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
-from utils import ValidationException
+from utils import ValidationException, partition
 from utils import SecurityException
 
 
@@ -157,11 +157,12 @@ class WigoResource(Resource):
             else:
                 event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
 
-        # only add attendees to events missing the attendees field
+        # fill in attending on each event
         query = EventAttendee.select().events(events).user(user_context).secure(g.user)
         count, page, attendees_by_event = query.limit(alimit).execute()
         if count:
             for event, attendees in zip(events, attendees_by_event):
+                # make sure the event the current user is attending is in front
                 if hasattr(event, 'current_user_attending'):
                     count, attendees = attendees
                     if attendees[0] != g.user:
@@ -169,15 +170,19 @@ class WigoResource(Resource):
                             attendees.remove(g.user)
                         attendees.insert(0, g.user)
                     attendees = (count, attendees)
+
                 event.attendees = attendees
 
+        def capture_messages(events, query):
+            count, page, messages_by_event = query.limit(mlimit).execute()
+            if count:
+                for event, messages in zip(events, messages_by_event):
+                    event.messages = messages
 
-        # only add messages to events missing the messages field
-        query = EventMessage.select().events(events).user(user_context).secure(g.user)
-        count, page, messages_by_event = query.limit(mlimit).execute()
-        if count:
-            for event, messages in zip(events, messages_by_event):
-                event.messages = messages
+        expired, current = partition(events, lambda e: e.is_expired)
+        base_query = EventMessage.select().user(user_context).secure(g.user)
+        capture_messages(current, base_query.events(current))
+        capture_messages(expired, base_query.events(expired).by_votes())
 
         return events
 
