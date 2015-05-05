@@ -11,13 +11,13 @@ engine_client = predictionio.EngineClient(
     url='http://{}:8000'.format(Configuration.PREDICTION_IO_HOST))
 
 
-@api.route('/users/<user_id>/recommend')
+@api.route('/users/suggestions')
 class UserRecommendationsResource(WigoResource):
     model = User
 
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
-    def get(self, user_id):
+    def get(self):
         return engine_client.send_query({
             'user': str(g.user.id),
             'num': self.get_limit(),
