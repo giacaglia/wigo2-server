@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import math
 from datetime import datetime, timedelta
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
-from server.models.event import EventMessage, EventAttendee, Event, get_num_messages
+from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages
 from server.models.group import Group
 from server.models.user import Message, User, Notification
 from server.rdbms import DataStrings
@@ -381,7 +381,7 @@ class SelectQuery(object):
 
         if self._model_class == Event:
             objects = [e for e in objects if not e.is_expired or
-                       get_num_messages(e.id, self._user.id if self._user else None) > 0]
+                       get_cached_num_messages(e.id, self._user.id if self._user else None) > 0]
 
         return objects
 

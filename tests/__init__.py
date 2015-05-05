@@ -48,6 +48,8 @@ def client():
     from server.db import wigo_db, redis
     from server.models.group import Group
     from server.models.user import User
+    from server.models.event import cache_maker as event_cache_maker
+    from server.rest.recommendations import cache_maker as rec_cache_maker
     from server.rest.event import cache_maker as rest_event_cache_maker
     from server.models.group import cache_maker as group_cache_maker
     from server.models.location import WigoCity
@@ -55,8 +57,10 @@ def client():
     assert isinstance(wigo_db.redis, MockRedis)
     assert isinstance(redis, MockRedis)
 
+    event_cache_maker.clear()
     rest_event_cache_maker.clear()
     group_cache_maker.clear()
+    rec_cache_maker.clear()
 
     app.debug = True
     wigo_db.redis.flushdb()

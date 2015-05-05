@@ -360,11 +360,27 @@ class EventMessageVote(WigoModel):
 
 
 @cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
-def get_num_messages(event_id, user_id=None):
+def get_cached_num_messages(event_id, user_id=None):
     """ Should only be called on expired events. """
     from server.db import wigo_db
 
     key = (skey('user', user_id, 'event', event_id, 'messages')
            if user_id else skey('event', event_id, 'messages'))
+
+    return wigo_db.get_sorted_set_size(key)
+
+
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
+def get_cached_num_attending(event_id, user_id=None):
+    """ Should only be called on expired events. """
+    return get_num_attending(event_id, user_id)
+
+
+def get_num_attending(event_id, user_id=None):
+    """ Should only be called on expired events. """
+    from server.db import wigo_db
+
+    key = (skey('user', user_id, 'event', event_id, 'attendees')
+           if user_id else skey('event', event_id, 'attendees'))
 
     return wigo_db.get_sorted_set_size(key)

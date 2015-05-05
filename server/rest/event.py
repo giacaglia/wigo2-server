@@ -44,7 +44,7 @@ class EventListResource(WigoDbListResource):
         groups.extend(close_groups)
 
         now = datetime.utcnow()
-        times = [None] + [now - timedelta(days=i) for i in range(9)]
+        times = [None] + [now - timedelta(days=i) for i in range(8)]
 
         all_events = []
 
@@ -58,15 +58,18 @@ class EventListResource(WigoDbListResource):
                 if remaining <= 0:
                     break
 
-                query = Event.select().group(group).limit(remaining).page(page)
-
                 # if time is None, 1st iteration, max is group day end
                 max_time = times[time_index - 1]
                 if max_time is None:
                     max_time = group.get_day_end() + timedelta(hours=1)  # add 1 hour to account for sub-score
 
-                query = query.min(epoch(time)).max(epoch(max_time))
-                count, page, events = query.execute()
+                if time_index == 1:
+                    count, page, events = get_city_events(group, remaining, page,
+                                                          epoch(time), epoch(max_time))
+                else:
+                    count, page, events = get_cached_city_events(group, remaining, page,
+                                                                 epoch(time), epoch(max_time))
+
 
                 pages = int(math.ceil(float(count) / remaining))
 
@@ -352,3 +355,14 @@ class EventMessageVoteResource(WigoResource):
             'user_id': g.user.id
         }).save()
         return {'success': True}
+
+
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60)
+def get_cached_city_events(group, limit, page, min, max):
+    return get_city_events(group, limit, page, min, max)
+
+
+def get_city_events(group, limit, page, min, max):
+    query = Event.select().group(group).limit(limit).page(page)
+    query = query.min(min).max(max)
+    return query.execute()

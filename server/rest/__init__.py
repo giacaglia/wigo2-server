@@ -10,8 +10,8 @@ from flask.ext import restplus
 from pytz import UnknownTimeZoneError
 from schematics.exceptions import ModelValidationError
 from werkzeug.urls import url_encode
-from server.models import AlreadyExistsException, user_attendees_key, skey
-from server.models.event import EventMessage, Event, EventAttendee
+from server.models import AlreadyExistsException
+from server.models.event import EventMessage, Event, EventAttendee, get_cached_num_attending, get_num_attending
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
@@ -26,7 +26,6 @@ api_blueprint = Blueprint('api', __name__, url_prefix='/api')
 
 class WigoApi(restplus.Api):
     def __init__(self):
-        # noinspection PyTypeChecker
         super(WigoApi, self).__init__(api_blueprint, ui=False, title='Wigo API', catch_all_404s=True)
 
     @property
@@ -143,8 +142,6 @@ class WigoResource(Resource):
         return objects
 
     def annotate_events(self, events):
-        from server.db import wigo_db
-
         alimit = int(request.args.get('attendees_limit', 5))
         mlimit = int(request.args.get('messages_limit', 5))
 
@@ -152,10 +149,10 @@ class WigoResource(Resource):
         user_context = current_user if '/users/' in request.path else None
 
         for event in events:
-            if user_context:
-                event.num_attending = wigo_db.get_sorted_set_size(user_attendees_key(user_context, event))
+            if event.is_expired:
+                event.num_attending = get_cached_num_attending(event.id, user_context.id if user_context else None)
             else:
-                event.num_attending = wigo_db.get_sorted_set_size(skey(event, 'attendees'))
+                event.num_attending = get_num_attending(event.id, user_context.id if user_context else None)
 
         # fill in attending on each event
         query = EventAttendee.select().events(events).user(user_context).secure(g.user)
