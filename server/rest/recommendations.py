@@ -72,6 +72,7 @@ class UserRecommendationsResource(WigoResource):
                             for friends_friend in friends_friends:
                                 if should_suggest(friends_friend):
                                     to_fetch[friends_friend] += 1
+                                    suggested.add(friends_friend)
                                     if len(to_fetch) >= num_remaining:
                                         break
                         else:
@@ -87,7 +88,6 @@ class UserRecommendationsResource(WigoResource):
 
             to_fetch_ordered = [u[0] for u in to_fetch.most_common()]
             users.extend(User.find(to_fetch_ordered))
-            suggested.update(to_fetch_ordered)
             num_remaining -= len(to_fetch_ordered)
 
         return self.serialize_list(User, users)
