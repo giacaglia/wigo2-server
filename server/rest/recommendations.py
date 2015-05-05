@@ -23,6 +23,5 @@ class UserRecommendationsResource(WigoResource):
         return engine_client.send_query({
             'user': str(g.user.id),
             'num': self.get_limit(),
-            'categories': [str(g.user.group_id)],
             'blackList': [g.user.id]
         })

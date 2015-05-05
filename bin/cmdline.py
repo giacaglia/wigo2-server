@@ -193,6 +193,12 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
                 else:
                     dbuser['properties']['images'] = []
 
+            try:
+                User.find(dbuser['id'])
+                continue
+            except DoesNotExist:
+                pass
+
             assoc = aa_table.find_one(user=dbuser['id'])
             user = User(dbuser)
 
@@ -226,6 +232,12 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
         """)
 
         for result in results:
+            try:
+                User.find(result[0])
+                User.find(result[1])
+            except DoesNotExist:
+                continue
+
             try:
                 Friend({
                     'user_id': result[0],
