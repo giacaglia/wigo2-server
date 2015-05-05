@@ -215,7 +215,6 @@ class Friend(WigoModel):
 
     def index(self):
         super(Friend, self).index()
-        from server.models.event import Event
 
         if self.accepted:
             self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, 1)
