@@ -170,7 +170,9 @@ def app_startup():
         }
     }
 
-    return jsonify(startup)
+    response = jsonify(startup)
+    response.headers.add('Cache-Control', 'max-age=600')
+    return response
 
 
 @app.route('/c/<code>')
