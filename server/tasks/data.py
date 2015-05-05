@@ -9,7 +9,8 @@ from server.db import wigo_db
 from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite
 from server.tasks import data_queue
-from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete
+from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
+    user_attendees_key
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
 from utils import epoch
 
@@ -152,6 +153,24 @@ def new_friend(user_id, friend_id):
 
 
 @job(data_queue, timeout=60, result_ttl=0)
+def delete_friend(user_id, friend_id):
+    user = User.find(user_id)
+    friend = User.find(friend_id)
+
+    def delete_history(u, f):
+        for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
+            try:
+                event = Event.find(event_id)
+                if wigo_db.sorted_set_is_member(user_attendees_key(u, event), f.id):
+                    event.remove_from_user_attending(u, f)
+            except DoesNotExist:
+                pass
+
+    delete_history(user, friend)
+    delete_history(friend, user)
+
+
+@job(data_queue, timeout=60, result_ttl=0)
 def privacy_changed(user_id):
     user = User.find(user_id)
 
@@ -184,6 +203,8 @@ def wire_data_listeners():
             tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
         if isinstance(instance, EventAttendee):
             tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
+        if isinstance(instance, Friend):
+            delete_friend.delay(instance.user_id, instance.friend_id)
 
     def privacy_changed_listener(sender, instance):
         privacy_changed.delay(instance.id)
