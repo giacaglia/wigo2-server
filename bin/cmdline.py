@@ -295,7 +295,7 @@ def import_predictions():
         if r.status not in (200, 201):
             raise Exception('Error returned from prediction io')
 
-        r = client.set_item(with_user_id, {'categories': [str(group_id)]})
+        r = client.set_item(with_user_id)
 
         if r.status not in (200, 201):
             raise Exception('Error returned from prediction io')
@@ -306,7 +306,7 @@ def import_predictions():
 
     results = rdbms.query("""
         select tap.user_id, "user".group_id, tap.tapped_id from tap inner join "user" on tap.user_id = "user".id
-        where tap.created > (now() - interval '30 days')
+        where tap.created > (now() - interval '30 days') and "user".group_id = 1
     """)
 
     rows = 0
@@ -315,11 +315,18 @@ def import_predictions():
         user_id = result[0]
         group_id = result[1]
         with_user_id = result[2]
+
+        try:
+            User.find(user_id)
+            User.find(with_user_id)
+        except DoesNotExist:
+            continue
+
         record(user_id, with_user_id, group_id, 'view')
 
         rows += 1
 
-        if (rows % 500) == 0:
+        if (rows % 100) == 0:
             logger.info('wrote {} records'.format(rows))
 
 

@@ -30,7 +30,7 @@ class UserRecommendationsResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self):
         page = self.get_page()
-        limit = self.get_limit()
+        limit = self.get_limit(25)
         current_user = g.user
         num_remaining = limit
 

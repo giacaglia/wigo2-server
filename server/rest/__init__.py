@@ -54,8 +54,8 @@ class WigoResource(Resource):
     def get_page(self):
         return int(request.args.get('page', 1))
 
-    def get_limit(self):
-        return int(request.args.get('limit', 15))
+    def get_limit(self, default=15):
+        return int(request.args.get('limit', default))
 
     def setup_query(self, query):
         return query.page(self.get_page()).limit(self.get_limit())
