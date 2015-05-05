@@ -13,15 +13,21 @@ from config import Configuration
 
 logger = logging.getLogger('wigo.predictions')
 
-client = predictionio.EventClient(
-  access_key=Configuration.PREDICTION_IO_ACCESS_KEY,
-  url='http://{}:7070'.format(Configuration.PREDICTION_IO_HOST),
-  threads=5,
-  qsize=500
-)
+if Configuration.ENVIRONMENT != 'test':
+    client = predictionio.EventClient(
+      access_key=Configuration.PREDICTION_IO_ACCESS_KEY,
+      url='http://{}:7070'.format(Configuration.PREDICTION_IO_HOST),
+      threads=5,
+      qsize=500
+    )
+else:
+    client = None
 
 @job(predictions_queue, timeout=30, result_ttl=0)
 def capture_interaction(user_id, with_user_id, t, action='view'):
+    if not client:
+        return
+
     logger.info('capturing prediction event data between {} and {}'.format(user_id, with_user_id))
 
     user = User.find(user_id)
@@ -47,6 +53,9 @@ def capture_interaction(user_id, with_user_id, t, action='view'):
 
 
 def wire_predictions_listeners():
+    if Configuration.ENVIRONMENT == 'test':
+        return
+
     def predictions_listener(sender, instance, created):
         if isinstance(instance, Tap):
             capture_interaction.delay(instance.user_id, instance.tapped_id, instance.created)
