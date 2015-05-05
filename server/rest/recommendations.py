@@ -8,7 +8,9 @@ from server.rest import WigoResource, api
 from server.security import user_token_required
 
 engine_client = predictionio.EngineClient(
-    url='http://{}:8000'.format(Configuration.PREDICTION_IO_HOST))
+    url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
+                              Configuration.PREDICTION_IO_PORT)
+)
 
 
 @api.route('/users/suggestions')

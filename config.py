@@ -88,6 +88,7 @@ class Configuration(object):
     PREDICTION_IO_APP_ID = int(os.environ.get('PREDICTION_IO_APP_ID', '1'))
     PREDICTION_IO_ACCESS_KEY = os.environ.get('PREDICTION_IO_ACCESS_KEY', '8Jp9T1nKYOmCmWqQpFV5ziLlkzesWOCgjgnelFOiAqgKwtoV0KPQG646EWfbkz1T')
     PREDICTION_IO_HOST = os.environ.get('PREDICTION_IO_HOST', '104.197.21.254')
+    PREDICTION_IO_PORT = os.environ.get('PREDICTION_IO_PORT', '8001')
 
     UPLOAD_FOLDER = 'uploads'
 
