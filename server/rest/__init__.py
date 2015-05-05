@@ -184,7 +184,15 @@ class WigoResource(Resource):
         capture_messages(current, base_query.events(current))
         capture_messages(expired, base_query.events(expired).by_votes())
 
-        return events
+        filtered = []
+        for event in events:
+            if event.is_expired:
+                if event.messages and len(event.messages[1]) > 1:
+                    filtered.append(event)
+            else:
+                filtered.append(event)
+
+        return filtered
 
     def serialize_object(self, obj):
         prim = obj.to_primitive(role='www')

@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import math
 from datetime import datetime, timedelta
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
-from server.models.event import EventMessage, EventAttendee, Event
+from server.models.event import EventMessage, EventAttendee, Event, get_num_messages
 from server.models.group import Group
 from server.models.user import Message, User, Notification
 from server.rdbms import DataStrings
@@ -248,7 +248,7 @@ class SelectQuery(object):
             start = (page-1) * self._limit
             model_ids = range_f(key, min, max, start, self._limit)
             instances = self._model_class.find(model_ids)
-            secured = self.__secure_filter(instances)
+            secured = self.__clean_results(instances)
             collected.extend(secured)
 
             # if the results weren't filtered, break
@@ -365,7 +365,7 @@ class SelectQuery(object):
                 ids = self.db.sorted_set_rrange(key, start, start + (self._limit - 1))
                 instances = query_class.find(list(ids))
 
-                secured = self.__secure_filter(instances)
+                secured = self.__clean_results(instances)
                 collected.extend(secured)
 
                 # if nothing was filtered, break
@@ -376,7 +376,16 @@ class SelectQuery(object):
 
         return len(results), 1, results
 
-    def __secure_filter(self, objects):
+    def __clean_results(self, objects):
+        objects = self.__secure_results(objects)
+
+        if self._model_class == Event:
+            objects = [e for e in objects if not e.is_expired or
+                       get_num_messages(e.id, self._user.id if self._user else None) > 0]
+
+        return objects
+
+    def __secure_results(self, objects):
         if not self._secure:
             return objects
         if self._model_class not in (User, EventAttendee, EventMessage):

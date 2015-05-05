@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from datetime import datetime, timedelta
 from geodis.location import Location
+from repoze.lru import CacheMaker
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
@@ -12,6 +13,8 @@ from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, D
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException
 
 EVENT_LEADING_STOP_WORDS = {"a", "the"}
+
+cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 
 class Event(WigoPersistentModel):
@@ -355,3 +358,13 @@ class EventMessageVote(WigoModel):
 
         self.db.sorted_set_remove(skey(event, 'messages', 'by_votes'), self.message_id, replicate=False)
 
+
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
+def get_num_messages(event_id, user_id=None):
+    """ Should only be called on expired events. """
+    from server.db import wigo_db
+
+    key = (skey('user', user_id, 'event', event_id, 'messages')
+           if user_id else skey('event', event_id, 'messages'))
+
+    return wigo_db.get_sorted_set_size(key)
