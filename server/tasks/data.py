@@ -125,7 +125,7 @@ def new_friend(user_id, friend_id):
 
     # tells each friend about the event history of the other
     def capture_history(u, f):
-        with user_lock(u.id):
+        with user_lock(f.id):
             # capture photo votes first, so when adding the photos they can be sorted by vote
             for message_id, score in wigo_db.sorted_set_iter(skey(u, 'votes')):
                 try:
@@ -163,12 +163,19 @@ def delete_friend(user_id, friend_id):
     friend = User.find(friend_id)
 
     def delete_history(u, f):
-        with user_lock(u.id):
-            for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
+        with user_lock(f.id):
+            for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
+                try:
+                    message = EventMessage.find(message_id)
+                    message.remove_for_user(f)
+                except DoesNotExist:
+                    pass
+
+            for event_id, score in wigo_db.sorted_set_iter(skey(f, 'events')):
                 try:
                     event = Event.find(event_id)
-                    if wigo_db.sorted_set_is_member(user_attendees_key(u, event), f.id):
-                        event.remove_from_user_attending(u, f)
+                    if wigo_db.sorted_set_is_member(user_attendees_key(f, event), u.id):
+                        event.remove_from_user_attending(f, u)
                 except DoesNotExist:
                     pass
 
