@@ -171,7 +171,7 @@ def app_startup():
     }
 
     response = jsonify(startup)
-    response.headers.add('Cache-Control', 'max-age=600')
+    response.headers.add('Cache-Control', 'max-age=3600')
     return response
 
 
