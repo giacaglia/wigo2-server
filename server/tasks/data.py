@@ -5,7 +5,7 @@ import logging
 from time import time
 from datetime import timedelta, datetime
 from rq.decorators import job
-from server.db import wigo_db
+from server.db import wigo_db, redis
 from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite
 from server.tasks import data_queue
@@ -62,10 +62,11 @@ def tell_friends_user_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if user.is_attending(event):
-        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
-            if friend.can_see_event(event):
-                event.add_to_user_attending(friend, user, score)
+        with user_lock(user.id):
+            for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+                friend = User.find(int(friend_id))
+                if friend.can_see_event(event):
+                    event.add_to_user_attending(friend, user, score)
 
 
 @job(data_queue, timeout=60, result_ttl=0)
@@ -74,9 +75,10 @@ def tell_friends_user_not_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if not user.is_attending(event):
-        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
-            event.remove_from_user_attending(friend, user)
+        with user_lock(user.id):
+            for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+                friend = User.find(int(friend_id))
+                event.remove_from_user_attending(friend, user)
 
 
 @job(data_queue, timeout=60, result_ttl=0)
@@ -84,9 +86,10 @@ def tell_friends_event_message(message_id):
     message = EventMessage.find(message_id)
     user = message.user
 
-    for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-        friend = User.find(int(friend_id))
-        message.record_for_user(friend)
+    with user_lock(user.id):
+        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+            friend = User.find(int(friend_id))
+            message.record_for_user(friend)
 
 
 @job(data_queue, timeout=60, result_ttl=0)
@@ -97,9 +100,10 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
         'event_id': event_id
     })
 
-    for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
-        friend = User.find(int(friend_id))
-        message.remove_for_user(friend)
+    with user_lock(user_id):
+        for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
+            friend = User.find(int(friend_id))
+            message.remove_for_user(friend)
 
 
 @job(data_queue, timeout=60, result_ttl=0)
@@ -121,32 +125,33 @@ def new_friend(user_id, friend_id):
 
     # tells each friend about the event history of the other
     def capture_history(u, f):
-        # capture photo votes first, so when adding the photos they can be sorted by vote
-        for message_id, score in wigo_db.sorted_set_iter(skey(u, 'votes')):
-            try:
-                EventMessageVote({
-                    'user_id': u.id,
-                    'message_id': message_id
-                }).record_for_user(f)
-            except DoesNotExist:
-                pass
+        with user_lock(u.id):
+            # capture photo votes first, so when adding the photos they can be sorted by vote
+            for message_id, score in wigo_db.sorted_set_iter(skey(u, 'votes')):
+                try:
+                    EventMessageVote({
+                        'user_id': u.id,
+                        'message_id': message_id
+                    }).record_for_user(f)
+                except DoesNotExist:
+                    pass
 
-        # capture each of the users posted photos
-        for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
-            try:
-                message = EventMessage.find(message_id)
-                message.record_for_user(f)
-            except DoesNotExist:
-                pass
+            # capture each of the users posted photos
+            for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
+                try:
+                    message = EventMessage.find(message_id)
+                    message.record_for_user(f)
+                except DoesNotExist:
+                    pass
 
-        # capture the events being attended
-        for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
-            try:
-                event = Event.find(event_id)
-                if u.is_attending(event) and f.can_see_event(event):
-                    event.add_to_user_attending(f, u)
-            except DoesNotExist:
-                pass
+            # capture the events being attended
+            for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
+                try:
+                    event = Event.find(event_id)
+                    if u.is_attending(event) and f.can_see_event(event):
+                        event.add_to_user_attending(f, u)
+                except DoesNotExist:
+                    pass
 
     capture_history(user, friend)
     capture_history(friend, user)
@@ -158,13 +163,14 @@ def delete_friend(user_id, friend_id):
     friend = User.find(friend_id)
 
     def delete_history(u, f):
-        for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
-            try:
-                event = Event.find(event_id)
-                if wigo_db.sorted_set_is_member(user_attendees_key(u, event), f.id):
-                    event.remove_from_user_attending(u, f)
-            except DoesNotExist:
-                pass
+        with user_lock(u.id):
+            for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
+                try:
+                    event = Event.find(event_id)
+                    if wigo_db.sorted_set_is_member(user_attendees_key(u, event), f.id):
+                        event.remove_from_user_attending(u, f)
+                except DoesNotExist:
+                    pass
 
     delete_history(user, friend)
     delete_history(friend, user)
@@ -172,14 +178,19 @@ def delete_friend(user_id, friend_id):
 
 @job(data_queue, timeout=60, result_ttl=0)
 def privacy_changed(user_id):
-    user = User.find(user_id)
-
     # tell all friends about the privacy change
-    for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-        if user.privacy == 'public':
-            wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
-        else:
-            wigo_db.set_add(skey('user', friend_id, 'friends', 'private'), user_id)
+    with user_lock(user_id):
+        user = User.find(user_id)
+        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+            if user.privacy == 'public':
+                wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
+            else:
+                wigo_db.set_add(skey('user', friend_id, 'friends', 'private'), user_id)
+
+
+def user_lock(user_id):
+    with redis.lock('locks:user:{}'.format(user_id), timeout=30):
+        yield
 
 
 def wire_data_listeners():
