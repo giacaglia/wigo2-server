@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from collections import defaultdict
 
 import logging
 import ujson
@@ -281,8 +282,11 @@ class WigoModel(Model):
         # init an empty array for the results
         results = [None] * len(model_ids)
 
+        remaining = defaultdict(list)
+
         # construct list of items remaining to be fetched
-        remaining = {model_id: index for index, model_id in enumerate(model_ids)}
+        for index, model_id in enumerate(model_ids):
+            remaining[model_id].append(index)
 
         # check the memory cache for the objects
         memory_ttl = cls.memory_ttl()
@@ -291,14 +295,18 @@ class WigoModel(Model):
                 instance = model_cache.get(model_id)
                 if instance is not None:
                     results[index] = instance
-                    del remaining[model_id]
+                    remaining[model_id].remove(index)
+                    if len(remaining[model_id]) == 0:
+                        del remaining[model_id]
 
         if remaining:
             results = wigo_db.mget([skey(cls, model_id) for model_id in remaining.keys()])
             instances = [cls(result) for result in results if result is not None]
             for instance in instances:
                 instance.prepared()
-                results[remaining[instance.id]] = instance
+
+                for index in remaining[instance.id]:
+                    results[index] = instance
 
                 if memory_ttl:
                     model_cache.put(instance.id, instance, memory_ttl)
