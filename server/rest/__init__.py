@@ -276,12 +276,12 @@ class WigoResource(Resource):
                 if getattr(o, 'message_id', None):
                     collect_nested(o, EventMessage, 'message_id')
                 if getattr(o, 'attendees', None):
-                    users = [u for u in o.attendees[1] if u]
+                    users = [u for u in o.attendees[1] if u and u.id not in resolved]
                     resolved.update((u.id for u in users))
                     nested.update(users)
                     resolve_nested(users, nested, resolved)
                 if getattr(o, 'messages', None):
-                    messages = [m for m in o.messages[1] if m]
+                    messages = [m for m in o.messages[1] if m and m.id not in resolved]
                     resolved.update((m.id for m in messages))
                     nested.update(messages)
                     resolve_nested(messages, nested, resolved)
