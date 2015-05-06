@@ -273,6 +273,7 @@ class WigoModel(Model):
     @classmethod
     def __get_by_ids(cls, model_ids):
         from server.db import wigo_db
+
         if not model_ids:
             return []
 
@@ -300,8 +301,8 @@ class WigoModel(Model):
                         del remaining[model_id]
 
         if remaining:
-            results = wigo_db.mget([skey(cls, model_id) for model_id in remaining.keys()])
-            instances = [cls(result) for result in results if result is not None]
+            redis_results = wigo_db.mget([skey(cls, model_id) for model_id in remaining.keys()])
+            instances = [cls(redis_result) for redis_result in redis_results if redis_result is not None]
             for instance in instances:
                 instance.prepared()
 
