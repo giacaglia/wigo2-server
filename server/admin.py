@@ -41,7 +41,7 @@ class WigoAjaxModelLoader(AjaxModelLoader):
         return list(model.select().where(code=query).limit(limit))
 
     def format(self, model):
-        return (model.id, model.name) if model else None
+        return (str(model.id), model.name) if model else None
 
 
 def actions_formatter(view, context, model, name):
