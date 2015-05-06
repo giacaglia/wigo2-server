@@ -250,7 +250,7 @@ class WigoResource(Resource):
 
             def collect_nested(o, value_class, id_field):
                 id_value = getattr(o, id_field, None)
-                if id_value:
+                if id_value and id_value not in resolved:
                     cached = o._field_cache.get((id_field, id_value))
                     if cached:
                         resolved.add(id_value)
@@ -288,12 +288,11 @@ class WigoResource(Resource):
 
             if nested_ids:
                 for nested_type, nested_ids in nested_ids.items():
-                    to_lookup = nested_ids.difference(resolved)
-                    if to_lookup:
-                        nested_objects = nested_type.find(to_lookup)
+                    if nested_ids:
+                        nested_objects = nested_type.find(nested_ids)
                         nested_objects = self.annotate_list(nested_type, nested_objects)
                         nested.update(nested_objects)
-                        resolved.update(to_lookup)
+                        resolved.update(nested_ids)
                         resolve_nested(nested_objects, nested, resolved)
 
         nested = set()
