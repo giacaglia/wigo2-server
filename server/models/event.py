@@ -2,19 +2,17 @@ from __future__ import absolute_import
 
 from datetime import datetime, timedelta
 from geodis.location import Location
-from repoze.lru import CacheMaker
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
-from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, \
-    AlreadyExistsException, user_attendees_key, user_eventmessages_key, DEFAULT_EXPIRING_TTL, field_memoize, \
-    user_votes_key
+from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist
+from server.models import AlreadyExistsException, user_attendees_key, user_eventmessages_key, \
+    DEFAULT_EXPIRING_TTL, field_memoize, user_votes_key
+from server.models import cache_maker
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException
 
 EVENT_LEADING_STOP_WORDS = {"a", "the"}
-
-cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 
 class Event(WigoPersistentModel):
@@ -38,6 +36,10 @@ class Event(WigoPersistentModel):
 
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
+
+    @classmethod
+    def memory_ttl(cls):
+        return 600
 
     def validate(self, partial=False, strict=False):
         if self.id is None and self.privacy == 'public':
@@ -259,6 +261,10 @@ class EventMessage(WigoPersistentModel):
 
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
+
+    @classmethod
+    def memory_ttl(cls):
+        return 600
 
     def validate(self, partial=False, strict=False):
         super(EventMessage, self).validate(partial, strict)

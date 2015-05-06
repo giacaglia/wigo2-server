@@ -8,6 +8,7 @@ from functools import wraps
 from blinker import signal
 from datetime import datetime, timedelta
 from flask.ext.restplus import fields as docfields
+from repoze.lru import CacheMaker, ExpiringLRUCache
 from schematics.models import Model
 from schematics.transforms import blacklist
 from schematics.types import BaseType, StringType, DateTimeType, LongType, FloatType, NumberType, BooleanType
@@ -18,6 +19,8 @@ logger = logging.getLogger('wigo.model')
 
 INDEX_FIELD = re.compile('\{(.*?)\}', re.I)
 DEFAULT_EXPIRING_TTL = timedelta(days=10)
+cache_maker = CacheMaker(maxsize=1000, timeout=60)
+model_cache = ExpiringLRUCache(15000, 60)
 
 
 class JsonType(BaseType):
@@ -89,6 +92,10 @@ class WigoModel(Model):
 
     def ttl(self):
         return None
+
+    @classmethod
+    def memory_ttl(cls):
+        return 0
 
     def check_id(self):
         if self.id is None:
@@ -223,22 +230,9 @@ class WigoModel(Model):
         model_ids = model_id if hasattr(model_id, '__iter__') else kwargs.get('ids')
 
         if hasattr(model_ids, '__iter__'):
-            if model_ids:
-                results = wigo_db.mget([skey(cls, int(model_id)) for model_id in model_ids])
-                instances = [cls(result) if result is not None else None for result in results]
-                for instance in instances:
-                    if instance is not None:
-                        instance.prepared()
-                return instances
-            else:
-                return []
+            return cls.__get_by_ids(model_ids)
         elif model_id:
-            result = wigo_db.get(skey(cls, int(model_id)))
-            if result:
-                instance = cls(result)
-                instance.prepared()
-                return instance
-            raise DoesNotExist(cls, model_id)
+            return cls.__get_by_id(model_id)
 
         # search the indexes
         if kwargs:
@@ -253,6 +247,63 @@ class WigoModel(Model):
             raise DoesNotExist()
 
         return None
+
+    @classmethod
+    def __get_by_id(cls, model_id):
+        from server.db import wigo_db
+
+        model_id = int(model_id)
+        memory_ttl = cls.memory_ttl()
+        instance = model_cache.get(model_id) if memory_ttl else None
+
+        if instance is None:
+            result = wigo_db.get(skey(cls, model_id))
+            if result:
+                instance = cls(result)
+                instance.prepared()
+                if memory_ttl:
+                    model_cache.put(model_id, instance, memory_ttl)
+
+        if instance:
+            return instance
+
+        raise DoesNotExist(cls, model_id)
+
+    @classmethod
+    def __get_by_ids(cls, model_ids):
+        from server.db import wigo_db
+        if not model_ids:
+            return []
+
+        # make sure the ids are all ints
+        model_ids = [int(model_id) for model_id in model_ids]
+
+        # init an empty array for the results
+        results = [None] * len(model_ids)
+
+        # construct list of items remaining to be fetched
+        remaining = {model_id: index for index, model_id in enumerate(model_ids)}
+
+        # check the memory cache for the objects
+        memory_ttl = cls.memory_ttl()
+        if memory_ttl:
+            for index, model_id in enumerate(model_ids):
+                instance = model_cache.get(model_id)
+                if instance is not None:
+                    results[index] = instance
+                    del remaining[model_id]
+
+        if remaining:
+            results = wigo_db.mget([skey(cls, model_id) for model_id in remaining.keys()])
+            instances = [cls(result) for result in results if result is not None]
+            for instance in instances:
+                instance.prepared()
+                results[remaining[instance.id]] = instance
+
+                if memory_ttl:
+                    model_cache.put(instance.id, instance, memory_ttl)
+
+        return results
 
     def save(self):
         self.validate(strict=True)

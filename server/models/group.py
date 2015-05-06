@@ -8,15 +8,14 @@ from geodis.location import Location
 from datetime import datetime, timedelta
 from time import time
 from pytz import timezone, UTC
-from repoze.lru import CacheMaker
 from schematics.types import StringType, BooleanType, FloatType, IntType
 
 from server.db import redis
 from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
 from server.models.location import WigoCity
+from server.models import cache_maker
 
 logger = logging.getLogger('wigo.model')
-cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 
 class Group(WigoPersistentModel):

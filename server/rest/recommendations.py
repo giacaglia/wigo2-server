@@ -4,17 +4,14 @@ from collections import Counter
 import logging
 import predictionio
 from flask import g
-from repoze.lru import CacheMaker
 from config import Configuration
 from server.db import wigo_db
 from server.models import skey
 from server.models.user import User
-from server.rest import WigoResource, api
+from server.rest import WigoResource, api, cache_maker
 from server.security import user_token_required
 
 logger = logging.getLogger('wigo.recommendations')
-
-cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 engine_client = predictionio.EngineClient(
     url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,

@@ -8,6 +8,7 @@ from flask import g, request, Blueprint, url_for
 from flask.ext.restful import Resource, abort
 from flask.ext import restplus
 from pytz import UnknownTimeZoneError
+from repoze.lru import CacheMaker
 from schematics.exceptions import ModelValidationError
 from werkzeug.urls import url_encode
 from server.models import AlreadyExistsException
@@ -21,6 +22,7 @@ from utils import SecurityException
 
 logger = logging.getLogger('wigo.web')
 
+cache_maker = CacheMaker(maxsize=1000, timeout=60)
 api_blueprint = Blueprint('api', __name__, url_prefix='/api')
 
 
