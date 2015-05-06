@@ -255,7 +255,13 @@ class WigoModel(Model):
 
         model_id = int(model_id)
         memory_ttl = cls.memory_ttl()
-        instance = model_cache.get(model_id) if memory_ttl else None
+
+        instance = None
+        if memory_ttl:
+            result = model_cache.get(model_id)
+            if result:
+                instance = cls(result)
+                instance.prepared()
 
         if instance is None:
             result = wigo_db.get(skey(cls, model_id))
@@ -263,7 +269,7 @@ class WigoModel(Model):
                 instance = cls(result)
                 instance.prepared()
                 if memory_ttl:
-                    model_cache.put(model_id, instance, memory_ttl)
+                    model_cache.put(model_id, result, memory_ttl)
 
         if instance:
             return instance
@@ -293,8 +299,10 @@ class WigoModel(Model):
         memory_ttl = cls.memory_ttl()
         if memory_ttl:
             for index, model_id in enumerate(model_ids):
-                instance = model_cache.get(model_id)
-                if instance is not None:
+                result = model_cache.get(model_id)
+                if result is not None:
+                    instance = cls(result)
+                    instance.prepared()
                     results[index] = instance
                     remaining[model_id].remove(index)
                     if len(remaining[model_id]) == 0:
@@ -302,15 +310,14 @@ class WigoModel(Model):
 
         if remaining:
             redis_results = wigo_db.mget([skey(cls, model_id) for model_id in remaining.keys()])
-            instances = [cls(redis_result) for redis_result in redis_results if redis_result is not None]
-            for instance in instances:
-                instance.prepared()
-
-                for index in remaining[instance.id]:
-                    results[index] = instance
-
-                if memory_ttl:
-                    model_cache.put(instance.id, instance, memory_ttl)
+            for result in redis_results:
+                if result:
+                    instance = cls(result)
+                    instance.prepared()
+                    for index in remaining[instance.id]:
+                        results[index] = instance
+                    if memory_ttl:
+                        model_cache.put(instance.id, result, memory_ttl)
 
         return results
 
