@@ -88,7 +88,7 @@ class User(WigoPersistentModel):
         elif self.first_name:
             return self.first_name
         else:
-            return self.username
+            return self.username or ''
 
     def get_id(self):
         return self.id
@@ -222,10 +222,10 @@ class Friend(WigoModel):
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, 1)
 
             self.db.sorted_set_add(skey('user', self.user_id, 'friends', 'alpha'),
-                                   self.friend_id, prefix_score(self.friend.full_name), replicate=False)
+                                   self.friend_id, prefix_score(self.friend.full_name.lower()), replicate=False)
 
             self.db.sorted_set_add(skey('user', self.friend_id, 'friends', 'alpha'),
-                                   self.user_id, prefix_score(self.user.full_name), replicate=False)
+                                   self.user_id, prefix_score(self.user.full_name.lower()), replicate=False)
 
             if self.user.privacy == 'private':
                 self.db.set_add(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
