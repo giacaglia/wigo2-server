@@ -77,7 +77,8 @@ def initialize(create_tables=False, import_cities=False):
             CREATE OR REPLACE VIEW users AS
               SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'group_id' AS BIGINT) group_id,
               value->>'first_name' first_name, value->>'last_name' last_name, value->>'gender' gender,
-              CAST(value->>'latitude' as float) latitude, CAST(value->>'longitude' as float) longitude
+              value->>'status' status, CAST(value->>'latitude' as float) latitude,
+              CAST(value->>'longitude' as float) longitude
               FROM data_strings WHERE value->>'$type' = 'User'
 
             CREATE OR REPLACE VIEW groups AS

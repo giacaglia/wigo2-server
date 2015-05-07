@@ -253,6 +253,7 @@ class EventMessage(WigoPersistentModel):
     message = StringType()
     media_mime_type = StringType(required=True)
     media = StringType(required=True)
+    image = StringType()
     thumbnail = StringType()
     vote_boost = IntType()
     tags = ListType(StringType)

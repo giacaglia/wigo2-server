@@ -24,6 +24,14 @@ class UserResource(WigoDbResource):
     def get(self, model_id):
         return super(UserResource, self).get(model_id)
 
+    def get_last_modified(self, user):
+        # since people waiting to get in are checking their position
+        # all the time, need to bust the caching
+        if user.status == 'waiting':
+            return datetime.utcnow()
+        else:
+            return super(UserResource, self).get_last_modified(user)
+
     @api.expect(User.to_doc_list_model(api))
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     @api.response(403, 'If trying to edit another user')
@@ -103,14 +111,12 @@ class UserListResource(WigoResource):
     def get(self):
         text = request.args.get('text')
         if text:
-            sql = "SELECT id FROM users WHERE "
+            sql = "SELECT id FROM users WHERE status = 'active'"
 
             params = []
             split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
             for index, s in enumerate(split):
-                if index > 0:
-                    sql += 'AND'
-                sql += "((LOWER(first_name) LIKE %s) or (LOWER(last_name) LIKE %s))"
+                sql += " AND ((LOWER(first_name) LIKE %s) or (LOWER(last_name) LIKE %s))"
                 params.append(s)
                 params.append(s)
 

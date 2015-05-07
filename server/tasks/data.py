@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logging
+from random import randint
 import ujson
 
 from threading import Thread
@@ -24,6 +25,22 @@ from utils import epoch
 EVENT_CHANGE_TIME_BUFFER = 60
 
 logger = logging.getLogger('wigo.tasks.data')
+
+
+def new_user(user_id):
+    user_queue_key = skey('user_queue')
+    last_waiting = wigo_db.sorted_set_range(user_queue_key, -1, -1, True)
+    if last_waiting:
+        last_waiting_score = last_waiting[1]
+        if last_waiting_score > (time() + (60 * 60 * 11)):
+            score = last_waiting_score + 10
+        else:
+            score = last_waiting_score + randint(60, 60 * 60)
+    else:
+        score = time() + randint(120, 60 * 60)
+
+    wigo_db.sorted_set_add(user_queue_key, user_id, score, replicate=False)
+
 
 
 @job(data_queue, timeout=30, result_ttl=0)
@@ -283,6 +300,10 @@ def wire_data_listeners():
     def data_save_listener(sender, instance, created):
         if isinstance(instance, User):
             publish_model_change(instance)
+
+            if created:
+                new_user(instance.id)
+
         elif isinstance(instance, Group):
             publish_model_change(instance)
         elif isinstance(instance, Friend) and created:

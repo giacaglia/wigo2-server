@@ -45,9 +45,9 @@ def get_video_upload_location():
 
     path_id = uuid4().hex
     video_form_args = get_upload_location(user, 'video/mp4', filename, path_id)
-    thumbnail_form_args = get_upload_location(user, 'image/jpeg', 'thumbnail.jpg', path_id)
+    image_form_args = get_upload_location(user, 'image/jpeg', 'image.jpg', path_id)
 
-    return jsonify(video=video_form_args, thumbnail=thumbnail_form_args)
+    return jsonify(video=video_form_args, image=image_form_args)
 
 
 @user_token_required

@@ -213,8 +213,15 @@ class WigoResource(Resource):
     def serialize_object(self, obj):
         prim = obj.to_primitive(role='www')
 
-        if isinstance(obj, User) and obj != g.user and User.key.name in prim:
-            del prim[User.key.name]
+        if isinstance(obj, User):
+            if obj == g.user:
+                if obj.status == 'waiting':
+                    score = wigo_db.sorted_set_get_score(skey('user_queue'), obj.id)
+                    pos = int((datetime.utcfromtimestamp(score) - datetime.utcnow()).total_seconds() / 50)
+                    prim['wait_list_position'] = max(pos, 1)
+            else:
+                if User.key.name in prim:
+                    del prim[User.key.name]
 
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
@@ -348,12 +355,17 @@ class WigoDbResource(WigoResource):
     def get(self, model_id):
         instance = self.model.find(self.get_id(model_id))
         self.check_get(instance)
-        headers = {'Last-Modified': http_date(instance.modified)}
 
-        if not is_resource_modified(request.environ, last_modified=instance.modified):
+        modified = self.get_last_modified(instance)
+        headers = {'Last-Modified': http_date(modified)}
+
+        if not is_resource_modified(request.environ, last_modified=modified):
             return 'Not modified', 304, headers
 
         return self.serialize_list(self.model, [instance]), 200, headers
+
+    def get_last_modified(self, instance):
+        return instance.modified
 
     @user_token_required
     def post(self, model_id):

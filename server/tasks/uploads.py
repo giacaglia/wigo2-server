@@ -21,7 +21,12 @@ def process_eventmessage_image(message_id):
         return
 
     message = EventMessage.find(message_id)
-    path = os.path.split(urlparse(message.media).path)[0]
+    media = message.image if message.media_mime_type == 'video/mp4' else message.media
+
+    if not media:
+        return
+
+    path = os.path.split(urlparse(media).path)[0]
 
     function = {
         'name': 'resize_to_fit',
@@ -47,7 +52,7 @@ def process_eventmessage_image(message_id):
     # the hook is defined in uploads.py
     job_data = {
         'application_id': Configuration.BLITLINE_APPLICATION_ID,
-        'src': 'https://' + Configuration.UPLOADS_CDN + '/' + message.media,
+        'src': 'https://' + Configuration.UPLOADS_CDN + '/' + media,
         'postback_url': 'https://' + Configuration.API_HOST +
                         '/api/hooks/blitline/' + Configuration.API_HOOK_KEY + '/',
         'functions': [function]
@@ -70,7 +75,7 @@ def process_eventmessage_image(message_id):
 def wire_uploads_listeners():
     def uploads_model_listener(sender, instance, created):
         if created and isinstance(instance, EventMessage):
-            if instance.media_mime_type == 'image/jpeg' and not instance.thumbnail:
+            if not instance.thumbnail:
                 process_eventmessage_image.delay(instance.id)
 
     post_model_save.connect(uploads_model_listener, weak=False)

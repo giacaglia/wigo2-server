@@ -23,6 +23,8 @@ def notify_on_eventmessage(message_id):
         return
 
     user = message.user
+    type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
+
     with rate_limit('notifications:eventmessage:{}:'.format(user.id, message.event.id),
                     message.event.expires) as limited:
         if limited:
@@ -32,8 +34,10 @@ def notify_on_eventmessage(message_id):
             if friend == user:
                 continue
 
-            message_text = '{name} posted a photo in {event}'.format(
-                name=user.full_name.encode('utf-8'), event=message.event.name.encode('utf-8'))
+            message_text = '{name} posted a {type} in {event}'.format(
+                name=user.full_name.encode('utf-8'),
+                type=type,
+                event=message.event.name.encode('utf-8'))
 
             notification = Notification({
                 'user_id': friend.id,
@@ -50,6 +54,7 @@ def notify_on_eventmessage(message_id):
 def notify_on_eventmessage_vote(voter_id, message_id):
     voter = User.find(voter_id)
     message = EventMessage.find(message_id)
+    type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
     # don't send a notification if blocked
     if voter_id == message.user_id or voter.group_id != message.user.group_id or \
@@ -59,8 +64,10 @@ def notify_on_eventmessage_vote(voter_id, message_id):
     expires = message.user.group.get_day_end()
     with rate_limit('notifications:vote:%s:%s:%s' % (message.user_id, message_id, voter_id), expires) as limited:
         if not limited:
-            message_text = '{name} liked your photo in {event}'.format(
-                name=voter.full_name.encode('utf-8'), event=message.event.name.encode('utf-8'))
+            message_text = '{name} liked your {} in {event}'.format(
+                name=voter.full_name.encode('utf-8'),
+                type=type,
+                event=message.event.name.encode('utf-8'))
 
             notification = Notification({
                 'user_id': message.user_id,
