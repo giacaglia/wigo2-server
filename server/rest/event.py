@@ -172,7 +172,7 @@ class UserEventListResource(WigoResource):
     model = Event
 
     @user_token_required
-    @check_last_modified('user', 'user', 'last_event_change')
+    @check_last_modified('user', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self, user_id, headers):
         count, page, instances = self.select().user(g.user).execute()
@@ -231,7 +231,7 @@ class UserEventAttendeeListResource(WigoResource):
     model = EventAttendee
 
     @user_token_required
-    @check_last_modified('user', 'user', 'last_event_change')
+    @check_last_modified('user', 'last_event_change')
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
     def get(self, user_id, event_id, headers):
         event = Event.find(event_id)

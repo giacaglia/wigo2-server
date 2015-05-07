@@ -30,6 +30,8 @@ logger = logging.getLogger('wigo.tasks.data')
 def event_related_change(group_id):
     from server.db import redis
 
+    logger.info('recording event change in group {}'.format(group_id))
+
     lock = redis.lock('locks:group_event_change:{}'.format(group_id), timeout=30)
     if lock.acquire(blocking=False):
         try:
