@@ -49,9 +49,9 @@ def setup_user_by_token():
                 g.group = group
 
             if not user.location_locked and hasattr(g, 'latitude') and hasattr(g, 'longitude'):
-                if user.modified <= (datetime.utcnow() - timedelta(hours=1)):
-                    user.latitude = g.latitude
-                    user.longitude = g.longitude
+                if user.modified <= (datetime.utcnow() - timedelta(minutes=30)):
+                    user.latitude = round(g.latitude, 3)
+                    user.longitude = round(g.longitude, 3)
             else:
                 if not user.latitude:
                     user.latitude = group.latitude
