@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from functools import wraps
 from flask import request, g, Response
 from flask.ext.restful import abort
+from datetime import datetime, timedelta
 
 from config import Configuration
 from server.models import DoesNotExist
@@ -48,8 +49,9 @@ def setup_user_by_token():
                 g.group = group
 
             if not user.location_locked and hasattr(g, 'latitude') and hasattr(g, 'longitude'):
-                user.latitude = g.latitude
-                user.longitude = g.longitude
+                if user.modified <= (datetime.utcnow() - timedelta(hours=1)):
+                    user.latitude = g.latitude
+                    user.longitude = g.longitude
             else:
                 if not user.latitude:
                     user.latitude = group.latitude
