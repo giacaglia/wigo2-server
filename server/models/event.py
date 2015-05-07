@@ -37,10 +37,6 @@ class Event(WigoPersistentModel):
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
 
-    @classmethod
-    def memory_ttl(cls):
-        return 600
-
     def validate(self, partial=False, strict=False):
         if self.id is None and self.privacy == 'public':
             # for new events make sure there is an existing event with the same name
@@ -261,10 +257,6 @@ class EventMessage(WigoPersistentModel):
 
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
-
-    @classmethod
-    def memory_ttl(cls):
-        return 600
 
     def validate(self, partial=False, strict=False):
         super(EventMessage, self).validate(partial, strict)

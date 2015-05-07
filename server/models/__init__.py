@@ -14,6 +14,7 @@ from schematics.models import Model
 from schematics.transforms import blacklist
 from schematics.types import BaseType, StringType, DateTimeType, LongType, FloatType, NumberType, BooleanType
 from schematics.types.serializable import serializable
+from server import in_request_context
 from utils import dotget, epoch
 
 logger = logging.getLogger('wigo.model')
@@ -21,7 +22,7 @@ logger = logging.getLogger('wigo.model')
 INDEX_FIELD = re.compile('\{(.*?)\}', re.I)
 DEFAULT_EXPIRING_TTL = timedelta(days=10)
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
-model_cache = ExpiringLRUCache(15000, 60)
+model_cache = ExpiringLRUCache(50000, 60 * 60)
 
 
 class JsonType(BaseType):
@@ -257,7 +258,7 @@ class WigoModel(Model):
         memory_ttl = cls.memory_ttl()
 
         instance = None
-        if memory_ttl:
+        if memory_ttl and should_check_memory_cache(model_id):
             result = model_cache.get(model_id)
             if result:
                 instance = cls(result)
@@ -299,6 +300,9 @@ class WigoModel(Model):
         memory_ttl = cls.memory_ttl()
         if memory_ttl:
             for index, model_id in enumerate(model_ids):
+                if not should_check_memory_cache(model_id):
+                    continue
+
                 result = model_cache.get(model_id)
                 if result is not None:
                     instance = cls(result)
@@ -470,6 +474,10 @@ class WigoModel(Model):
 class WigoPersistentModel(WigoModel):
     id = LongType()
 
+    @classmethod
+    def memory_ttl(cls):
+        return 60 * 60
+
     @serializable(serialized_name='$id')
     def id_for_ref(self):
         if self.id:
@@ -580,6 +588,19 @@ def index_key(key_template, values):
     split = key_template.split('=')
     key = split[0].format(**values)
     return skey(*key.split(':'))
+
+
+def should_check_memory_cache(model_id):
+    if not in_request_context():
+        return False
+
+    from flask import g
+
+    current_user = getattr(g, 'user', None)
+    if current_user:
+        return current_user.id != model_id
+
+    return False
 
 
 pre_model_save = signal('pre_model_save')

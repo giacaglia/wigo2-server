@@ -195,11 +195,8 @@ def wire_notifications_listeners():
             notify_on_eventmessage_vote.delay(instance.user_id, instance.message_id)
         elif isinstance(instance, Message):
             notify_on_message.delay(instance.id)
-            instance.to_user.track_meta('last_message', epoch(instance.created))
         elif isinstance(instance, Friend):
             notify_on_friend.delay(instance.user_id, instance.friend_id, instance.accepted)
-            if not instance.accepted:
-                instance.friend.track_meta('last_friend_request', epoch(instance.created))
         elif isinstance(instance, Tap):
             notify_on_tap.delay(instance.user_id, instance.tapped_id)
         elif isinstance(instance, Invite):

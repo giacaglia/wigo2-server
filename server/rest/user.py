@@ -12,7 +12,7 @@ from server.models.event import Event
 
 from server.models.user import User, Friend, Tap, Block, Invite, Message, Notification
 from server.rdbms import db
-from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api
+from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api, check_last_modified
 from server.security import user_token_required
 
 
@@ -125,8 +125,9 @@ class FriendsListResource(WigoResource):
     model = Friend
 
     @user_token_required
+    @check_last_modified('last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
-    def get(self, user_id):
+    def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
         text = request.args.get('text')
         if text:
@@ -150,10 +151,10 @@ class FriendsListResource(WigoResource):
                 results = list(db.execute_sql(sql, params))
 
             users = User.find([id[0] for id in results])
-            return self.serialize_list(self.model, users)
+            return self.serialize_list(self.model, users), 200, headers
         else:
             count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
-            return self.serialize_list(User, friends, count, page)
+            return self.serialize_list(User, friends, count, page), 200, headers
 
     @user_token_required
     @api.expect(api.model('NewFriend', {
@@ -188,30 +189,34 @@ class FriendIdsListResource(WigoResource):
     model = Friend
 
     @user_token_required
+    @check_last_modified('last_friend', 60*60)
     @api.response(200, 'Success')
-    def get(self, user_id):
+    def get(self, user_id, headers):
+        user_id = self.get_id(user_id)
         user = User.find(self.get_id(user_id))
-        return user.get_friend_ids()
+        return user.get_friend_ids(), 200, headers
 
 
 @api.route('/users/<user_id>/friends/requested')
 class FriendRequestedListResource(WigoResource):
     @user_token_required
+    @check_last_modified('last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
-    def get(self, user_id):
+    def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
         count, page, friends = self.setup_query(self.select(User).user(user).friend_requested()).execute()
-        return self.serialize_list(User, friends, count, page)
+        return self.serialize_list(User, friends, count, page), 200, headers
 
 
 @api.route('/users/<user_id>/friends/requests')
 class FriendRequestsListResource(WigoResource):
     @user_token_required
+    @check_last_modified('last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
-    def get(self, user_id):
+    def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
         count, page, friends = self.setup_query(self.select(User).user(user).friend_requests()).execute()
-        return self.serialize_list(User, friends, count, page)
+        return self.serialize_list(User, friends, count, page), 200, headers
 
 
 @api.route('/users/<user_id>/friends/<int:friend_id>')
@@ -236,7 +241,9 @@ class FriendsInCommonCountResource(WigoResource):
     @user_token_required
     def get(self, user_id, with_user_id):
         ids = g.user.get_friend_ids_in_common(with_user_id)
-        return {'count': len(ids)}
+        return {'count': len(ids)}, 200, {
+            'Cache-Control': 'max-age={}'.format(60 * 60)
+        }
 
 
 @api.route('/users/<user_id>/friends/common/<int:with_user_id>')
@@ -248,7 +255,9 @@ class FriendsInCommonResource(WigoResource):
     def get(self, user_id, with_user_id):
         ids = g.user.get_friend_ids_in_common(with_user_id)
         users = User.find(ids)
-        return self.serialize_list(User, users)
+        return self.serialize_list(User, users), 200, {
+            'Cache-Control': 'max-age={}'.format(60 * 60)
+        }
 
 
 @api.route('/events/<int:event_id>/invites')
@@ -305,9 +314,10 @@ class TapListResource(WigoResource):
     model = Tap
 
     @user_token_required
+    @check_last_modified('last_tap', 60*60)
     @api.response(200, 'Success')
-    def get(self, user_id):
-        return g.user.get_tapped_ids()
+    def get(self, user_id, headers):
+        return g.user.get_tapped_ids(), 200, headers
 
     @user_token_required
     @api.expect(api.model('NewTap', {
@@ -328,9 +338,10 @@ class BlockListResource(WigoResource):
     model = Block
 
     @user_token_required
+    @check_last_modified('last_block', 60*60)
     @api.response(200, 'Success')
-    def get(self, user_id):
-        return g.user.get_blocked_ids()
+    def get(self, user_id, headers):
+        return g.user.get_blocked_ids(), 200, headers
 
     @user_token_required
     @api.expect(api.model('NewBlock', {
@@ -401,10 +412,11 @@ class ConversationsResource(WigoResource):
     model = Message
 
     @user_token_required
+    @check_last_modified('last_message')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
-    def get(self):
+    def get(self, headers):
         count, page, instances = self.select().user(g.user).execute()
-        return self.serialize_list(self.model, instances, count, page)
+        return self.serialize_list(self.model, instances, count, page), 200, headers
 
 
 @api.route('/conversations/<int:with_user_id>')
@@ -412,11 +424,12 @@ class ConversationWithUserResource(WigoResource):
     model = Message
 
     @user_token_required
+    @check_last_modified('last_message')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
-    def get(self, with_user_id):
+    def get(self, with_user_id, headers):
         with_user = User.find(with_user_id)
         count, page, instances = self.select().user(g.user).to_user(with_user).execute()
-        return self.serialize_list(self.model, instances, count, page)
+        return self.serialize_list(self.model, instances, count, page), 200, headers
 
     @user_token_required
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
@@ -430,8 +443,9 @@ class NotificationsResource(WigoResource):
     model = Notification
 
     @user_token_required
+    @check_last_modified('last_notification')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
-    def get(self, user_id):
+    def get(self, user_id, headers):
         count, page, instances = self.select().user(g.user).execute()
-        return self.serialize_list(self.model, instances, count, page)
+        return self.serialize_list(self.model, instances, count, page), 200, headers
 

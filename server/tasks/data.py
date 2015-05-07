@@ -5,11 +5,14 @@ import logging
 from time import time
 from datetime import timedelta, datetime
 from contextlib import contextmanager
+from urlparse import urlparse
+from redis import Redis
 from rq.decorators import job
+import ujson
 from config import Configuration
 from server.db import wigo_db, redis
 from server.models.group import Group, get_close_groups
-from server.models.user import User, Friend, Invite
+from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
     user_attendees_key
@@ -206,11 +209,49 @@ def user_lock(user_id):
         yield
 
 
+def on_model_change_broadcast(message):
+    from server.models import model_cache
+
+    data = ujson.loads(message['data'])
+    logger.info('evicting {} from cache'.format(data))
+    model_cache.invalidate(data['id'])
+
+
+def wire_event_bus():
+    pubsub_redis_url = urlparse(Configuration.REDIS_URL)
+    pubsub_redis = Redis(host=pubsub_redis_url.hostname,
+                         port=pubsub_redis_url.port,
+                         password=pubsub_redis_url.password)
+
+    pubsub = pubsub_redis.pubsub(ignore_subscribe_messages=True)
+    pubsub.subscribe(model_change=on_model_change_broadcast)
+    thread = pubsub.run_in_thread(.1)
+
+
 def wire_data_listeners():
+    def publish_model_change(instance):
+        redis.publish('model_change', ujson.dumps({
+            'type': instance.__class__.__name__,
+            'id': instance.id
+        }))
+
     def data_save_listener(sender, instance, created):
-        if isinstance(instance, Friend) and created:
+        if isinstance(instance, User):
+            publish_model_change(instance)
+        elif isinstance(instance, Group):
+            publish_model_change(instance)
+        elif isinstance(instance, Friend) and created:
             if instance.accepted:
                 new_friend.delay(instance.user_id, instance.friend_id)
+            else:
+                instance.friend.track_meta('last_friend_request', epoch(instance.created))
+
+            instance.user.track_meta('last_friend', epoch(instance.created))
+            instance.friend.track_meta('last_friend', epoch(instance.created))
+        elif isinstance(instance, Tap):
+            instance.user.track_meta('last_tap', epoch(instance.created))
+        elif isinstance(instance, Block):
+            instance.user.track_meta('last_block', epoch(instance.created))
         elif isinstance(instance, Event):
             event_landed_in_group.delay(instance.group_id)
         elif isinstance(instance, Invite):
@@ -221,14 +262,24 @@ def wire_data_listeners():
             tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
             tell_friends_about_vote.delay(instance.message_id, instance.user_id)
+        elif isinstance(instance, Message):
+            instance.user.track_meta('last_message', epoch(instance.created))
+            instance.to_user.track_meta('last_message', epoch(instance.created))
+            instance.to_user.track_meta('last_message_received', epoch(instance.created))
 
     def data_delete_listener(sender, instance):
         if isinstance(instance, EventMessage):
             tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
-        if isinstance(instance, EventAttendee):
+        elif isinstance(instance, EventAttendee):
             tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
-        if isinstance(instance, Friend):
+        elif isinstance(instance, Friend):
             delete_friend.delay(instance.user_id, instance.friend_id)
+            instance.user.track_meta('last_friend')
+            instance.friend.track_meta('last_friend')
+        elif isinstance(instance, Tap):
+            instance.user.track_meta('last_tap')
+        elif isinstance(instance, Block):
+            instance.user.track_meta('last_block')
 
     def privacy_changed_listener(sender, instance):
         privacy_changed.delay(instance.id)
@@ -237,3 +288,5 @@ def wire_data_listeners():
     post_model_delete.connect(data_delete_listener, weak=False)
     user_privacy_change.connect(privacy_changed_listener, weak=False)
 
+    # listen to the redis event bus for model changes
+    wire_event_bus()

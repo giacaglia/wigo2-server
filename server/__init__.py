@@ -14,3 +14,9 @@ class ApiSessionInterface(SecureCookieSessionInterface):
             return None
         else:
             return super(ApiSessionInterface, self).open_session(app, req)
+
+
+class NotModifiedException(Exception):
+    def __init__(self, ttl=60):
+        super(NotModifiedException, self).__init__()
+        self.ttl = ttl

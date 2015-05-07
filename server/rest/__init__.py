@@ -1,22 +1,29 @@
 from __future__ import absolute_import
-import logging
 
 import math
+import logging
 
+from time import time
+from datetime import datetime
+from functools import wraps
 from collections import defaultdict
-from flask import g, request, Blueprint, url_for
+from flask import g, request, Blueprint, url_for, current_app
 from flask.ext.restful import Resource, abort
 from flask.ext import restplus
+from newrelic import agent
 from pytz import UnknownTimeZoneError
 from repoze.lru import CacheMaker
 from schematics.exceptions import ModelValidationError
+from werkzeug.http import is_resource_modified, http_date
 from werkzeug.urls import url_encode
-from server.models import AlreadyExistsException
+from server import NotModifiedException
+from server.db import wigo_db
+from server.models import AlreadyExistsException, skey
 from server.models.event import EventMessage, Event, EventAttendee, get_cached_num_attending, get_num_attending
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
-from utils import ValidationException, partition
+from utils import ValidationException, partition, epoch
 from utils import SecurityException
 
 
@@ -29,6 +36,16 @@ api_blueprint = Blueprint('api', __name__, url_prefix='/api')
 class WigoApi(restplus.Api):
     def __init__(self):
         super(WigoApi, self).__init__(api_blueprint, ui=False, title='Wigo API', catch_all_404s=True)
+
+    def handle_error(self, e):
+        if isinstance(e, NotModifiedException):
+            agent.ignore_transaction()
+            response = current_app.response_class(status=304)
+            response.headers.add('Cache-Control', 'max-age=%s' % e.ttl)
+            return response
+        else:
+            return super(WigoApi, self).handle_error(e)
+
 
     @property
     def specs_url(self):
@@ -392,6 +409,34 @@ def handle_not_implemented(error):
 def handle_unknown_tz(error):
     logger.warn('validation error {}'.format(error.message))
     return {'message': 'Unknown timezone'}, 400
+
+
+def check_last_modified(field=None, max_age=0):
+    def inner(f):
+        @wraps(f)
+        def decorated(*args, **kw):
+            last_change = wigo_db.redis.hget(skey(g.user, 'meta'), field)
+            if last_change:
+                last_change = datetime.utcfromtimestamp(float(last_change))
+            else:
+                last_change = datetime.utcnow()
+                wigo_db.redis.hset(skey(g.user, 'meta'), field, time())
+
+            headers = {'Last-Modified': http_date(last_change or datetime.utcnow())}
+
+            if max_age:
+                headers['Cache-Control'] = 'max-age={}'.format(max_age)
+
+            if last_change and not is_resource_modified(request.environ, last_modified=last_change):
+                return 'Not modified', 304, headers
+
+            kw['headers'] = headers
+            return f(*args, **kw)
+
+        return decorated
+
+    return inner
+
 
 
 import server.rest.register

@@ -399,10 +399,6 @@ class Notification(WigoPersistentModel):
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
 
-    @classmethod
-    def memory_ttl(cls):
-        return 600
-
     @property
     @field_memoize('from_user_id')
     def from_user(self):
@@ -424,10 +420,6 @@ class Message(WigoPersistentModel):
     user_id = LongType(required=True)
     to_user_id = LongType(required=True)
     message = StringType(required=True)
-
-    @classmethod
-    def memory_ttl(cls):
-        return 600
 
     @property
     @field_memoize('to_user_id')
@@ -459,3 +451,6 @@ class Message(WigoPersistentModel):
 
         wigo_db.sorted_set_remove(skey(user, 'conversations'), to_user.id)
         wigo_db.delete(skey(user, 'conversation', to_user.id))
+        user.track_meta('last_message')
+        to_user.track_meta('last_message')
+
