@@ -87,7 +87,9 @@ class UserRecommendationsResource(WigoResource):
             users.extend(User.find(to_fetch_ordered))
             num_remaining -= len(to_fetch_ordered)
 
-        return self.serialize_list(User, users)
+        return self.serialize_list(User, users), 200, {
+            'Cache-Control': 'max-age={}'.format(120)
+        }
 
 
 @cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
