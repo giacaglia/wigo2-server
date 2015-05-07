@@ -348,9 +348,12 @@ class WigoDbResource(WigoResource):
     def get(self, model_id):
         instance = self.model.find(self.get_id(model_id))
         self.check_get(instance)
-        return self.serialize_list(self.model, [instance]), 200, {
-            'Last-Modified': http_date(instance.modified)
-        }
+        headers = {'Last-Modified': http_date(instance.modified)}
+
+        if not is_resource_modified(request.environ, last_modified=instance.modified):
+            return 'Not modified', 304, headers
+
+        return self.serialize_list(self.model, [instance]), 200, headers
 
     @user_token_required
     def post(self, model_id):
