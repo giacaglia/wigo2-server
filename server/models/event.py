@@ -148,6 +148,8 @@ class Event(WigoPersistentModel):
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, distance, num_attending))
                 self.clean_old(events_key)
 
+        user.track_meta('last_event_change')
+
     def add_to_user_attending(self, user, attendee, score=1):
         # add to the users view of who is attending
         attendees_key = user_attendees_key(user, self)
@@ -291,6 +293,8 @@ class EventMessage(WigoPersistentModel):
         self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort, replicate=False)
         self.db.expire(by_votes_key, self.ttl())
 
+        user.track_meta('last_event_change')
+
     def remove_index(self):
         super(EventMessage, self).remove_index()
         self.db.sorted_set_remove(skey(self.event, 'messages', 'by_votes'), self.id)
@@ -300,6 +304,7 @@ class EventMessage(WigoPersistentModel):
         event = self.event
         self.db.sorted_set_remove(user_eventmessages_key(user, event), self.id)
         self.db.sorted_set_remove(user_eventmessages_key(user, event, True), self.id)
+        user.track_meta('last_event_change')
 
 
 class EventMessageVote(WigoModel):

@@ -10,7 +10,7 @@ from server.db import wigo_db
 from server.models import skey, user_eventmessages_key, AlreadyExistsException
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
 from server.models.group import get_group_by_city_id, Group, get_close_groups_with_events
-from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api, cache_maker
+from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api, cache_maker, check_last_modified
 from server.security import user_token_required
 from utils import epoch
 
@@ -20,8 +20,9 @@ class EventListResource(WigoDbListResource):
     model = Event
 
     @user_token_required
+    @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
-    def get(self):
+    def get(self, headers):
         limit = self.get_limit()
         page = self.get_page()
 
@@ -103,7 +104,7 @@ class EventListResource(WigoDbListResource):
                 all_events.insert(0, attending)
                 attending.current_user_attending = True
 
-        return self.serialize_list(Event, all_events, next=next)
+        return self.serialize_list(Event, all_events, next=next), 200, headers
 
     @user_token_required
     @api.expect(Event.to_doc_list_model(api))
@@ -171,10 +172,11 @@ class UserEventListResource(WigoResource):
     model = Event
 
     @user_token_required
+    @check_last_modified('user', 'user', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
-    def get(self, user_id):
+    def get(self, user_id, headers):
         count, page, instances = self.select().user(g.user).execute()
-        return self.serialize_list(self.model, instances, count, page)
+        return self.serialize_list(self.model, instances, count, page), 200, headers
 
 
 @api.route('/events/<int:event_id>/attendees')
@@ -183,6 +185,7 @@ class EventAttendeeListResource(WigoResource):
     model = EventAttendee
 
     @user_token_required
+    @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
     def get(self, event_id):
         event = Event.find(event_id)
@@ -228,13 +231,14 @@ class UserEventAttendeeListResource(WigoResource):
     model = EventAttendee
 
     @user_token_required
+    @check_last_modified('user', 'user', 'last_event_change')
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
-    def get(self, user_id, event_id):
+    def get(self, user_id, event_id, headers):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
         count, page, instances = self.select().user(g.user).event(event).execute()
-        return self.serialize_list(self.model, instances, count, page)
+        return self.serialize_list(self.model, instances, count, page), 200, headers
 
 
 @api.route('/events/<int:event_id>/messages')
@@ -243,13 +247,14 @@ class EventMessageListResource(WigoResource):
     model = EventMessage
 
     @user_token_required
+    @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
-    def get(self, event_id):
+    def get(self, event_id, headers):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
         count, page, messages = self.select().event(event).secure(g.user).execute()
-        return self.serialize_list(self.model, messages, count, page)
+        return self.serialize_list(self.model, messages, count, page), 200, headers
 
     @user_token_required
     @api.expect(EventMessage.to_doc_list_model(api))
@@ -259,6 +264,22 @@ class EventMessageListResource(WigoResource):
         data['event_id'] = event_id
         message = self.create(data)
         return self.serialize_list(self.model, [message])
+
+
+@api.route('/users/<user_id>/events/<int:event_id>/messages')
+@api.response(403, 'If not invited to event')
+class UserEventMessageListResource(WigoResource):
+    model = EventMessage
+
+    @user_token_required
+    @check_last_modified('user', 'last_event_change')
+    @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
+    def get(self, event_id, headers):
+        event = Event.find(event_id)
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event')
+        count, page, messages = self.select().event(event).user(g.user).secure(g.user).execute()
+        return self.serialize_list(self.model, messages, count, page), 200, headers
 
 
 @api.route('/events/<int:event_id>/messages/<int:message_id>')
@@ -296,8 +317,9 @@ class EventMessagesMetaListResource(WigoResource):
     model = EventMessage
 
     @user_token_required
+    @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
-    def get(self, event_id):
+    def get(self, event_id, headers):
         message_meta = {}
 
         message_ids = wigo_db.sorted_set_range(skey('event', event_id, 'messages'))
@@ -307,7 +329,7 @@ class EventMessagesMetaListResource(WigoResource):
                 'voted': wigo_db.sorted_set_is_member(skey('eventmessage', message_id, 'votes'), g.user.id)
             }
 
-        return message_meta
+        return message_meta, 200, headers
 
 
 @api.route('/users/<user_id>/events/<int:event_id>/messages/meta')
@@ -316,8 +338,9 @@ class UserEventMessagesMetaListResource(WigoResource):
     model = EventMessage
 
     @user_token_required
+    @check_last_modified('user', 'last_event_change')
     @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
-    def get(self, user_id, event_id):
+    def get(self, user_id, event_id, headers):
         message_meta = {}
 
         message_ids = wigo_db.sorted_set_range(user_eventmessages_key(g.user, event_id))
@@ -327,7 +350,7 @@ class UserEventMessagesMetaListResource(WigoResource):
                 'voted': wigo_db.sorted_set_is_member(skey(g.user, 'eventmessage', message_id, 'votes'), g.user.id)
             }
 
-        return message_meta
+        return message_meta, 200, headers
 
 
 @api.route('/events/<int:event_id>/messages/<int:message_id>/votes')

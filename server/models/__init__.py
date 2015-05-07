@@ -1,13 +1,14 @@
 from __future__ import absolute_import
-from collections import defaultdict
 
 import logging
 import ujson
 import re
 
+from collections import defaultdict
 from functools import wraps
 from blinker import signal
 from datetime import datetime, timedelta
+from time import time
 from flask.ext.restplus import fields as docfields
 from repoze.lru import CacheMaker, ExpiringLRUCache
 from schematics.models import Model
@@ -483,6 +484,17 @@ class WigoPersistentModel(WigoModel):
         if self.id:
             return '{}:{}'.format(self.__class__.__name__, self.id)
         return None
+
+    def track_meta(self, key, value=None, expire=timedelta(days=60)):
+        from server.db import wigo_db
+
+        if value is None:
+            value = time()
+
+        meta_key = skey(self, 'meta')
+        wigo_db.redis.hset(meta_key, key, value)
+        if expire:
+            wigo_db.redis.expire(meta_key, timedelta(days=60))
 
     def __cmp__(self, other):
         return cmp(self.id, other.id)

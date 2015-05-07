@@ -125,7 +125,7 @@ class FriendsListResource(WigoResource):
     model = Friend
 
     @user_token_required
-    @check_last_modified('last_friend')
+    @check_last_modified('user', 'last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
@@ -189,7 +189,7 @@ class FriendIdsListResource(WigoResource):
     model = Friend
 
     @user_token_required
-    @check_last_modified('last_friend', 60*60)
+    @check_last_modified('user', 'last_friend', 60*60)
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         user_id = self.get_id(user_id)
@@ -200,7 +200,7 @@ class FriendIdsListResource(WigoResource):
 @api.route('/users/<user_id>/friends/requested')
 class FriendRequestedListResource(WigoResource):
     @user_token_required
-    @check_last_modified('last_friend')
+    @check_last_modified('user', 'last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
@@ -211,7 +211,7 @@ class FriendRequestedListResource(WigoResource):
 @api.route('/users/<user_id>/friends/requests')
 class FriendRequestsListResource(WigoResource):
     @user_token_required
-    @check_last_modified('last_friend')
+    @check_last_modified('user', 'last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
@@ -314,7 +314,7 @@ class TapListResource(WigoResource):
     model = Tap
 
     @user_token_required
-    @check_last_modified('last_tap', 60*60)
+    @check_last_modified('user', 'last_tap', 60*60)
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         return g.user.get_tapped_ids(), 200, headers
@@ -338,7 +338,7 @@ class BlockListResource(WigoResource):
     model = Block
 
     @user_token_required
-    @check_last_modified('last_block', 60*60)
+    @check_last_modified('user', 'last_block', 60*60)
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         return g.user.get_blocked_ids(), 200, headers
@@ -412,7 +412,7 @@ class ConversationsResource(WigoResource):
     model = Message
 
     @user_token_required
-    @check_last_modified('last_message')
+    @check_last_modified('user', 'last_message')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, headers):
         count, page, instances = self.select().user(g.user).execute()
@@ -424,7 +424,7 @@ class ConversationWithUserResource(WigoResource):
     model = Message
 
     @user_token_required
-    @check_last_modified('last_message')
+    @check_last_modified('user', 'last_message')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, with_user_id, headers):
         with_user = User.find(with_user_id)
@@ -443,7 +443,7 @@ class NotificationsResource(WigoResource):
     model = Notification
 
     @user_token_required
-    @check_last_modified('last_notification')
+    @check_last_modified('user', 'last_notification')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, user_id, headers):
         count, page, instances = self.select().user(g.user).execute()

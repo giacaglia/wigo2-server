@@ -413,16 +413,20 @@ def handle_unknown_tz(error):
     return {'message': 'Unknown timezone'}, 400
 
 
-def check_last_modified(field=None, max_age=0):
+def check_last_modified(context_var, field, max_age=0):
     def inner(f):
         @wraps(f)
         def decorated(*args, **kw):
-            last_change = wigo_db.redis.hget(skey(g.user, 'meta'), field)
+            context = getattr(g, context_var, None)
+            if not context:
+                return f(*args, **kw)
+
+            last_change = wigo_db.redis.hget(skey(context, 'meta'), field)
             if last_change:
                 last_change = datetime.utcfromtimestamp(float(last_change))
             else:
                 last_change = datetime.utcnow()
-                wigo_db.redis.hset(skey(g.user, 'meta'), field, time())
+                wigo_db.redis.hset(skey(context, 'meta'), field, time())
 
             headers = {'Last-Modified': http_date(last_change or datetime.utcnow())}
 

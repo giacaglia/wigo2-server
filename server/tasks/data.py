@@ -1,8 +1,9 @@
 from __future__ import absolute_import
 
 import logging
+from threading import Thread
 
-from time import time
+from time import time, sleep
 from datetime import timedelta, datetime
 from contextlib import contextmanager
 from urlparse import urlparse
@@ -19,7 +20,26 @@ from server.models import post_model_save, skey, user_privacy_change, DoesNotExi
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
 from utils import epoch
 
+EVENT_CHANGE_TIME_BUFFER = 60
+
 logger = logging.getLogger('wigo.tasks.data')
+
+
+@job(data_queue, timeout=30, result_ttl=0)
+def event_related_change(group_id):
+    lock = redis.lock('locks:group_event_change:{}'.format(group_id), timeout=30)
+    if lock.acquire(blocking=False):
+        try:
+            group = Group.find(group_id)
+
+            # add to the time in case other changes come in while this lock is taken,
+            # or in case the job queues get backed up
+            group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
+
+            for close_group in get_close_groups(group.latitude, group.longitude, 100):
+                close_group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
+        finally:
+            lock.release()
 
 
 @job(data_queue, timeout=30, result_ttl=0)
@@ -225,7 +245,20 @@ def wire_event_bus():
 
     pubsub = pubsub_redis.pubsub(ignore_subscribe_messages=True)
     pubsub.subscribe(model_change=on_model_change_broadcast)
-    thread = pubsub.run_in_thread(.1)
+
+    class WorkerThread(Thread):
+        def __init__(self):
+            Thread.__init__(self)
+            self.daemon = True
+
+        def run(self):
+            while pubsub.subscribed:
+                message = pubsub.get_message(ignore_subscribe_messages=True)
+                if message is None:
+                    sleep(2)
+
+    thread = WorkerThread()
+    thread.start()
 
 
 def wire_data_listeners():
@@ -253,14 +286,19 @@ def wire_data_listeners():
         elif isinstance(instance, Block):
             instance.user.track_meta('last_block', epoch(instance.created))
         elif isinstance(instance, Event):
+            event_related_change.delay(instance.group_id)
             event_landed_in_group.delay(instance.group_id)
         elif isinstance(instance, Invite):
+            event_related_change.delay(instance.event.group_id)
             user_invited.delay(instance.event_id, instance.user_id, instance.invited_id)
         elif isinstance(instance, EventAttendee):
+            event_related_change.delay(instance.event.group_id)
             tell_friends_user_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, EventMessage):
+            event_related_change.delay(instance.event.group_id)
             tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
+            event_related_change.delay(instance.message.event.group_id)
             tell_friends_about_vote.delay(instance.message_id, instance.user_id)
         elif isinstance(instance, Message):
             instance.user.track_meta('last_message', epoch(instance.created))
