@@ -90,7 +90,7 @@ class WigoResource(Resource):
     def check_get(self, instance):
         pass
 
-    def clean_data(self, data, mode='edit'):
+    def clean_data(self, data, mode='edit', instance=None):
         data = dict(data)
 
         if 'id' in data:
@@ -130,7 +130,7 @@ class WigoResource(Resource):
         self.check_edit(instance)
 
         # can't change created/modified
-        data = self.clean_data(data, 'edit')
+        data = self.clean_data(data, 'edit', instance)
         for key, value in data.items():
             setattr(instance, key, value)
 

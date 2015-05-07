@@ -26,9 +26,8 @@ class User(WigoPersistentModel):
 
     class Options:
         roles = {
-            'www': blacklist('facebook_token', 'status', 'role',
-                             'exchange_token', 'email_validated_status', 'password'),
-            'www-edit': blacklist('id', 'facebook_token', 'key', 'status', 'role',
+            'www': blacklist('facebook_token', 'role', 'exchange_token', 'email_validated_status', 'password'),
+            'www-edit': blacklist('id', 'facebook_token', 'key', 'role',
                                   'group_id', 'user_id', 'exchange_token',
                                   'email_validated_status', 'password')
         }
@@ -58,7 +57,7 @@ class User(WigoPersistentModel):
 
     key = StringType(required=True, default=lambda: uuid4().hex)
     role = StringType(required=True, default='user')
-    status = StringType(required=True, default='active')
+    status = StringType(required=True, default='waiting')
     privacy = StringType(choices=('public', 'private'), required=True, default='public')
 
     facebook_id = StringType()

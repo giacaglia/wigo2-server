@@ -35,6 +35,18 @@ class UserResource(WigoDbResource):
         if not user.id == g.user.id:
             abort(403, message='Forbidden')
 
+    def clean_data(self, data, mode='edit', instance=None):
+        if User.status.name in data:
+            # on create don't allow status chage
+            # on edit only allow a transition from waiting to active
+            if instance is None:
+                del data[User.status.name]
+            elif instance.status != 'waiting' or data[User.status.name] != 'active':
+                del data[User.status.name]
+
+        return super(UserResource, self).clean_data(data, mode)
+
+
     @api.response(501, 'Not implemented')
     def delete(self, model_id):
         abort(501, message='Not implemented')
