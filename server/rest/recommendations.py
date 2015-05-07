@@ -88,7 +88,7 @@ class UserRecommendationsResource(WigoResource):
             num_remaining -= len(to_fetch_ordered)
 
         return self.serialize_list(User, users), 200, {
-            'Cache-Control': 'max-age={}'.format(120)
+            'Cache-Control': 'max-age={}'.format(600)
         }
 
 
