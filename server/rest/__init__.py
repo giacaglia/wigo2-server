@@ -428,7 +428,12 @@ def check_last_modified(context_var, field, max_age=0):
                 last_change = datetime.utcnow()
                 wigo_db.redis.hset(skey(context, 'meta'), field, time())
 
-            headers = {'Last-Modified': http_date(last_change or datetime.utcnow())}
+            if last_change > datetime.utcnow():
+                # if last-change is set to the future, the intent is to disable if-modified-since
+                # until that time. Last-Modified can't be set to the future or that doesn't work.
+                headers = {'Last-Modified': http_date(datetime.utcnow())}
+            else:
+                headers = {'Last-Modified': http_date(last_change)}
 
             if max_age:
                 headers['Cache-Control'] = 'max-age={}'.format(max_age)
