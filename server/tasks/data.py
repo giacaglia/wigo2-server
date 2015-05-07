@@ -1,17 +1,18 @@
 from __future__ import absolute_import
 
 import logging
-from threading import Thread
+import ujson
 
+from threading import Thread
 from time import time, sleep
 from datetime import timedelta, datetime
 from contextlib import contextmanager
 from urlparse import urlparse
 from redis import Redis
 from rq.decorators import job
-import ujson
 from config import Configuration
-from server.db import wigo_db, redis
+
+from server.db import wigo_db
 from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue
@@ -27,6 +28,8 @@ logger = logging.getLogger('wigo.tasks.data')
 
 @job(data_queue, timeout=30, result_ttl=0)
 def event_related_change(group_id):
+    from server.db import redis
+
     lock = redis.lock('locks:group_event_change:{}'.format(group_id), timeout=30)
     if lock.acquire(blocking=False):
         try:
@@ -223,6 +226,8 @@ def privacy_changed(user_id):
 @contextmanager
 def user_lock(user_id):
     if Configuration.ENVIRONMENT != 'test':
+        from server.db import redis
+
         with redis.lock('locks:user:{}'.format(user_id), timeout=30):
             yield
     else:
@@ -238,6 +243,9 @@ def on_model_change_broadcast(message):
 
 
 def wire_event_bus():
+    if Configuration.ENVIRONMENT == 'test':
+        return
+
     pubsub_redis_url = urlparse(Configuration.REDIS_URL)
     pubsub_redis = Redis(host=pubsub_redis_url.hostname,
                          port=pubsub_redis_url.port,
@@ -263,6 +271,8 @@ def wire_event_bus():
 
 def wire_data_listeners():
     def publish_model_change(instance):
+        from server.db import redis
+
         redis.publish('model_change', ujson.dumps({
             'type': instance.__class__.__name__,
             'id': instance.id
