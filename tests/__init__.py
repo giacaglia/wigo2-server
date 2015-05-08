@@ -35,6 +35,7 @@ def setup():
     server.db.redis = mock_redis
     server.db.wigo_db.redis = mock_redis
     server.db.wigo_queued_db.redis = mock_redis
+    server.db.scheduler.connection = mock_redis_queue
 
 
 @contextmanager

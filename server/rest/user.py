@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import re
 
@@ -28,7 +28,9 @@ class UserResource(WigoDbResource):
         # since people waiting to get in are checking their position
         # all the time, need to bust the caching
         if user.status == 'waiting':
-            return datetime.utcnow()
+            # subtract 10 seconds to prevent someone getting last-modified
+            # at the exact moment of unlock
+            return datetime.utcnow() - timedelta(seconds=10)
         else:
             return super(UserResource, self).get_last_modified(user)
 
@@ -180,10 +182,17 @@ class FriendsListResource(WigoResource):
     }))
     @api.response(200, 'Success')
     def post(self, user_id):
+        friend_id = self.get_id_field('friend_id')
+
+        # check if already friends, or friend request already sent
+        if g.user.is_friend(friend_id) or g.user.is_friend_request_sent(friend_id):
+            return {'success': True}
+
         friend = Friend()
         friend.user_id = g.user.id
-        friend.friend_id = self.get_id_field('friend_id')
+        friend.friend_id = friend_id
         friend.save()
+
         return {'success': True}
 
     @user_token_required

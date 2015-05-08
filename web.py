@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import logconfig
 from config import Configuration
-from utils import Version, ValidationException
 
 logconfig.configure(Configuration.ENVIRONMENT)
 
@@ -10,6 +9,8 @@ import os
 import ujson
 import logging
 import requests
+
+from utils import Version, ValidationException
 
 from datetime import datetime
 from urlparse import urlparse

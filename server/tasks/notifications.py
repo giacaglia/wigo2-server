@@ -1,7 +1,8 @@
 from __future__ import absolute_import
+
 import logging
 from retry import retry
-
+from datetime import timedelta
 from rq.decorators import job
 from server.db import rate_limit
 from server.services import push
@@ -13,6 +14,21 @@ from utils import epoch
 
 
 logger = logging.getLogger('wigo.notifications')
+
+
+@job(notifications_queue, timeout=30, result_ttl=0)
+def notify_unlocked(user_id):
+    with rate_limit('notifications:unlock:{}:'.format(user_id), timedelta(hours=1)) as limited:
+        if not limited:
+            user = User.find(user_id)
+
+            notification = Notification({
+                'user_id': user.id,
+                'type': 'unlocked',
+                'message': 'You\'re in! It\'s time to party!'
+            })
+
+            __send_notification_push(notification)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -193,22 +209,22 @@ def __send_notification_push(notification):
 
 def wire_notifications_listeners():
     def notifications_model_listener(sender, instance, created):
-        if not created:
-            return
-
-        if isinstance(instance, EventMessage):
+        if isinstance(instance, User):
+            if not created and instance.was_changed('status') and instance.status == 'active':
+                notify_unlocked.delay(instance.id)
+        elif isinstance(instance, EventMessage) and created:
             notify_on_eventmessage.delay(instance.id)
-        elif isinstance(instance, EventMessageVote):
+        elif isinstance(instance, EventMessageVote) and created:
             notify_on_eventmessage_vote.delay(instance.user_id, instance.message_id)
-        elif isinstance(instance, Message):
+        elif isinstance(instance, Message) and created:
             notify_on_message.delay(instance.id)
-        elif isinstance(instance, Friend):
+        elif isinstance(instance, Friend) and created:
             notify_on_friend.delay(instance.user_id, instance.friend_id, instance.accepted)
-        elif isinstance(instance, Tap):
+        elif isinstance(instance, Tap) and created:
             notify_on_tap.delay(instance.user_id, instance.tapped_id)
-        elif isinstance(instance, Invite):
+        elif isinstance(instance, Invite) and created:
             notify_on_invite.delay(instance.user_id, instance.invited_id, instance.event_id)
-        elif isinstance(instance, Notification):
+        elif isinstance(instance, Notification) and created:
             instance.user.track_meta('last_notification', epoch(instance.created))
 
     post_model_save.connect(notifications_model_listener, weak=False)

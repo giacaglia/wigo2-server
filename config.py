@@ -20,6 +20,8 @@ def parse_env_list(prefix):
 
 class Configuration(object):
     ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
+    IS_WORKER = False
+
     DEBUG = True if ENVIRONMENT == 'dev' else False
     SECRET_KEY = 'bb034599jkrtbg30ijwerrgjvn'
     PREFERRED_URL_SCHEME = 'http' if ENVIRONMENT == 'dev' else 'https'

@@ -1,9 +1,9 @@
 from __future__ import absolute_import
 
 import logging
-from random import randint
 import ujson
 
+from random import randint
 from threading import Thread
 from time import time, sleep
 from datetime import timedelta, datetime
@@ -13,7 +13,7 @@ from redis import Redis
 from rq.decorators import job
 from config import Configuration
 
-from server.db import wigo_db
+from server.db import wigo_db, scheduler, redis
 from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue
@@ -27,20 +27,46 @@ EVENT_CHANGE_TIME_BUFFER = 60
 logger = logging.getLogger('wigo.tasks.data')
 
 
-def new_user(user_id):
+def new_user(user_id, score=None):
     user_queue_key = skey('user_queue')
-    last_waiting = wigo_db.sorted_set_range(user_queue_key, -1, -1, True)
-    if last_waiting:
-        last_waiting_score = last_waiting[1]
-        if last_waiting_score > (time() + (60 * 60 * 11)):
-            score = last_waiting_score + 10
+
+    if score is None:
+        last_waiting = wigo_db.sorted_set_range(user_queue_key, -1, -1, True)
+        if last_waiting:
+            last_waiting_score = last_waiting[0][1]
+            if last_waiting_score > (time() + (60 * 60 * 11)):
+                score = last_waiting_score + 10
+            else:
+                score = last_waiting_score + randint(60, 60 * 60)
         else:
-            score = last_waiting_score + randint(60, 60 * 60)
-    else:
-        score = time() + randint(120, 60 * 60)
+            score = time() + randint(120, 60 * 60)
 
     wigo_db.sorted_set_add(user_queue_key, user_id, score, replicate=False)
 
+    scheduler.schedule(datetime.utcfromtimestamp(score), process_waitlist,
+                       result_ttl=0, timeout=600)
+
+
+def process_waitlist():
+    while True:
+        lock = redis.lock('locks:process_waitlist', timeout=600)
+        if lock.acquire(blocking=False):
+            try:
+                logger.info('processing wait list')
+                user_ids = wigo_db.sorted_set_range_by_score(skey('user_queue'), 0, time(), 0, 50)
+                if user_ids:
+                    for user_id in user_ids:
+                        logger.info('unlocking user id {}'.format(user_id))
+                        user = User.find(user_id)
+                        user.status = 'active'
+                        user.save()
+
+                        # remove from wait list
+                        wigo_db.sorted_set_remove(skey('user_queue'), user.id, replicate=False)
+                else:
+                    break
+            finally:
+                lock.release()
 
 
 @job(data_queue, timeout=30, result_ttl=0)
@@ -361,3 +387,7 @@ def wire_data_listeners():
 
     # listen to the redis event bus for model changes
     wire_event_bus()
+
+    if Configuration.IS_WORKER:
+        scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
+                           process_waitlist, result_ttl=0, timeout=600)

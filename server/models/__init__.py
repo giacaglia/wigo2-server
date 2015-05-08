@@ -77,6 +77,7 @@ class WigoModel(Model):
 
     def __init__(self, raw_data=None, deserialize_mapping=None, strict=False):
         self._changes = {}
+        self._previous_changes = {}
         self._dirty = False
         self._field_cache = {}
         super(WigoModel, self).__init__(raw_data, deserialize_mapping, strict)
@@ -110,7 +111,8 @@ class WigoModel(Model):
         return self.__class__.__name__
 
     def prepared(self):
-        self._changes.clear()
+        self._previous_changes = self._changes
+        self._changes = {}
         self._dirty = False
 
     def is_changed(self, *keys):
@@ -118,6 +120,9 @@ class WigoModel(Model):
             return self._dirty
         else:
             return any(k for k in keys if k in self._changes.keys())
+
+    def was_changed(self, *keys):
+        return any(k for k in keys if k in self._previous_changes.keys())
 
     def get_old_value(self, key):
         if self.is_changed(key):

@@ -8,6 +8,7 @@ import shortuuid
 
 from contextlib import contextmanager
 from random import randint
+from rq_scheduler import Scheduler
 
 from peewee import DoesNotExist, SQL
 from datetime import datetime, timedelta
@@ -558,17 +559,21 @@ def rate_limit(key, expires):
     if Configuration.ENVIRONMENT in ('dev', 'test'):
         yield False
     else:
+        if isinstance(expires, datetime):
+            expires = expires - datetime.utcnow()
+
         if not key.startswith('rate_limit:'):
             key = 'rate_limit:{}'.format(key)
         if redis.exists(key):
             yield True
         else:
             yield False
-            redis.setex(key, True, expires - datetime.utcnow())
+            redis.setex(key, True, expires)
 
 
 redis_url = urlparse(Configuration.REDIS_URL)
 redis = Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+scheduler = Scheduler('scheduled', interval=60, connection=redis)
 
 wigo_queued_db = WigoQueuedDB(redis) if Configuration.RDBMS_REPLICATE else None
 wigo_rdbms = WigoRdbms()
