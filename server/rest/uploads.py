@@ -8,75 +8,92 @@ from urlparse import urlparse, urljoin
 from uuid import uuid4
 from boto.s3.connection import S3Connection
 from flask.ext.restful import abort
+from flask.ext.restplus import fields
 from werkzeug.utils import secure_filename
 from flask import g, request, jsonify
 from config import Configuration
 from server.models.event import EventMessage
-from server.rest import api_blueprint
+from server.rest import api_blueprint, WigoResource, api
 from server.security import user_token_required
 
 logger = logging.getLogger('wigo.web.uploads')
 
+param = api.model('UploadParam', {
+    'key': fields.String(required=True),
+    'value': fields.String(required=True)
+})
 
-@user_token_required
-@api_blueprint.route('/uploads/photos/')
-def get_photo_upload_location():
-    user = g.user
-    filename = request.args.get('filename')
-    if not filename:
-        filename = 'photo.jpg'
-
-    path_id = uuid4().hex
-    photo_form_args = get_upload_location(user, 'image/jpeg', filename, path_id)
-    if request.args.get('thumbnail') == 'true':
-        thumb_form_args = get_upload_location(user, 'image/jpeg', 'thumbnail.jpg', path_id)
-        return jsonify(photo=photo_form_args, thumbnail=thumb_form_args)
-    else:
-        return jsonify(photo_form_args)
+params = api.model('UploadParams', {
+    'action': fields.String(description='Form action', required=True),
+    'fields': fields.Nested(param, as_list=True, required=True)
+})
 
 
-@user_token_required
-@api_blueprint.route('/uploads/videos/')
-def get_video_upload_location():
-    user = g.user
-    filename = request.args.get('filename')
-    if not filename:
-        filename = 'video.mp4'
+class UploadResource(WigoResource):
+    @user_token_required
+    def post(self):
+        multipart_file = request.files.get('file')
+        filename = secure_filename(multipart_file.filename)
+        tmp_filepath = os.path.join(Configuration.UPLOAD_FOLDER, filename)
+        multipart_file.save(tmp_filepath)
 
-    path_id = uuid4().hex
-    video_form_args = get_upload_location(user, 'video/mp4', filename, path_id)
-    image_form_args = get_upload_location(user, 'image/jpeg', 'image.jpg', path_id)
+        cache_control = request.values.get('Cache-Control')
+        content_type = request.values.get('Content-Type')
+        key = request.values.get('key')
+        logger.info('handling photo upload directly for key {key}'.format(key=key))
 
-    return jsonify(video=video_form_args, image=image_form_args)
+        try:
+            s3conn = S3Connection(Configuration.UPLOADS_AWS_ACCESS_KEY_ID,
+                                  Configuration.UPLOADS_AWS_SECRET_ACCESS_KEY)
+            bucket = s3conn.get_bucket('wigo-uploads', validate=False)
+            key = bucket.new_key(key)
+            key.set_metadata('Content-Type', content_type)
+            key.set_metadata('Cache-Control', cache_control)
+            key.set_contents_from_filename(tmp_filepath)
+            key.set_acl('public-read')
+            return {'success': True}
+
+        finally:
+            if tmp_filepath and os.path.exists(tmp_filepath):
+                os.unlink(tmp_filepath)
 
 
-@user_token_required
-@api_blueprint.route('/uploads/photos/', methods=['POST'])
-def upload_photo():
-    multipart_file = request.files.get('file')
-    filename = secure_filename(multipart_file.filename)
-    tmp_filepath = os.path.join(Configuration.UPLOAD_FOLDER, filename)
-    multipart_file.save(tmp_filepath)
+@api.route('/uploads/photos/')
+class PhotoUploadResource(UploadResource):
+    @user_token_required
+    @api.doc(params={'filename': 'Optional filename'})
+    @api.response(200, 'Success', model=params)
+    def get(self):
+        user = g.user
+        filename = request.args.get('filename')
+        if not filename:
+            filename = 'photo.jpg'
 
-    cache_control = request.values.get('Cache-Control')
-    content_type = request.values.get('Content-Type')
-    key = request.values.get('key')
-    logger.info('handling photo upload directly for key {key}'.format(key=key))
+        path_id = uuid4().hex
+        photo_form_args = get_upload_location(user, 'image/jpeg', filename, path_id)
+        if request.args.get('thumbnail') == 'true':
+            thumb_form_args = get_upload_location(user, 'image/jpeg', 'thumbnail.jpg', path_id)
+            return {'photo': photo_form_args, 'thumbnail': thumb_form_args}
+        else:
+            return photo_form_args
 
-    try:
-        s3conn = S3Connection(Configuration.UPLOADS_AWS_ACCESS_KEY_ID,
-                              Configuration.UPLOADS_AWS_SECRET_ACCESS_KEY)
-        bucket = s3conn.get_bucket('wigo-uploads', validate=False)
-        key = bucket.new_key(key)
-        key.set_metadata('Content-Type', content_type)
-        key.set_metadata('Cache-Control', cache_control)
-        key.set_contents_from_filename(tmp_filepath)
-        key.set_acl('public-read')
-        return jsonify(success=True)
 
-    finally:
-        if tmp_filepath and os.path.exists(tmp_filepath):
-            os.unlink(tmp_filepath)
+@api.route('/uploads/videos/')
+class VideoUploadResource(UploadResource):
+    @user_token_required
+    @api.doc(params={'filename': 'Optional filename'})
+    @api.response(200, 'Success', model=params)
+    def get(self):
+        user = g.user
+        filename = request.args.get('filename')
+        if not filename:
+            filename = 'video.mp4'
+
+        path_id = uuid4().hex
+        video_form_args = get_upload_location(user, 'video/mp4', filename, path_id)
+        image_form_args = get_upload_location(user, 'image/jpeg', 'image.jpg', path_id)
+
+        return {'video': video_form_args, 'image': image_form_args}
 
 
 @api_blueprint.route('/hooks/blitline/<key>/', methods=['POST'])
