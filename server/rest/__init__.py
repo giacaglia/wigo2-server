@@ -479,4 +479,4 @@ import server.rest.group
 import server.rest.user
 import server.rest.event
 import server.rest.uploads
-import server.rest.recommendations
+import server.rest.suggestions

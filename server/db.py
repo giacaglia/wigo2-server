@@ -254,7 +254,7 @@ class WigoRedisDB(WigoDB):
     def sorted_set_is_member(self, key, value, dt=None):
         return self.sorted_set_get_score(key, value, dt) is not None
 
-    def sorted_set_iter(self, key, count=10, dt=None):
+    def sorted_set_iter(self, key, count=20, dt=None):
         for item, score in self.redis.zscan_iter(key):
             yield self.decode(item, dt), score
 
