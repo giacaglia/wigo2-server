@@ -75,8 +75,14 @@ class WigoResource(Resource):
     def get_limit(self, default=15):
         return int(request.args.get('limit', default))
 
+    def get_start(self, default=None):
+        start_str = request.args.get('start')
+        if start_str:
+            return int(start_str)
+        return default
+
     def setup_query(self, query):
-        return query.page(self.get_page()).limit(self.get_limit())
+        return query.page(self.get_page()).limit(self.get_limit()).start(self.get_start())
 
     def get_id(self, id_value):
         return g.user.id if id_value == 'me' else int(id_value)

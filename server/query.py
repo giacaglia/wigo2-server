@@ -34,6 +34,7 @@ class SelectQuery(object):
         self._lat = None
         self._lon = None
         self._secure = None
+        self._start = None
         self._where = {}
 
     def clone(self):
@@ -58,6 +59,7 @@ class SelectQuery(object):
         clone._max = self._max
         clone._lat = self._lat
         clone._lon = self._lon
+        clone._start = self._start
         clone._secure = self._secure
         return clone
 
@@ -122,6 +124,10 @@ class SelectQuery(object):
     @returns_clone
     def page(self, page):
         self._page = max(page, 1)
+
+    @returns_clone
+    def start(self, start):
+        self._start = start
 
     @returns_clone
     def order(self, order):
@@ -236,11 +242,18 @@ class SelectQuery(object):
 
         if self._order == 'desc':
             range_f = self.db.sorted_set_rrange_by_score
+            rank_f = self.db.sorted_set_rrank
             min, max = max, min
         else:
             range_f = self.db.sorted_set_range_by_score
+            rank_f = self.db.sorted_set_rank
 
         pages = int(math.ceil(float(count) / self._limit))
+
+        if self._start:
+            position = rank_f(key, self._start)
+            if position is not None:
+                start_page = int((float(position) / self._limit) + 1)
 
         collected = []
         page = start_page

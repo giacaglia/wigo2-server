@@ -289,6 +289,12 @@ class WigoRedisDB(WigoDB):
         else:
             return self.decode(results, dt)
 
+    def sorted_set_rank(self, key, value, dt=None):
+        return self.redis.zrank(key, self.encode(value, dt))
+
+    def sorted_set_rrank(self, key, value, dt=None):
+        return self.redis.zrevrank(key, self.encode(value, dt))
+
     def sorted_set_remove(self, key, value, dt=None, replicate=True):
         result = self.redis.zrem(key, self.encode(value, dt))
         if replicate and self.queued_db:
