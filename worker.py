@@ -8,15 +8,15 @@ logconfig.configure(Configuration.ENVIRONMENT)
 import requests
 import logging
 from time import sleep
+from datetime import datetime, timedelta
 from threading import Thread
 from server.db import redis, scheduler
-from server.tasks.data import wire_data_listeners
+from server.tasks.data import wire_data_listeners, process_waitlist
 from server.tasks.parse import wire_parse_listeners
 from server.tasks.predictions import wire_predictions_listeners
 from server.tasks.uploads import wire_uploads_listeners
 from server.tasks.images import wire_images_listeners
 from server.tasks.notifications import wire_notifications_listeners
-
 
 logger = logging.getLogger('wigo.worker')
 
@@ -52,6 +52,26 @@ class SchedulerThread(Thread):
                 scheduler.enqueue_jobs()
             sleep(10)
 
+# clear any pre-existing scheduled jobs
+jobs = scheduler.get_jobs()
+for job in jobs:
+    if job.meta['interval']:
+        scheduler.cancel(job)
 
+# schedule job to process the user wait list
+scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
+                   process_waitlist, interval=60, timeout=600)
+
+
+def process_expired():
+    from server.db import wigo_db
+
+    wigo_db.process_expired()
+
+# schedule job to expire redis keys
+scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
+                   process_expired, interval=60 * 60, timeout=600)
+
+# start schedule processor
 thread = SchedulerThread()
 thread.start()

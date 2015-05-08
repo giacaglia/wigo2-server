@@ -11,15 +11,17 @@ from random import randint
 from rq_scheduler import Scheduler
 
 from peewee import DoesNotExist, SQL
+from time import time
 from datetime import datetime, timedelta
 from urlparse import urlparse
 from redis import Redis
 from config import Configuration
 from server.rdbms import DataStrings, DataExpires, DataSets, DataSortedSets, DataIntSortedSets, DataIntSets
 from redis_shard.shard import RedisShardAPI
+from utils import epoch
 
 logger = logging.getLogger('wigo.db')
-
+EXPIRE_KEY = 'expire'
 
 class WigoDB(object):
     def gen_id(self):
@@ -171,10 +173,14 @@ class WigoRedisDB(WigoDB):
     def set(self, key, value, expires=None, long_term_expires=None):
         expires = check_expires(expires)
 
+        result = self.redis.set(key, self.encode(value, dict))
+
         if expires:
-            result = self.redis.setex(key, self.encode(value, dict), expires)
-        else:
-            result = self.redis.set(key, self.encode(value, dict))
+            redis = self.redis
+            if isinstance(redis, RedisShardAPI):
+                redis = redis.get_server(key)
+
+            redis.zadd(EXPIRE_KEY, key, epoch(datetime.utcnow() + expires))
 
         if self.queued_db and long_term_expires != 0:
             self.queued_db.set(key, value, expires, long_term_expires)
@@ -205,10 +211,15 @@ class WigoRedisDB(WigoDB):
 
     def expire(self, key, expires, long_term_expires=None):
         expires = check_expires(expires)
-        result = self.redis.expire(key, expires)
+
+        redis = self.redis
+        if isinstance(redis, RedisShardAPI):
+            redis = redis.get_server(key)
+
+        redis.zadd(EXPIRE_KEY, key, epoch(datetime.utcnow() + expires))
+
         if self.queued_db and long_term_expires:
             self.queued_db.expire(key, expires, long_term_expires)
-        return result
 
     def set_add(self, key, value, dt=None, replicate=True):
         result = self.redis.sadd(key, self.encode(value, dt))
@@ -293,6 +304,24 @@ class WigoRedisDB(WigoDB):
 
     def sorted_set_remove_by_rank(self, key, start, stop):
         return self.redis.zremrangebyrank(key, start, stop)
+
+    def process_expired(self):
+        logger.info('expiring redis keys')
+
+        num_expired = 0
+        for redis in self.redis.connections.values():
+            with redis.lock('locks:expire_keys'):
+                while True:
+                    keys = redis.zrangebyscore(EXPIRE_KEY, 0, time(), 0, 100)
+                    if keys:
+                        for key in keys:
+                            redis.delete(key)
+                            redis.zrem(EXPIRE_KEY, key)
+                            num_expired += 1
+                    else:
+                        break
+
+        logger.info('expired {} keys'.format(num_expired))
 
 
 class WigoQueuedDB(WigoDB):

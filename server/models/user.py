@@ -16,12 +16,12 @@ from utils import epoch, ValidationException, prefix_score
 
 class User(WigoPersistentModel):
     indexes = (
-        ('user:{facebook_id}:facebook_id', True),
-        ('user:{email}:email', True),
-        ('user:{username}:username', True),
-        ('user:{key}:key', True),
-        ('user', False),
-        ('group:{group_id}:users', False),
+        ('user:{facebook_id}:facebook_id', True, False),
+        ('user:{email}:email', True, False),
+        ('user:{username}:username', True, False),
+        ('user:{key}:key', True, False),
+        ('user', False, False),
+        ('group:{group_id}:users', False, False),
     )
 
     class Options:
@@ -277,7 +277,7 @@ class Friend(WigoModel):
 
 class Tap(WigoModel):
     indexes = (
-        ('user:{user_id}:tapped={tapped_id}', False),
+        ('user:{user_id}:tapped={tapped_id}', False, False),
     )
 
     user_id = LongType(required=True)
@@ -311,7 +311,7 @@ class Tap(WigoModel):
 
 class Block(WigoModel):
     indexes = (
-        ('user:{user_id}:blocked={blocked_id}', False),
+        ('user:{user_id}:blocked={blocked_id}', False, False),
     )
 
     user_id = LongType(required=True)
@@ -335,7 +335,7 @@ class Block(WigoModel):
 
 class Invite(WigoModel):
     indexes = (
-        ('event:{event_id}:invited={invited_id}', False),
+        ('event:{event_id}:invited={invited_id}', False, True),
     )
 
     event_id = LongType(required=True)
@@ -374,7 +374,7 @@ class Invite(WigoModel):
 
 class Notification(WigoPersistentModel):
     indexes = (
-        ('user:{user_id}:notifications', False),
+        ('user:{user_id}:notifications', False, False),
     )
 
     user_id = LongType(required=True)
@@ -400,10 +400,10 @@ class Notification(WigoPersistentModel):
 
 class Message(WigoPersistentModel):
     indexes = (
-        ('user:{user_id}:conversations={to_user_id}', False),
-        ('user:{user_id}:conversation:{to_user_id}', False),
-        ('user:{to_user_id}:conversations={user_id}', False),
-        ('user:{to_user_id}:conversation:{user_id}', False),
+        ('user:{user_id}:conversations={to_user_id}', False, False),
+        ('user:{user_id}:conversation:{to_user_id}', False, False),
+        ('user:{to_user_id}:conversations={user_id}', False, False),
+        ('user:{to_user_id}:conversation:{user_id}', False, False),
     )
 
     user_id = LongType(required=True)

@@ -290,7 +290,7 @@ class SelectQuery(object):
 
         try:
             for kwarg in self._where:
-                applicable_indexes = [key_tmpl for key_tmpl, unique in self._model_class.indexes if kwarg in key_tmpl]
+                applicable_indexes = [key_tmpl for key_tmpl, unique, expires in self._model_class.indexes if kwarg in key_tmpl]
                 if applicable_indexes:
                     for key_tmpl in applicable_indexes:
                         key = index_key(key_tmpl, {kwarg: self._where.get(kwarg)})

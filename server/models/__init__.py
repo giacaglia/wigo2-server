@@ -245,7 +245,7 @@ class WigoModel(Model):
         # search the indexes
         if kwargs:
             for kwarg in kwargs:
-                applicable_indexes = [key_tmpl for key_tmpl, unique in cls.indexes if kwarg in key_tmpl]
+                applicable_indexes = [key_tmpl for key_tmpl, unique, expires in cls.indexes if kwarg in key_tmpl]
                 for key_tmpl in applicable_indexes:
                     key = index_key(key_tmpl, {kwarg: kwargs.get(kwarg)})
                     model_ids = wigo_db.sorted_set_range(key)
@@ -370,7 +370,7 @@ class WigoModel(Model):
 
     def __each_index(self):
         # process indexes
-        for key_template, unique in self.indexes:
+        for key_template, unique, expires in self.indexes:
             key = None
             fields = get_index_fields(key_template)
             id_field = get_id_field(key_template)
@@ -390,25 +390,26 @@ class WigoModel(Model):
                     key = key_template
 
                 if key:
-                    yield key, id_value, unique
+                    yield key, id_value, unique, expires
 
     def get_index_score(self):
         return epoch(self.created)
 
     def check_indexes(self):
-        for key, id_value, unique in self.__each_index():
+        for key, id_value, unique, expires in self.__each_index():
             if (unique and self.db.get_sorted_set_size(key) > 0 and
                     not self.db.sorted_set_is_member(key, id_value)):
                 raise IntegrityException('Unique contraint violation, key={}'.format(key))
 
     def index(self):
-        for key, id_value, unique in self.__each_index():
+        for key, id_value, unique, expires in self.__each_index():
             self.db.sorted_set_add(key, id_value, self.get_index_score())
 
-            ttl = self.ttl()
-            if ttl is not None:
-                self.clean_old(key, ttl)
-                self.db.expire(key, ttl)
+            if expires:
+                ttl = self.ttl()
+                if ttl is not None:
+                    self.clean_old(key, ttl)
+                    self.db.expire(key, ttl)
 
     def delete(self):
         pre_model_delete.send(self, instance=self)
@@ -419,7 +420,7 @@ class WigoModel(Model):
         return self
 
     def remove_index(self):
-        for key, id_value, unique in self.__each_index():
+        for key, id_value, unique, expires in self.__each_index():
             self.db.sorted_set_remove(key, id_value)
 
     def clean_old(self, key, ttl=None):

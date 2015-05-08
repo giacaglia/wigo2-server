@@ -20,11 +20,11 @@ logger = logging.getLogger('wigo.model')
 
 class Group(WigoPersistentModel):
     indexes = (
-        ('group:{city_id}:city_id', True),
-        ('group:{code}:code', True),
-        ('group', False),
-        ('group:locked:{locked}', False),
-        ('group:verified:{verified}', False),
+        ('group:{city_id}:city_id', True, False),
+        ('group:{code}:code', True, False),
+        ('group', False, False),
+        ('group:locked:{locked}', False, False),
+        ('group:verified:{verified}', False, False),
     )
 
     code = StringType()

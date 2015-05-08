@@ -387,7 +387,3 @@ def wire_data_listeners():
 
     # listen to the redis event bus for model changes
     wire_event_bus()
-
-    if Configuration.IS_WORKER:
-        scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
-                           process_waitlist, result_ttl=0, timeout=600)

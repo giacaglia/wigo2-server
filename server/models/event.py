@@ -17,7 +17,7 @@ EVENT_LEADING_STOP_WORDS = {"a", "the"}
 
 class Event(WigoPersistentModel):
     indexes = (
-        ('event', False),
+        ('event', False, False),
     )
 
     group_id = LongType(required=True)
@@ -237,8 +237,8 @@ class EventAttendee(WigoModel):
 
 class EventMessage(WigoPersistentModel):
     indexes = (
-        ('event:{event_id}:messages', False),
-        ('user:{user_id}:event_messages', False),
+        ('event:{event_id}:messages', False, True),
+        ('user:{user_id}:event_messages', False, False),
     )
 
     class Options:
@@ -310,8 +310,8 @@ class EventMessage(WigoPersistentModel):
 
 class EventMessageVote(WigoModel):
     indexes = (
-        ('eventmessage:{message_id}:votes={user_id}', False),
-        ('user:{user_id}:votes={message_id}', False),
+        ('eventmessage:{message_id}:votes={user_id}', False, True),
+        ('user:{user_id}:votes={message_id}', False, False),
     )
 
     message_id = LongType(required=True)
