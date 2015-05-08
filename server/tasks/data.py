@@ -52,7 +52,6 @@ def process_waitlist():
         lock = redis.lock('locks:process_waitlist', timeout=600)
         if lock.acquire(blocking=False):
             try:
-                logger.info('processing wait list')
                 user_ids = wigo_db.sorted_set_range_by_score(skey('user_queue'), 0, time(), 0, 50)
                 if user_ids:
                     for user_id in user_ids:
