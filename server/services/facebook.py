@@ -29,6 +29,7 @@ import logging
 import socket
 from urlparse import urljoin, parse_qs
 from datetime import datetime
+from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
 from requests_oauthlib.compliance_fixes import facebook_compliance_fix
 from config import Configuration
@@ -133,7 +134,10 @@ class Facebook(object):
             raise FacebookException(message=results.data)
 
     def handle_exception(self, e):
-        if isinstance(e, socket.timeout):
+        if isinstance(e, TokenExpiredError):
+            print e.json
+            raise FacebookTokenExpiredException()
+        elif isinstance(e, socket.timeout):
             raise FacebookTimeoutException('Timeout')
         else:
             raise e

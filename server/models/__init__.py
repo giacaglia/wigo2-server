@@ -502,6 +502,11 @@ class WigoPersistentModel(WigoModel):
         if expire:
             wigo_db.redis.expire(meta_key, timedelta(days=60))
 
+    def get_meta(self, key):
+        from server.db import wigo_db
+
+        return wigo_db.redis.hget(skey(self, 'meta'), key)
+
     def __cmp__(self, other):
         return cmp(self.id, other.id)
 
