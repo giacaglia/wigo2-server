@@ -109,8 +109,8 @@ class Facebook(object):
                     if data:
                         for item in data:
                             yield item
-                    if 'paging' in results.data and 'next' in results.data.get('paging'):
-                        next_url = results.data.get('paging').get('next')
+                    if 'paging' in data and 'next' in data.get('paging'):
+                        next_url = data.get('paging').get('next')
                         path = next_url[next_url.find('facebook.com/') + len('facebook.com/'):]
                     else:
                         path = None
