@@ -117,7 +117,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
                 try:
                     friend = User.find(facebook_id=facebook_id)
                     if should_suggest(friend.id):
-                        wigo_db.sorted_set_add(suggestions, friend.id, 1)
+                        wigo_db.sorted_set_add(suggestions, friend.id, 3)
                         suggested.add(friend.id)
                 except DoesNotExist:
                     pass
