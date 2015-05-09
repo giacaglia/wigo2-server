@@ -3,9 +3,11 @@ from __future__ import absolute_import
 import logging
 import urllib
 import ujson
+from datetime import timedelta
 import requests
 
 from rq.decorators import job
+from server.db import rate_limit
 
 from server.tasks import parse_queue
 from server.models import post_model_save
@@ -17,6 +19,12 @@ logger = logging.getLogger('wigo.parse')
 
 @job(parse_queue, timeout=30, result_ttl=0)
 def sync_parse(user_id):
+    with rate_limit('parse:sync:{}'.format(user_id), timedelta(hours=1)) as limited:
+        if not limited:
+            __do_sync_parse(user_id)
+
+
+def __do_sync_parse(user_id):
     user = User.find(user_id)
 
     data = {
@@ -76,5 +84,3 @@ def wire_parse_listeners():
             sync_parse.delay(instance.id)
 
     post_model_save.connect(sync_parse_listener, weak=False)
-
-
