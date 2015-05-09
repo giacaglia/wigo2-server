@@ -9,7 +9,7 @@ from rq.decorators import job
 from server.db import wigo_db, rate_limit
 from server.services.facebook import Facebook, FacebookTokenExpiredException
 from server.tasks import predictions_queue
-from server.models import post_model_save, skey
+from server.models import post_model_save, skey, DoesNotExist
 from server.models.user import User, Tap, Message, Invite, Friend
 from config import Configuration
 
@@ -114,10 +114,13 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         try:
             for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
                 facebook_id = fb_friend.get('id')
-                friend = User.find(facebook_id=facebook_id)
-                if should_suggest(friend.id):
-                    wigo_db.sorted_set_add(suggestions, friend.id, 1)
-                    suggested.add(friend.id)
+                try:
+                    friend = User.find(facebook_id=facebook_id)
+                    if should_suggest(friend.id):
+                        wigo_db.sorted_set_add(suggestions, friend.id, 1)
+                        suggested.add(friend.id)
+                except DoesNotExist:
+                    pass
 
             user.track_meta('last_facebook_check')
         except FacebookTokenExpiredException:
