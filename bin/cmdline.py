@@ -280,7 +280,7 @@ def import_predictions():
 
     logconfig.configure('dev')
 
-    rdbms = DataSet(Configuration.DATABASE_URL)
+    rdbms = DataSet(Configuration.OLD_DATABASE_URL)
     users_table = rdbms['user']
 
     client = predictionio.EventClient(
