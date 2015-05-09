@@ -82,11 +82,11 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=50):
 
     wigo_db.delete(suggestions)
     friends_processed = 0
-    friend_in_common_filter = 3
+    friend_in_common_filter = 2
 
     def each_friends_friend():
         for friend_id in wigo_db.sorted_set_range(skey(user, 'friends'), 0, 50):
-            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'))
+            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'), 0, 50)
             for friends_friend in friends_friends:
                 if should_suggest(friends_friend):
                     yield friends_friend
