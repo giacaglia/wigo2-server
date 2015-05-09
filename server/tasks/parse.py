@@ -7,7 +7,7 @@ from datetime import timedelta
 import requests
 
 from rq.decorators import job
-from server.db import rate_limit
+from server.db import rate_limit, redis
 
 from server.tasks import parse_queue
 from server.models import post_model_save
@@ -21,7 +21,12 @@ logger = logging.getLogger('wigo.parse')
 def sync_parse(user_id):
     with rate_limit('parse:sync:{}'.format(user_id), timedelta(hours=1)) as limited:
         if not limited:
-            __do_sync_parse(user_id)
+            lock = redis.lock('locks:parse:sync:{}'.format(user_id), timeout=30)
+            if lock.acquire(blocking=False):
+                try:
+                    __do_sync_parse(user_id)
+                finally:
+                    lock.release()
 
 
 def __do_sync_parse(user_id):
