@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from flask.ext.restful import abort
 
 from server.models.group import Group, get_close_cities, get_close_groups
 from server.rest import WigoResource, api, WigoDbListResource
@@ -8,6 +9,9 @@ from server.security import user_token_required
 @api.route('/groups')
 class GroupsResource(WigoDbListResource):
     model = Group
+
+    def post(self):
+        abort(403, message='Security error')
 
 
 @api.route('/groups/<int:group_id>/close/groups')
