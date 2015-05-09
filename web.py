@@ -118,6 +118,14 @@ def setup_request():
                 except DoesNotExist:
                     logger.info('could not resolve group from geo')
 
+    city_id = request.headers.get('X-Wigo-City-ID')
+    if city_id:
+        g.group = Group.find(city_id=int(city_id))
+
+    group_id = request.headers.get('X-Wigo-Group-ID')
+    if group_id:
+        g.group = Group.find(int(group_id))
+
     # setup the user after the geo lookup, since the user might need to update its group
     setup_user_by_token()
 
