@@ -390,6 +390,7 @@ class SelectQuery(object):
         return len(results), 1, results
 
     def __clean_results(self, objects):
+        objects = [o for o in objects if o is not None]
         objects = self.__secure_results(objects)
 
         if self._model_class == Event:
