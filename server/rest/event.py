@@ -175,7 +175,15 @@ class UserEventListResource(WigoResource):
     @check_last_modified('user', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self, user_id, headers):
-        count, page, instances = self.select().user(g.user).execute()
+        user = g.user
+        group = g.group
+
+        query = self.select().user(user)
+        query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
+        query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
+
+        count, page, instances = query.execute()
+
         return self.serialize_list(self.model, instances, count, page), 200, headers
 
 

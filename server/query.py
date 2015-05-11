@@ -226,7 +226,8 @@ class SelectQuery(object):
 
     def __get_page(self, key):
         start_page = self._page
-        count = self.db.get_sorted_set_size(key)
+
+        count = self.db.get_sorted_set_size(key, self._min, self._max)
         if count == 0:
             return 0, start_page, []
 

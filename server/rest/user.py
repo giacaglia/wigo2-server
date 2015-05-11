@@ -14,6 +14,7 @@ from server.models.user import User, Friend, Tap, Block, Invite, Message, Notifi
 from server.rdbms import db
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api, check_last_modified
 from server.security import user_token_required
+from utils import epoch
 
 
 @api.route('/users/<model_id>')
@@ -473,6 +474,14 @@ class NotificationsResource(WigoResource):
     @check_last_modified('user', 'last_notification')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, user_id, headers):
-        count, page, instances = self.select().user(g.user).execute()
+        user = g.user
+        group = g.group
+
+        query = self.select().user(user)
+        query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
+        query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
+
+        count, page, instances = query.execute()
+
         return self.serialize_list(self.model, instances, count, page), 200, headers
 

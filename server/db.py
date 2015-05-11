@@ -91,7 +91,7 @@ class WigoDB(object):
     def sorted_set_iter(self, key, dt=None):
         raise NotImplementedError()
 
-    def get_sorted_set_size(self, key, dt=None):
+    def get_sorted_set_size(self, key, min=None, max=None, dt=None):
         raise NotImplementedError()
 
     def sorted_set_remove(self, key, value, dt=None):
@@ -258,8 +258,11 @@ class WigoRedisDB(WigoDB):
         for item, score in self.redis.zscan_iter(key):
             yield self.decode(item, dt), score
 
-    def get_sorted_set_size(self, key, dt=None):
-        return self.redis.zcard(key)
+    def get_sorted_set_size(self, key, min=None, max=None, dt=None):
+        if min is None and max is None:
+            return self.redis.zcard(key)
+        else:
+            return self.redis.zcount(key, min, max)
 
     def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
         results = self.redis.zrange(key, start, end, withscores=withscores)
@@ -507,8 +510,9 @@ class WigoRdbms(WigoDB):
         for row in query:
             yield row[0], row[1]
 
-    def get_sorted_set_size(self, key, dt=None):
+    def get_sorted_set_size(self, key, min=None, max=None, dt=None):
         stype = self.get_sorted_set_type(dt)
+        # todo implement min/max filters
         return stype.select().where(stype.key == key).count()
 
     def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
