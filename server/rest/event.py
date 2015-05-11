@@ -282,7 +282,7 @@ class UserEventMessageListResource(WigoResource):
     @user_token_required
     @check_last_modified('user', 'last_event_change')
     @api.response(200, 'Success', model=EventMessage.to_doc_list_model(api))
-    def get(self, event_id, headers):
+    def get(self, user_id, event_id, headers):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
