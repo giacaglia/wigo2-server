@@ -140,7 +140,7 @@ class User(WigoPersistentModel):
         return self.is_directly_invited(event)
 
     def is_directly_invited(self, event):
-        return self.db.set_is_member(skey(event, 'invited'), self.id)
+        return self.db.sorted_set_is_member(skey(event, 'invited'), self.id)
 
     def get_friend_ids_in_common(self, with_user_id):
         from server.db import wigo_db
