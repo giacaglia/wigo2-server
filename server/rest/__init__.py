@@ -38,6 +38,7 @@ class WigoApi(restplus.Api):
         super(WigoApi, self).__init__(api_blueprint, ui=False, title='Wigo API', catch_all_404s=True)
 
     def handle_error(self, e):
+        logger.exception("server error")
         if isinstance(e, NotModifiedException):
             agent.ignore_transaction()
             response = current_app.response_class(status=304)
