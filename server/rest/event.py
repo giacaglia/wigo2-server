@@ -200,7 +200,7 @@ class EventAttendeeListResource(WigoResource):
     @user_token_required
     @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=EventAttendee.to_doc_list_model(api))
-    def get(self, event_id):
+    def get(self, event_id, headers):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
