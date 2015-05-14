@@ -55,7 +55,7 @@ class SchedulerThread(Thread):
 # clear any pre-existing scheduled jobs
 jobs = scheduler.get_jobs()
 for job in jobs:
-    if job.meta['interval']:
+    if job.meta.get('interval'):
         scheduler.cancel(job)
 
 # schedule job to process the user wait list
