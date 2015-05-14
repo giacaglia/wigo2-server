@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import math
+import logging
 
 from time import time
 from datetime import timedelta
@@ -13,6 +14,8 @@ from server.models.group import get_group_by_city_id, Group, get_close_groups_wi
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api, cache_maker, check_last_modified
 from server.security import user_token_required
 from utils import epoch
+
+logger = logging.getLogger('wigo.web')
 
 
 @api.route('/events/')
