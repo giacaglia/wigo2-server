@@ -7,7 +7,7 @@ from datetime import timedelta
 from flask import g, request
 from flask.ext.restful import abort
 from server.db import wigo_db
-from server.models import skey, user_eventmessages_key, AlreadyExistsException
+from server.models import skey, user_eventmessages_key, AlreadyExistsException, DoesNotExist
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
 from server.models.group import get_group_by_city_id, Group, get_close_groups_with_events
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api, cache_maker, check_last_modified
@@ -98,12 +98,14 @@ class EventListResource(WigoDbListResource):
         if current_group == 0 and page == 1:
             attending_id = g.user.get_attending_id()
             if attending_id:
-                attending = Event.find(attending_id)
-                if attending in all_events:
-                    all_events.remove(attending)
-                all_events.insert(0, attending)
-                attending.current_user_attending = True
-
+                try:
+                    attending = Event.find(attending_id)
+                    if attending in all_events:
+                        all_events.remove(attending)
+                    all_events.insert(0, attending)
+                    attending.current_user_attending = True
+                except DoesNotExist:
+                    logger.warn('Event {} not found'.format(attending_id))
         return self.serialize_list(Event, all_events, next=next), 200, headers
 
     @user_token_required
