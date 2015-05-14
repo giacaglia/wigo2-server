@@ -411,6 +411,8 @@ class SelectQuery(object):
         blocked = secure_user.get_blocked_ids()
 
         def can_see_user(u):
+            if u is None:
+                return True
             if u == secure_user:
                 return True
             if u.id in blocked:
