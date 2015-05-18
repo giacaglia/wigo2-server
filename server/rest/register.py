@@ -13,6 +13,7 @@ from flask import g, request
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
 from config import Configuration
+from server.db import wigo_db
 
 from server.models import DoesNotExist
 from server.models.user import User
@@ -59,83 +60,84 @@ class RegisterResource(WigoResource):
         if not facebook_id or not facebook_token:
             abort(400, message='Missing facebook id or token')
 
-        try:
-            User.find(facebook_id=facebook_id, email=email)
-            abort(400, message='Account already exists')
-        except DoesNotExist:
-            pass
-
-        user_info = self.get_me(facebook_id, facebook_token, facebook_token_expires)
-
-        logger.info('creating new user account for email "%s"' % email)
-
-        user = User()
-        user.key = uuid4().hex
-        user.facebook_id = facebook_id
-        user.facebook_token = facebook_token
-        user.facebook_token_expires = facebook_token_expires
-
-        if email:
+        with wigo_db.redis.lock('locks:register:{}'.format(facebook_id), timeout=30):
             try:
-                user.email = check_email(email)
-                user.email_validated = False
-            except Exception, e:
+                User.find(facebook_id=facebook_id, email=email)
+                abort(400, message='Account already exists')
+            except DoesNotExist:
                 pass
 
-        if not user.email:
-            user.email = user_info.get('email')
-            if user.email:
-                user.email_validated = True
-                user.email_validated_date = datetime.utcnow()
-                user.email_validated_status = 'validated'
+            user_info = self.get_me(facebook_id, facebook_token, facebook_token_expires)
 
-        user.timezone = timezone.zone
-        user.username = self.get_username(email)
-        user.first_name = user_info.get('first_name') or user_info.get('given_name')
-        user.last_name = user_info.get('last_name') or user_info.get('family_name')
-        user.gender = user_info.get('gender')
+            logger.info('creating new user account for email "%s"' % email)
 
-        if not birthdate:
-            birthdate = user_info.get('birthday')
+            user = User()
+            user.key = uuid4().hex
+            user.facebook_id = facebook_id
+            user.facebook_token = facebook_token
+            user.facebook_token_expires = facebook_token_expires
 
-        try:
-            user.birthdate = parse(birthdate)
-        except:
-            logger.info('error parsing birthdate {}'.format(birthdate))
+            if email:
+                try:
+                    user.email = check_email(email)
+                    user.email_validated = False
+                except Exception, e:
+                    pass
 
-        if education:
-            user.education = education
+            if not user.email:
+                user.email = user_info.get('email')
+                if user.email:
+                    user.email_validated = True
+                    user.email_validated_date = datetime.utcnow()
+                    user.email_validated_status = 'validated'
 
-        if work:
-            user.work = work
+            user.timezone = timezone.zone
+            user.username = self.get_username(email)
+            user.first_name = user_info.get('first_name') or user_info.get('given_name')
+            user.last_name = user_info.get('last_name') or user_info.get('family_name')
+            user.gender = user_info.get('gender')
 
-        if g.group:
-            user.group_id = g.group.id
+            if not birthdate:
+                birthdate = user_info.get('birthday')
 
-        # mark the testuser (apple approval process) as a 'test' user
-        if email == 'testuser@wigo.us':
-            user.role = 'test'
+            try:
+                user.birthdate = parse(birthdate)
+            except:
+                logger.info('error parsing birthdate {}'.format(birthdate))
 
-        if properties:
-            for key, value in properties.items():
-                user.set_custom_property(key, value)
+            if education:
+                user.education = education
 
-        user.set_custom_property('events', {'triggers': ['find_referrer']})
+            if work:
+                user.work = work
 
-        platform = request.headers.get('X-Wigo-Device')
-        if not platform:
-            platform = request.user_agent.platform
-        if platform:
-            platform = platform.lower()
+            if g.group:
+                user.group_id = g.group.id
 
-        if platform in ('android', 'iphone', 'ipad'):
-            user.set_custom_property('platforms', [platform])
+            # mark the testuser (apple approval process) as a 'test' user
+            if email == 'testuser@wigo.us':
+                user.role = 'test'
 
-        enterprise = request.headers.get('X-Wigo-Client-Enterprise')
-        if enterprise == 'true':
-            user.enterprise = True
+            if properties:
+                for key, value in properties.items():
+                    user.set_custom_property(key, value)
 
-        user.save()
+            user.set_custom_property('events', {'triggers': ['find_referrer']})
+
+            platform = request.headers.get('X-Wigo-Device')
+            if not platform:
+                platform = request.user_agent.platform
+            if platform:
+                platform = platform.lower()
+
+            if platform in ('android', 'iphone', 'ipad'):
+                user.set_custom_property('platforms', [platform])
+
+            enterprise = request.headers.get('X-Wigo-Client-Enterprise')
+            if enterprise == 'true':
+                user.enterprise = True
+
+            user.save()
 
         g.user = user
 
