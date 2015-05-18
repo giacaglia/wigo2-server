@@ -368,9 +368,14 @@ class SelectQuery(object):
         else:
             raise ValueError('Invalid query')
 
-        results = []
+        p = self.db.redis.pipeline()
         for key in keys:
-            count = self.db.get_sorted_set_size(key)
+            p.zcard(key)
+        counts = p.execute()
+
+        results = []
+        for index, key in enumerate(keys):
+            count = counts[index]
             pages = int(math.ceil(float(count) / self._limit))
 
             collected = []
