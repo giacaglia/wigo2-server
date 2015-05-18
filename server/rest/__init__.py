@@ -19,11 +19,11 @@ from werkzeug.urls import url_encode
 from server import NotModifiedException
 from server.db import wigo_db
 from server.models import AlreadyExistsException, skey
-from server.models.event import EventMessage, Event, EventAttendee, get_cached_num_attending, get_num_attending
+from server.models.event import EventMessage, Event, EventAttendee
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
-from utils import ValidationException, partition, epoch
+from utils import ValidationException, partition
 from utils import SecurityException
 
 

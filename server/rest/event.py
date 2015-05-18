@@ -99,17 +99,18 @@ class EventListResource(WigoDbListResource):
             next = {'page': page, 't': time_index, 'g': current_group}
 
         # if this is the first request, get the event the user is currently attending
-        if current_group == 0 and page == 1:
-            attending_id = g.user.get_attending_id()
-            if attending_id:
-                try:
-                    attending = Event.find(attending_id)
-                    if attending in all_events:
-                        all_events.remove(attending)
+        attending_id = g.user.get_attending_id()
+        if attending_id:
+            try:
+                attending = Event.find(attending_id)
+                if attending in all_events:
+                    all_events.remove(attending)
+                if 'g' not in request.args and 'page' not in request.args:
                     all_events.insert(0, attending)
                     attending.current_user_attending = True
-                except DoesNotExist:
-                    logger.warn('Event {} not found'.format(attending_id))
+            except DoesNotExist:
+                logger.warn('Event {} not found'.format(attending_id))
+
         return self.serialize_list(Event, all_events, next=next), 200, headers
 
     @user_token_required
