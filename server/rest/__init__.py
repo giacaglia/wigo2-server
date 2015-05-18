@@ -173,11 +173,15 @@ class WigoResource(Resource):
         current_user = g.user
         user_context = current_user if '/users/' in request.path else None
 
+        p = wigo_db.redis.pipeline()
         for event in events:
-            if event.is_expired:
-                event.num_attending = get_cached_num_attending(event.id, user_context.id if user_context else None)
-            else:
-                event.num_attending = get_num_attending(event.id, user_context.id if user_context else None)
+            attendees_key = (skey('user', user_context.id, 'event', event.id, 'attendees')
+                             if user_context else skey('event', event.id, 'attendees'))
+            p.zcard(attendees_key)
+
+        num_attending_per_event = p.execute()
+        for index, num_attending in enumerate(num_attending_per_event):
+            events[index].num_attending = num_attending
 
         # fill in attending on each event
         query = EventAttendee.select().events(events).user(user_context).secure(g.user)

@@ -258,7 +258,6 @@ class EventMessage(WigoPersistentModel):
     thumbnail = StringType()
     vote_boost = IntType()
 
-    properties = JsonType(default=lambda: {})
 
     tags = ListType(StringType)
 
