@@ -184,7 +184,7 @@ class WigoResource(Resource):
                 # make sure the event the current user is attending is in front
                 if hasattr(event, 'current_user_attending'):
                     count, attendees = attendees
-                    if attendees[0] != g.user:
+                    if attendees and attendees[0] != g.user:
                         if g.user in attendees:
                             attendees.remove(g.user)
                         attendees.insert(0, g.user)
