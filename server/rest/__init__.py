@@ -270,11 +270,11 @@ class WigoResource(Resource):
         return prim
 
     def serialize_list(self, model_class, objects, count=None, page=1, next=None):
-        objects = self.annotate_list(model_class, objects)
+        objects = [o for o in self.annotate_list(model_class, objects) if o]
 
         data = {
             'meta': {},
-            'objects'.format(model_class.__name__.lower()): [self.serialize_object(i) for i in objects if i]
+            'objects'.format(model_class.__name__.lower()): [self.serialize_object(i) for i in objects]
         }
 
         def resolve_nested(objects, nested, resolved):
@@ -329,7 +329,7 @@ class WigoResource(Resource):
 
         nested = set()
         resolve_nested(objects, nested, set([o.id for o in objects]))
-        data['include'] = [self.serialize_object(i) for i in nested if i]
+        data['include'] = [self.serialize_object(o) for o in nested if o]
 
         request_arguments = request.args.copy().to_dict()
 
