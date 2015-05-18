@@ -74,7 +74,8 @@ class UserReferredResource(WigoResource):
     @api.response(200, 'Success')
     def post(self, user_id):
         referred_id = self.get_id_field('referred_id')
-        wigo_db.set_add(skey(g.user), 'referred', referred_id)
+        referred = User.find(referred_id)
+        wigo_db.set_add(skey(g.user, 'referred'), referred.id)
         return {'success': True}
 
 
