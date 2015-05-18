@@ -85,6 +85,8 @@ class WigoResource(Resource):
         return query.page(self.get_page()).limit(self.get_limit()).start(self.get_start())
 
     def get_id(self, id_value):
+        if id_value == '(null)':
+            abort(400, message='(null) is an invalid user')
         return g.user.id if id_value == 'me' else int(id_value)
 
     def get_id_field(self, field):
