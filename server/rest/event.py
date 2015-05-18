@@ -7,6 +7,7 @@ from time import time
 from datetime import timedelta
 from flask import g, request
 from flask.ext.restful import abort
+from newrelic import agent
 from server.db import wigo_db
 from server.models import skey, user_eventmessages_key, AlreadyExistsException, DoesNotExist
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
@@ -393,6 +394,7 @@ def get_cached_city_events(group, limit, page, min, max):
     return __get_city_events(group, limit, page, min, max)
 
 
+@agent.function_trace()
 def __get_city_events(group, limit, page, min, max):
     query = Event.select().group(group).limit(limit).page(page)
     query = query.min(min).max(max)

@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import math
 from datetime import datetime, timedelta
+from newrelic import agent
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
 from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages
 from server.models.group import Group
@@ -165,6 +166,7 @@ class SelectQuery(object):
         count, page, results = self.execute()
         return count
 
+    @agent.function_trace()
     def execute(self):
         if self._id:
             instance = self._model_class.find(self._id)
@@ -224,6 +226,7 @@ class SelectQuery(object):
             return instances[0]
         raise DoesNotExist()
 
+    @agent.function_trace()
     def __get_page(self, key):
         start_page = self._page
 
@@ -349,6 +352,7 @@ class SelectQuery(object):
         else:
             raise ValueError('Invalid query')
 
+    @agent.function_trace()
     def __get_by_events(self):
         keys = []
 

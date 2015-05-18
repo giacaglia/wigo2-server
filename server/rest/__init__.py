@@ -163,6 +163,7 @@ class WigoResource(Resource):
     def annotate_object(self, object):
         return object
 
+    @agent.function_trace()
     def annotate_list(self, model_class, objects):
         if model_class == Event:
             return self.annotate_events(objects)
@@ -213,6 +214,7 @@ class WigoResource(Resource):
 
         return filtered
 
+    @agent.function_trace()
     def serialize_object(self, obj):
         prim = obj.to_primitive(role='www')
 
@@ -243,6 +245,9 @@ class WigoResource(Resource):
                 },
                 'objects': [{'$ref': 'User:{}'.format(u.id)} for u in attendees if u]
             }
+
+            prim['num_attending'] = count
+
             if count > len(attendees):
                 path = ('/api/users/me/events/{}/attendees' if '/users/' in request.path
                         else '/api/events/{}/attendees').format(obj.id)
@@ -266,6 +271,7 @@ class WigoResource(Resource):
 
         return prim
 
+    @agent.function_trace()
     def serialize_list(self, model_class, objects, count=None, page=1, next=None):
         objects = [o for o in self.annotate_list(model_class, objects) if o]
 
