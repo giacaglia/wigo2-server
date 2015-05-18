@@ -11,7 +11,7 @@ from schematics.types.serializable import serializable
 from config import Configuration
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL, \
     user_privacy_change, field_memoize
-from utils import epoch, ValidationException, prefix_score
+from utils import epoch, ValidationException, prefix_score, memoize
 
 
 class User(WigoPersistentModel):
@@ -154,6 +154,7 @@ class User(WigoPersistentModel):
 
         return wigo_db.sorted_set_rrange(skey(self, 'friends'), 0, -1)
 
+    @memoize
     def get_private_friend_ids(self):
         from server.db import wigo_db
 
@@ -164,6 +165,7 @@ class User(WigoPersistentModel):
 
         return wigo_db.sorted_set_range_by_score(skey(self, 'tapped'), time(), 'inf', limit=5000)
 
+    @memoize
     def get_blocked_ids(self):
         from server.db import wigo_db
 

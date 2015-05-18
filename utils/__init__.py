@@ -129,27 +129,24 @@ def returns_clone(func):
     return inner
 
 
-def memoize(field=None):
-    def inner(f):
-        @wraps(f)
-        def decorated(*args, **kw):
-            obj = args[0]
-            try:
-                cache = obj._cache
-            except AttributeError:
-                cache = obj._cache = {}
+def memoize(f):
+    @wraps(f)
+    def decorated(*args, **kw):
+        obj = args[0]
+        try:
+            cache = obj._cache
+        except AttributeError:
+            cache = obj._cache = {}
 
-            key = (f, args[1:], frozenset(kw.items()))
+        key = (f, args[1:], frozenset(kw.items()))
 
-            try:
-                res = cache[key]
-            except KeyError:
-                res = cache[key] = f(*args, **kw)
-            return res
+        try:
+            res = cache[key]
+        except KeyError:
+            res = cache[key] = f(*args, **kw)
+        return res
 
-        return decorated
-
-    return inner
+    return decorated
 
 
 def prefix_score(v, next=False):
