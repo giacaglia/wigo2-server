@@ -9,16 +9,50 @@ from server.services import push
 from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
+from server.services.facebook import FacebookTokenExpiredException, Facebook
 from server.tasks import notifications_queue, push_queue
 from utils import epoch
-
 
 logger = logging.getLogger('wigo.notifications')
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
+def new_user(user_id):
+    user = User.find(user_id)
+
+    facebook = Facebook(user.facebook_token, user.facebook_token_expires)
+
+    try:
+        for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
+            facebook_id = fb_friend.get('id')
+            with rate_limit('notifications:friend_joined:{}:{}'.format(user_id, facebook_id),
+                            timedelta(hours=1)) as limited:
+                if not limited:
+                    try:
+                        friend = User.find(facebook_id=facebook_id)
+
+                        notification = Notification({
+                            'user_id': user.id,
+                            'type': 'friend.joined',
+                            'message': 'Your Facebook friend {} just joined Wigo'.format(friend.full_name)
+                        })
+
+                        __send_notification_push(notification)
+
+                    except DoesNotExist:
+                        pass
+
+        user.track_meta('last_facebook_check')
+    except FacebookTokenExpiredException:
+        logger.warn('error finding facebook friends to suggest for user {}, token expired'.format(user_id))
+        user.track_meta('last_facebook_check')
+    except Exception:
+        logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
+
+
+@job(notifications_queue, timeout=30, result_ttl=0)
 def notify_unlocked(user_id):
-    with rate_limit('notifications:unlock:{}:'.format(user_id), timedelta(hours=1)) as limited:
+    with rate_limit('notifications:unlock:{}'.format(user_id), timedelta(hours=1)) as limited:
         if not limited:
             user = User.find(user_id)
 
@@ -210,6 +244,8 @@ def __send_notification_push(notification):
 def wire_notifications_listeners():
     def notifications_model_listener(sender, instance, created):
         if isinstance(instance, User):
+            if created:
+                new_user.delay(instance.id)
             if not created and instance.was_changed('status') and instance.status == 'active':
                 notify_unlocked.delay(instance.id)
         elif isinstance(instance, EventMessage) and created:
