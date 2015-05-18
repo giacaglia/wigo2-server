@@ -6,7 +6,7 @@ from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
-from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist
+from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, JsonType
 from server.models import AlreadyExistsException, user_attendees_key, user_eventmessages_key, \
     DEFAULT_EXPIRING_TTL, field_memoize, user_votes_key
 from server.models import cache_maker
@@ -28,6 +28,7 @@ class Event(WigoPersistentModel):
     date = DateTimeType(required=True)
     expires = DateTimeType(required=True)
 
+    properties = JsonType(default=lambda: {})
     tags = ListType(StringType)
 
     @serializable

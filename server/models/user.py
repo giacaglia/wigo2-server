@@ -386,7 +386,7 @@ class Notification(WigoPersistentModel):
     properties = JsonType()
 
     def ttl(self):
-        return DEFAULT_EXPIRING_TTL
+        return timedelta(days=30)
 
     @property
     @field_memoize('from_user_id')
