@@ -63,6 +63,21 @@ class UserResource(WigoDbResource):
         abort(501, message='Not implemented')
 
 
+@api.route('/users/<user_id>/referred')
+class UserReferredResource(WigoResource):
+    model = User
+
+    @user_token_required
+    @api.expect(api.model('Referred', {
+        'referred_id': fields.Integer(description='User referred', required=True)
+    }))
+    @api.response(200, 'Success')
+    def post(self, user_id):
+        referred_id = self.get_id_field('referred_id')
+        wigo_db.set_add(skey(g.user), 'referred', referred_id)
+        return {'success': True}
+
+
 @api.route('/users/<user_id>/meta')
 class UserMetaResource(WigoResource):
     model = User
