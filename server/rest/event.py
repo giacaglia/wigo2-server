@@ -373,6 +373,19 @@ class EventMessageVoteResource(WigoResource):
     model = EventMessageVote
 
     @user_token_required
+    @check_last_modified('group', 'last_event_change')
+    @api.response(200, 'Success')
+    def get(self, event_id, message_id, headers):
+        from server.models.user import User
+
+        event = Event.find(event_id)
+        if not g.user.can_see_event(event):
+            abort(403, message='Can not see event')
+        message = EventMessage.find(message_id)
+        count, page, votes = self.select().eventmessage(message).secure(g.user).execute()
+        return self.serialize_list(User, votes, count, page), 200, headers
+
+    @user_token_required
     @api.response(200, 'Success')
     def post(self, event_id, message_id):
         EventMessageVote({

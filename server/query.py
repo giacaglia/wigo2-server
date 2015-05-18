@@ -4,7 +4,7 @@ import math
 from datetime import datetime, timedelta
 from newrelic import agent
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
-from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages
+from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages, EventMessageVote
 from server.models.group import Group
 from server.models.user import Message, User, Notification
 from server.rdbms import DataStrings
@@ -26,6 +26,7 @@ class SelectQuery(object):
         self._group = None
         self._event = None
         self._events = None
+        self._eventmessage = None
         self._by_votes = False
         self._friends = False
         self._friend_requested = False
@@ -48,6 +49,7 @@ class SelectQuery(object):
         clone._order = self._order
         clone._event = self._event
         clone._events = list(self._events) if self._events is not None else None
+        clone._eventmessage = self._eventmessage
         clone._by_votes = self._by_votes
         clone._group = self._group
         clone._user = self._user
@@ -105,6 +107,10 @@ class SelectQuery(object):
     @returns_clone
     def events(self, events):
         self._events = events
+
+    @returns_clone
+    def eventmessage(self, eventmessage):
+        self._eventmessage = eventmessage
 
     @returns_clone
     def by_votes(self, by_votes=True):
@@ -196,6 +202,8 @@ class SelectQuery(object):
             return self.__get_page(skey(self._user, 'events'))
         elif self._group and self._model_class == Event:
             return self.__get_page(skey(self._group, 'events'))
+        elif self._eventmessage and self._model_class == EventMessageVote:
+            return self.model_class(User).__get_page(skey(self._eventmessage, 'votes'))
         elif self._model_class == Group and self._lat and self._lon:
             return self.__get_group()
         elif self._model_class == User and self._group:
