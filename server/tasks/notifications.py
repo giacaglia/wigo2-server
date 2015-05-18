@@ -95,7 +95,7 @@ def notify_on_eventmessage(message_id):
                 'user_id': friend.id,
                 'type': 'eventmessage.post',
                 'from_user_id': message.user_id,
-                'navigate': '/events/{}/messages/{}'.format(message.event_id, message.id),
+                'navigate': '/users/me/events/{}/messages/{}'.format(message.event_id, message.id),
                 'message': message_text
             }).save()
 
@@ -125,7 +125,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
                 'user_id': message.user_id,
                 'type': 'eventmessage.vote',
                 'from_user_id': voter_id,
-                'navigate': '/events/{}/messages/{}'.format(message.event_id, message.id),
+                'navigate': '/users/me/events/{}/messages/{}'.format(message.event_id, message.id),
                 'message': message_text
             }).save()
 
@@ -190,7 +190,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
         'user_id': invited_id,
         'type': 'invite',
         'from_user_id': inviter_id,
-        'navigate': '/events/{}'.format(event_id),
+        'navigate': '/users/me/events/{}'.format(event_id),
         'badge': 'Increment',
         'message': message_text
     }).save()
