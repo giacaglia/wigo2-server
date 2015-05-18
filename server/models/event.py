@@ -257,6 +257,9 @@ class EventMessage(WigoPersistentModel):
     image = StringType()
     thumbnail = StringType()
     vote_boost = IntType()
+
+    properties = JsonType(default=lambda: {})
+
     tags = ListType(StringType)
 
     def ttl(self):
