@@ -34,6 +34,7 @@ def new_user(user_id):
                         notification = Notification({
                             'user_id': user.id,
                             'type': 'friend.joined',
+                            'badge': 'Increment',
                             'message': 'Your Facebook friend {} just joined Wigo'.format(friend.full_name)
                         })
 
@@ -59,6 +60,7 @@ def notify_unlocked(user_id):
             notification = Notification({
                 'user_id': user.id,
                 'type': 'unlocked',
+                'badge': 'Increment',
                 'message': 'You\'re in! It\'s time to party!'
             })
 
@@ -143,6 +145,7 @@ def notify_on_message(message_id):
     push.alert(data={
         'navigate': '/messages/{}'.format(from_user.id),
         'sound': 'chord',
+        'badge': 'Increment',
         'alert': {
             'body': '{}: {}'.format(from_user.full_name, message_text),
         }
@@ -168,6 +171,7 @@ def notify_on_tap(user_id, tapped_id):
                 'type': 'tap',
                 'from_user_id': user_id,
                 'navigate': '/users/{}'.format(user_id),
+                'badge': 'Increment',
                 'message': message_text
             }).save()
 
@@ -187,6 +191,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
         'type': 'invite',
         'from_user_id': inviter_id,
         'navigate': '/events/{}'.format(event_id),
+        'badge': 'Increment',
         'message': message_text
     }).save()
 
@@ -208,6 +213,7 @@ def notify_on_friend(user_id, friend_id, accepted):
         'type': 'friend.request' if not accepted else 'friend.accept',
         'from_user_id': user.id,
         'navigate': '/users/{}'.format(user_id),
+        'badge': 'Increment',
         'message': message_text
     })
 
@@ -226,13 +232,18 @@ def send_notification_push(notification_id):
 
 
 def __send_notification_push(notification):
-    push.alert(data={
+    data = {
         'id': notification.id,
         'navigate': notification.navigate,
         'alert': {
-            'body': notification.message,
+            'body': notification.message
         }
-    }, where={
+    }
+
+    if notification.badge:
+        data['badge'] = notification.badge
+
+    push.alert(data=data, where={
         'wigo_id': notification.user_id,
         'deviceType': 'ios',
         'api_version_num': {

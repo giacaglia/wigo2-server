@@ -384,6 +384,7 @@ class Notification(WigoPersistentModel):
     from_user_id = LongType()
     navigate = StringType(required=True)
     message = StringType(required=True)
+    badge = StringType()
 
     properties = JsonType()
 
