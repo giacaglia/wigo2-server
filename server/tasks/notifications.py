@@ -16,7 +16,7 @@ from utils import epoch
 logger = logging.getLogger('wigo.notifications')
 
 
-@job(notifications_queue, timeout=30, result_ttl=0)
+@job(notifications_queue, timeout=600, result_ttl=0)
 def new_user(user_id):
     user = User.find(user_id)
 
@@ -44,10 +44,10 @@ def new_user(user_id):
 
         user.track_meta('last_facebook_check')
     except FacebookTokenExpiredException:
-        logger.warn('error finding facebook friends to suggest for user {}, token expired'.format(user_id))
+        logger.warn('error finding facebook friends to alert for user {}, token expired'.format(user_id))
         user.track_meta('last_facebook_check')
     except Exception:
-        logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
+        logger.exception('error finding facebook friends to alert for user {}'.format(user_id))
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
