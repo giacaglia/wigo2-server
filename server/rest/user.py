@@ -318,7 +318,8 @@ class InviteListResource(WigoResource):
         users = User.find(friend_ids)
 
         for user in users:
-            user.invited = user.is_directly_invited(event)
+            if user:
+                user.invited = user.is_directly_invited(event)
 
         return self.serialize_list(self.model, users, num_friends, page)
 
