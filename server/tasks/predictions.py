@@ -59,7 +59,7 @@ def generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
     if force:
         _do_generate_friend_recs.delay(user_id, num_friends_to_recommend)
     else:
-        with rate_limit('generate_friend_recs:{}'.format(user_id), timedelta(hours=1)) as limited:
+        with rate_limit('generate_friend_recs:{}'.format(user_id), timedelta(minutes=10)) as limited:
             if not limited:
                 _do_generate_friend_recs.delay(user_id, num_friends_to_recommend)
 
