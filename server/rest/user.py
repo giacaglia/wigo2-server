@@ -63,19 +63,19 @@ class UserResource(WigoDbResource):
         abort(501, message='Not implemented')
 
 
-@api.route('/users/<user_id>/referred')
+@api.route('/users/<user_id>/referred_by')
 class UserReferredResource(WigoResource):
     model = User
 
     @user_token_required
     @api.expect(api.model('Referred', {
-        'referred_id': fields.Integer(description='User referred', required=True)
+        'referred_by_id': fields.Integer(description='User who referred user_id', required=True)
     }))
     @api.response(200, 'Success')
     def post(self, user_id):
-        referred_id = self.get_id_field('referred_id')
-        referred = User.find(referred_id)
-        wigo_db.set_add(skey(g.user, 'referred'), referred.id)
+        referred_by_id = self.get_id_field('referred_by_id')
+        referred_by = User.find(referred_by_id)
+        wigo_db.set_add(skey(referred_by, 'referred'), g.user.id)
         return {'success': True}
 
 
