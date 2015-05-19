@@ -319,7 +319,7 @@ class WigoRedisDB(WigoDB):
 
         num_expired = 0
         for redis in self.redis.connections.values():
-            with redis.lock('locks:expire_keys'):
+            with redis.lock('locks:expire_keys', timeout=180):
                 while True:
                     keys = redis.zrangebyscore(EXPIRE_KEY, 0, time(), 0, 100)
                     if keys:
@@ -582,8 +582,6 @@ def get_data_type(dt, value=None):
 def check_expires(expires):
     if isinstance(expires, datetime):
         expires = expires - datetime.utcnow()
-    if isinstance(expires, timedelta) and expires.total_seconds() < 0:
-        expires = timedelta(days=8)
     return expires
 
 
