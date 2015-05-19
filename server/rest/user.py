@@ -3,9 +3,11 @@ from datetime import datetime, timedelta
 
 import re
 
+from time import time
 from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
+from config import Configuration
 from server.db import wigo_db
 from server.models import skey
 from server.models.event import Event
@@ -75,7 +77,16 @@ class UserReferredResource(WigoResource):
     def post(self, user_id):
         referred_by_id = self.get_id_field('referred_by_id')
         referred_by = User.find(referred_by_id)
-        wigo_db.set_add(skey(referred_by, 'referred'), g.user.id)
+        referred_key = skey(referred_by, 'referred')
+
+        # record into the referrers list of users they referred
+        if not wigo_db.sorted_set_is_member(referred_key, g.user.id):
+            wigo_db.sorted_set_add(referred_key, g.user.id, time())
+
+            # record into the referrers rankings for the month
+            now = datetime.now(Configuration.ANALYTICS_TIMEZONE)
+            wigo_db.sorted_set_incr_score(skey('referrers', now.month, now.year), referred_by.id)
+
         return {'success': True}
 
 

@@ -308,8 +308,8 @@ class WigoRedisDB(WigoDB):
         # don't replicate remove by score to long term storage
         return self.redis.zremrangebyscore(key, min, max)
 
-    def sorted_set_incr_score(self, key, value, amount=1):
-        return self.redis.zincrby(key, value, amount)
+    def sorted_set_incr_score(self, key, value, amount=1, dt=None):
+        return self.redis.zincrby(key, self.encode(value, dt), amount)
 
     def sorted_set_remove_by_rank(self, key, start, stop):
         return self.redis.zremrangebyrank(key, start, stop)

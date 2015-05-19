@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os
 from datetime import timedelta
+from pytz import timezone
 
 
 def parse_env_list(prefix):
@@ -91,6 +92,8 @@ class Configuration(object):
     PREDICTION_IO_ACCESS_KEY = os.environ.get('PREDICTION_IO_ACCESS_KEY', '8Jp9T1nKYOmCmWqQpFV5ziLlkzesWOCgjgnelFOiAqgKwtoV0KPQG646EWfbkz1T')
     PREDICTION_IO_HOST = os.environ.get('PREDICTION_IO_HOST', '104.197.21.254')
     PREDICTION_IO_PORT = os.environ.get('PREDICTION_IO_PORT', '8001')
+
+    ANALYTICS_TIMEZONE = timezone('US/Hawaii')
 
     UPLOAD_FOLDER = 'uploads'
 
