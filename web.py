@@ -1,6 +1,4 @@
 from __future__ import absolute_import
-from newrelic import agent
-from pytz import timezone
 
 import logconfig
 from config import Configuration
@@ -12,8 +10,8 @@ import ujson
 import logging
 import requests
 
+from newrelic import agent
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from urlparse import urlparse
 from clize import clize
 from flask.ext.restful import abort
