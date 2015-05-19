@@ -86,6 +86,7 @@ class UserReferredResource(WigoResource):
             # record into the referrers rankings for the month
             now = datetime.now(Configuration.ANALYTICS_TIMEZONE)
             wigo_db.sorted_set_incr_score(skey('referrers', now.month, now.year), referred_by.id)
+            wigo_db.sorted_set_incr_score(skey('referrers'), referred_by.id)
 
         return {'success': True}
 
