@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from pytz import timezone
 
 import logconfig
 from config import Configuration
@@ -10,9 +11,8 @@ import ujson
 import logging
 import requests
 
-from utils import Version, ValidationException
-
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from urlparse import urlparse
 from clize import clize
 from flask.ext.restful import abort
@@ -39,6 +39,8 @@ from server.models.event import Event, EventMessage
 from server.models.group import Group
 from server.models import Config, DoesNotExist
 from server.security import check_basic_auth, setup_user_by_token
+
+from utils import Version, ValidationException
 
 requests.packages.urllib3.disable_warnings()
 
@@ -70,6 +72,7 @@ wire_images_listeners()
 wire_predictions_listeners()
 wire_parse_listeners()
 wire_data_listeners()
+
 
 @app.before_request
 def setup_request():
@@ -257,12 +260,31 @@ def sendgrid_hook():
     return jsonify(success=True)
 
 
+@app.route('/who', methods=['GET'])
+def referrer_dashboard():
+    # summary = self.analytics.get_leading_referrers()
+    payouts = []
+
+    referrer_ids = wigo_db.sorted_set_rrange('referrers', 0, 100, withscores=True)
+    referrers = [u for u in User.find(r[0] for r in referrer_ids)]
+
+    for index, r in enumerate(referrers):
+        r.num_referrals = int(referrer_ids[index][1])
+
+    return render_template('who_dashboard.html', referrers=referrers, payouts=payouts)
+
+
 def is_request_secure():
     secure = True if request.is_secure else False
     forwarded_proto = request.headers.get('X-Forwarded-Proto')
     if forwarded_proto == 'https':
         secure = True
     return secure
+
+
+@app.template_filter('strftime')
+def strftime(value, format='%H:%M / %d-%m-%Y'):
+    return value.strftime(format)
 
 
 @clize
