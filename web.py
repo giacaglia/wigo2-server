@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from newrelic import agent
 from pytz import timezone
 
 import logconfig
@@ -82,6 +83,9 @@ def setup_request():
     if is_request_secure() and request.environ.get('wsgi.url_scheme') != 'https':
         request.environ['wsgi.url_scheme'] = 'https'
 
+    if request.path.startswith('/api/swagger') or request.path.startswith('/admin'):
+        agent.ignore_transaction()
+
     api_key = request.headers.get('X-Wigo-API-Key')
     if not api_key and 'key' in request.args:
         request.args = request.args.copy()
@@ -99,6 +103,7 @@ def setup_request():
     except:
         raise ValidationException('Invalid version number', 'X-Wigo-API-Version')
 
+    # check api key auth
     if request.path.startswith('/api/hooks/'):
         # webhooks do their own auth
         pass
