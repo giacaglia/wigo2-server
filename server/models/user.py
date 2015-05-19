@@ -210,6 +210,9 @@ class Friend(WigoModel):
     def validate(self, partial=False, strict=False):
         super(Friend, self).validate(partial, strict)
 
+        if self.user_id == self.friend_id:
+            raise ValidationException('Cannot friend yourself')
+
         if Configuration.ENVIRONMENT != 'dev' and self.user.is_friend(self.friend):
             raise ValidationException('Already friends')
 
