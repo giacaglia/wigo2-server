@@ -79,14 +79,19 @@ def initialize(create_tables=False, import_cities=False):
               value->>'first_name' first_name, value->>'last_name' last_name, value->>'gender' gender,
               value->>'status' status, CAST(value->>'latitude' as float) latitude,
               CAST(value->>'longitude' as float) longitude
-              FROM data_strings WHERE value->>'$type' = 'User'
+              FROM data_strings WHERE value->>'$type' = 'User';
 
             CREATE OR REPLACE VIEW groups AS
               SELECT key, CAST(value->>'id' AS BIGINT) id,
               value->>'name' "name", value->>'code' code, value->>'city_id' city_id,
               value->>'state' state, value->>'country' country,
               CAST(value->>'latitude' as float) latitude, CAST(value->>'longitude' as float) longitude
-              FROM data_strings WHERE value->>'$type' = 'Group'
+              FROM data_strings WHERE value->>'$type' = 'Group';
+
+            CREATE OR REPLACE VIEW events AS
+              SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'owner_id' AS BIGINT) owner_id,
+              CAST(value->>'group_id' AS BIGINT) group_id, value->>'name' "name"
+              FROM data_strings WHERE value->>'$type' = 'Event';
 
           """)
 
