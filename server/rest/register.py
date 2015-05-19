@@ -13,7 +13,7 @@ from flask import g, request
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
 from config import Configuration
-from server.db import wigo_db
+from server.db import redis
 
 from server.models import DoesNotExist
 from server.models.user import User
@@ -60,7 +60,7 @@ class RegisterResource(WigoResource):
         if not facebook_id or not facebook_token:
             abort(400, message='Missing facebook id or token')
 
-        with wigo_db.redis.lock('locks:register:{}'.format(facebook_id), timeout=30):
+        with redis.lock('locks:register:{}'.format(facebook_id), timeout=30):
             try:
                 User.find(facebook_id=facebook_id, email=email)
                 abort(400, message='Account already exists')
