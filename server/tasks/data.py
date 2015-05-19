@@ -6,7 +6,7 @@ import ujson
 from random import randint
 from threading import Thread
 from time import time, sleep
-from datetime import timedelta, datetime
+from datetime import datetime
 from contextlib import contextmanager
 from urlparse import urlparse
 from redis import Redis
@@ -106,7 +106,7 @@ def event_related_change(group_id, event_id):
 
                 # index this event into the close group
                 if event.deleted is False:
-                    event.add_to_global_events(group=close_group, remove_empty=True)
+                    event.update_global_events(group=close_group)
                 else:
                     event.remove_index(group=close_group)
 
@@ -366,9 +366,13 @@ def wire_data_listeners():
             instance.to_user.track_meta('last_message_received', epoch(instance.created))
 
     def data_delete_listener(sender, instance):
-        if isinstance(instance, EventMessage):
+        if isinstance(instance, Event):
+            event_related_change.delay(instance.group_id, instance.id)
+        elif isinstance(instance, EventMessage):
+            event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
         elif isinstance(instance, EventAttendee):
+            event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, Friend):
             delete_friend.delay(instance.user_id, instance.friend_id)

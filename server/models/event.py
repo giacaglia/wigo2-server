@@ -100,14 +100,14 @@ class Event(WigoPersistentModel):
 
     def index(self):
         super(Event, self).index()
-        self.add_to_global_events()
+        self.update_global_events()
 
         # TODO on privacy change iterate the attendees of event and update attending
         # TODO also the global event needs to be updated
 
         self.clean_old(skey('group', self.group_id, 'events'))
 
-    def add_to_global_events(self, group=None, remove_empty=False):
+    def update_global_events(self, group=None):
         if group is None:
             group = self.group
 
@@ -125,12 +125,16 @@ class Event(WigoPersistentModel):
         if self.privacy == 'public':
             if event_name_key:
                 self.db.set(event_name_key, self.id, self.expires, self.expires)
+
             num_attending = self.db.get_sorted_set_size(attendees_key)
-            if remove_empty and (self.owner_id is not None and num_attending == 0):
+            num_messages = get_cached_num_messages(self.id) if self.is_expired else 10
+
+            if self.is_new is False and (num_attending == 0 or num_messages == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
                 score = get_score_key(self.expires, distance, num_attending)
                 self.db.sorted_set_add(events_key, self.id, score)
+
         else:
             # if the event is being made private, make sure it hasn't taken the name
             if event_name_key:
@@ -143,7 +147,7 @@ class Event(WigoPersistentModel):
 
             self.db.sorted_set_remove(events_key, self.id)
 
-    def add_to_user_events(self, user, remove_empty=False):
+    def update_user_events(self, user, remove_empty=False):
         events_key = skey(user, 'events')
 
         current_attending = user.get_attending_id()
@@ -170,13 +174,13 @@ class Event(WigoPersistentModel):
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # add to the users current events list
-        self.add_to_user_events(user)
+        self.update_user_events(user)
 
     def remove_from_user_attending(self, user, attendee):
         # remove from the users view of who is attending
         self.db.sorted_set_remove(user_attendees_key(user, self), attendee.id)
         # update the users event list for this event, removing if now empty
-        self.add_to_user_events(user, remove_empty=True)
+        self.update_user_events(user, remove_empty=True)
 
     def remove_index(self, group=None):
         super(Event, self).remove_index()
@@ -222,7 +226,7 @@ class EventAttendee(WigoModel):
         attendees_key = skey(event, 'attendees')
         self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
-        event.add_to_global_events()
+        event.update_global_events()
 
         # now update the users view of the events
         # record the exact event the user is currently attending
@@ -234,7 +238,7 @@ class EventAttendee(WigoModel):
         self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
 
         # record the event into the events the user can see
-        event.add_to_user_events(user)
+        event.update_user_events(user)
 
     def remove_index(self):
         super(EventAttendee, self).remove_index()
@@ -243,12 +247,12 @@ class EventAttendee(WigoModel):
 
         # first update the global state of the event
         self.db.sorted_set_remove(skey(event, 'attendees'), user.id)
-        event.add_to_global_events(remove_empty=True)
+        event.update_global_events()
 
         # now update the users view of the events
         self.db.delete(skey(user, 'current_attending'))
         self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
-        event.add_to_user_events(user, remove_empty=True)
+        event.update_user_events(user, remove_empty=True)
 
 
 class EventMessage(WigoPersistentModel):

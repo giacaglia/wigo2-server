@@ -81,6 +81,7 @@ class WigoModel(Model):
         self._previous_changes = {}
         self._dirty = False
         self._field_cache = {}
+        self.is_new = True
         super(WigoModel, self).__init__(raw_data, deserialize_mapping, strict)
 
     @property
@@ -105,6 +106,7 @@ class WigoModel(Model):
     def check_id(self):
         if self.id is None:
             self.id = self.db.gen_id()
+            self.is_new = True
         return object
 
     @serializable(serialized_name='$type')
@@ -115,6 +117,7 @@ class WigoModel(Model):
         self._previous_changes = self._changes
         self._changes = {}
         self._dirty = False
+        self.is_new = False
 
     def is_changed(self, *keys):
         if not keys:
