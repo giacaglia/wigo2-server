@@ -95,11 +95,10 @@
 
     <div class="jumbotron">
         <table id="referrals">
-        <tr><th>Rank</th><th><b>Payout</b></th><th>Name</th><th>Referrals</th></tr>
+        <tr><th>Rank</th><th>Name</th><th>Referrals</th></tr>
         {% for user in referrers %}
             <tr>
                 <td>{{ loop.index }}.</td>
-                <td><b>{{ payouts[loop.index0] }}</b></td>
                 <td>{{ user.first_name }} {{ user.last_name }}</td>
                 <td>{{ user.num_referrals }}</td>
             </tr>
