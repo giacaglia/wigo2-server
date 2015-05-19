@@ -12,7 +12,7 @@ from rq_scheduler import Scheduler
 
 from peewee import DoesNotExist, SQL
 from time import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from urlparse import urlparse
 from redis import Redis
 from config import Configuration

@@ -69,12 +69,22 @@ def process_waitlist():
 
 
 @job(data_queue, timeout=30, result_ttl=0)
-def event_related_change(group_id):
+def event_related_change(group_id, event_id):
     from server.db import redis
 
     logger.info('recording event change in group {}'.format(group_id))
 
-    lock = redis.lock('locks:group_event_change:{}'.format(group_id), timeout=30)
+    try:
+        event = Event.find(event_id)
+        event.deleted = False
+    except DoesNotExist:
+        event = Event({
+            'id': event_id,
+            'group_id': group_id
+        })
+        event.deleted = True
+
+    lock = redis.lock('locks:group_event_change:{}'.format(group_id), timeout=60)
     if lock.acquire(blocking=False):
         try:
             group = Group.find(group_id)
@@ -83,36 +93,31 @@ def event_related_change(group_id):
             # or in case the job queues get backed up
             group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
 
-            for close_group in get_close_groups(group.latitude, group.longitude, 100):
+            radius = 100
+            population = group.population or 50000
+            if population < 50000:
+                radius = 40
+            elif population < 100000:
+                radius = 60
+
+            for close_group in get_close_groups(group.latitude, group.longitude, radius):
+                if close_group.id == group.id:
+                    continue
+
+                # index this event into the close group
+                if event.deleted is False:
+                    event.add_to_global_events(group=close_group, remove_empty=True)
+                else:
+                    event.remove_index(group=close_group)
+
+                # clean out old events
+                event.clean_old(skey(close_group, 'events'))
+
+                # track the change for the group
                 close_group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
+
         finally:
             lock.release()
-
-
-@job(data_queue, timeout=30, result_ttl=0)
-def event_landed_in_group(group_id):
-    logger.info('recording event landed in group {}'.format(group_id))
-
-    group = Group.find(group_id)
-    population = group.population or 50000
-    radius = 100
-
-    if population >= 500000:
-        radius = 20
-    elif population >= 100000:
-        radius = 30
-    elif population >= 50000:
-        radius = 50
-
-    # tell each close group that this group just had a new event
-    for close_group in get_close_groups(group.latitude, group.longitude, radius):
-        key = skey(close_group, 'close_groups_with_events')
-
-        if close_group.id != group.id:
-            wigo_db.sorted_set_add(key, group_id, time(), replicate=False)
-
-        # remove groups that haven't had events in 8 days
-        wigo_db.sorted_set_remove_by_score(key, 0, epoch(datetime.utcnow() - timedelta(days=8)))
 
 
 @job(data_queue, timeout=60, result_ttl=0)
@@ -343,19 +348,17 @@ def wire_data_listeners():
         elif isinstance(instance, Block):
             instance.user.track_meta('last_block', epoch(instance.created))
         elif isinstance(instance, Event):
-            event_related_change.delay(instance.group_id)
-            event_landed_in_group.delay(instance.group_id)
+            event_related_change.delay(instance.group_id, instance.id)
         elif isinstance(instance, Invite):
-            event_related_change.delay(instance.event.group_id)
             user_invited.delay(instance.event_id, instance.user_id, instance.invited_id)
         elif isinstance(instance, EventAttendee):
-            event_related_change.delay(instance.event.group_id)
+            event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_user_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, EventMessage):
-            event_related_change.delay(instance.event.group_id)
+            event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
-            event_related_change.delay(instance.message.event.group_id)
+            event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
             tell_friends_about_vote.delay(instance.message_id, instance.user_id)
         elif isinstance(instance, Message):
             instance.user.track_meta('last_message', epoch(instance.created))

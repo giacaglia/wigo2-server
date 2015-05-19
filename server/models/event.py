@@ -107,27 +107,39 @@ class Event(WigoPersistentModel):
 
         self.clean_old(skey('group', self.group_id, 'events'))
 
-    def add_to_global_events(self, remove_empty=False):
-        group = self.group
+    def add_to_global_events(self, group=None, remove_empty=False):
+        if group is None:
+            group = self.group
 
         events_key = skey('group', self.group_id, 'events')
         attendees_key = skey(self, 'attendees')
-        event_name_key = skey(group, Event, Event.event_key(self.name))
+
+        if group.id == self.group_id:
+            distance = 0
+            event_name_key = skey(group, Event, Event.event_key(self.name))
+        else:
+            event_name_key = None
+            distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
+                                                  (group.latitude, group.longitude))
 
         if self.privacy == 'public':
-            self.db.set(event_name_key, self.id, self.expires, self.expires)
+            if event_name_key:
+                self.db.set(event_name_key, self.id, self.expires, self.expires)
             num_attending = self.db.get_sorted_set_size(attendees_key)
             if remove_empty and (self.owner_id is not None and num_attending == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
-                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, num_attending))
+                score = get_score_key(self.expires, distance, num_attending)
+                self.db.sorted_set_add(events_key, self.id, score)
         else:
-            try:
-                existing_event = self.find(group=group, name=self.name)
-                if existing_event.id == self.id:
-                    self.db.delete(event_name_key)
-            except DoesNotExist:
-                pass
+            # if the event is being made private, make sure it hasn't taken the name
+            if event_name_key:
+                try:
+                    existing_event = self.find(group=group, name=self.name)
+                    if existing_event.id == self.id:
+                        self.db.delete(event_name_key)
+                except DoesNotExist:
+                    pass
 
             self.db.sorted_set_remove(events_key, self.id)
 
@@ -166,20 +178,23 @@ class Event(WigoPersistentModel):
         # update the users event list for this event, removing if now empty
         self.add_to_user_events(user, remove_empty=True)
 
-    def remove_index(self):
+    def remove_index(self, group=None):
         super(Event, self).remove_index()
-        group = self.group
 
-        self.db.sorted_set_remove(skey(group, 'events'), self.id)
+        if group is None:
+            group = self.group
+
         self.db.delete(skey(self, 'attendees'))
         self.db.delete(skey(self, 'messages'))
+        self.db.sorted_set_remove(skey(group, 'events'), self.id)
 
-        try:
-            existing_event = self.find(group=group, name=self.name)
-            if existing_event.id == self.id:
-                self.db.delete(skey(group, Event, Event.event_key(self.name)))
-        except:
-            pass
+        if group.id == self.group_id:
+            try:
+                existing_event = self.find(group=group, name=self.name)
+                if existing_event.id == self.id:
+                    self.db.delete(skey(group, Event, Event.event_key(self.name)))
+            except:
+                pass
 
 
 class EventAttendee(WigoModel):

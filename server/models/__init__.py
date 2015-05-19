@@ -4,6 +4,7 @@ import logging
 import ujson
 import re
 
+from decimal import Decimal
 from collections import defaultdict
 from functools import wraps
 from blinker import signal
@@ -548,7 +549,12 @@ class AlreadyExistsException(WigoModelException):
 
 
 def get_score_key(time, distance, num_attending):
-    return epoch(time) + (1 - (distance / 5000.0)) + (num_attending / 10000.0)
+    if num_attending > 1000:
+        num_attending = 1000
+    if distance > 100:
+        distance = 100
+    adjustment = (1 - (distance / 1000.0)) + (num_attending / 10000.0)
+    return str(Decimal(epoch(time)) + Decimal(adjustment))
 
 
 def user_attendees_key(user, event):

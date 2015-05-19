@@ -10,7 +10,7 @@ from newrelic import agent
 from server.db import wigo_db
 from server.models import skey, user_eventmessages_key, AlreadyExistsException, DoesNotExist
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
-from server.models.group import get_group_by_city_id, Group, get_close_groups_with_events
+from server.models.group import get_group_by_city_id, Group
 from server.rest import WigoDbListResource, WigoDbResource, WigoResource, api, cache_maker, check_last_modified
 from server.security import user_token_required
 from utils import epoch
@@ -26,57 +26,15 @@ class EventListResource(WigoDbListResource):
     @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self, headers):
+        user = g.user
         group = g.group
 
-        current_time = int(request.args.get('t', 1))
-        current_group = int(request.args.get('g', 0))
+        query = self.select().group(group)
+        query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
+        query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
+        count, page, instances = query.execute()
 
-        # start with the users own group no matter what
-        groups = [group]
-
-        # append all of the close groups
-        close_groups = get_close_groups_with_events(group)
-
-        if group in close_groups:
-            close_groups.remove(group)
-
-        groups.extend(close_groups)
-
-        times = ([group.get_day_end() + timedelta(hours=1)] +
-                 [group.get_day_end() - timedelta(days=i) for i in range(1, 8)])
-
-        all_events = []
-
-        time_index = 0
-        group_index = 0
-
-        for time_index, time in enumerate(times[current_time:], current_time):
-            for group_index, group in enumerate(groups[current_group:], current_group):
-                max_time = times[time_index - 1]
-                count, page, events = get_city_events(group, epoch(time), epoch(max_time))
-                all_events.extend(events)
-
-            if len(all_events) > 25:
-                break
-
-        next = {}
-        if time_index < (len(times)-1) and group_index < (len(groups)-1):
-            next = {'t': time_index, 'g': group_index}
-
-        # if this is the first request, get the event the user is currently attending
-        attending_id = g.user.get_attending_id()
-        if attending_id:
-            try:
-                attending = Event.find(attending_id)
-                if attending in all_events:
-                    all_events.remove(attending)
-                if 'g' not in request.args and 'page' not in request.args:
-                    all_events.insert(0, attending)
-                    attending.current_user_attending = True
-            except DoesNotExist:
-                logger.warn('Event {} not found'.format(attending_id))
-
-        return self.serialize_list(Event, all_events, next=next), 200, headers
+        return self.serialize_list(self.model, instances, count, page), 200, headers
 
     @user_token_required
     @api.expect(Event.to_doc_list_model(api))
