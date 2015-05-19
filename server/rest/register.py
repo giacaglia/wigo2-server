@@ -94,7 +94,7 @@ class RegisterResource(WigoResource):
             user.timezone = timezone.zone
             user.first_name = user_info.get('first_name') or user_info.get('given_name')
             user.last_name = user_info.get('last_name') or user_info.get('family_name')
-            user.username = self.get_username(email or user.full_name)
+            user.username = get_username(email or user.full_name)
             user.gender = user_info.get('gender')
 
             if not birthdate:
