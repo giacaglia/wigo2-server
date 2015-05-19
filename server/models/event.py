@@ -81,7 +81,7 @@ class Event(WigoPersistentModel):
                 event_key = ' '.join(words[1:])
         if not event_key:
             event_key = event_name
-        return event_key
+        return event_key.encode('utf-8')
 
     def save(self):
         created = self.id is None
