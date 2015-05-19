@@ -75,3 +75,6 @@ scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
 # start schedule processor
 thread = SchedulerThread()
 thread.start()
+
+# process expired on startup
+process_expired()

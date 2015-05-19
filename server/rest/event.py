@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import math
 import logging
 
 from time import time
@@ -27,9 +26,6 @@ class EventListResource(WigoDbListResource):
     @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
     def get(self, headers):
-        limit = self.get_limit()
-        page = self.get_page()
-
         group = g.group
 
         current_time = int(request.args.get('t', 1))
@@ -56,47 +52,16 @@ class EventListResource(WigoDbListResource):
 
         for time_index, time in enumerate(times[current_time:], current_time):
             for group_index, group in enumerate(groups[current_group:], current_group):
-                remaining = limit - len(all_events)
-
-                if remaining <= 0:
-                    break
-
-                # if time is None, 1st iteration, max is group day end
                 max_time = times[time_index - 1]
-                count, page, events = get_city_events(group, remaining, page, epoch(time), epoch(max_time))
-                pages = int(math.ceil(float(count) / remaining))
+                count, page, events = get_city_events(group, epoch(time), epoch(max_time))
+                all_events.extend(events)
 
-                while count > 0:
-                    for event in events:
-                        all_events.append(event)
-
-                    if page >= pages:
-                        page = 1
-                        current_group += 1
-                        break
-
-                    page += 1
-
-                    # if the result set is full, break out
-                    if len(all_events) >= limit:
-                        break
-
-                    count, page, events = get_city_events(group, remaining, page, epoch(time), epoch(max_time))
-
-                else:
-                    page = 1
-                    current_group += 1
-
-            if len(all_events) >= limit:
+            if len(all_events) > 25:
                 break
-            else:
-                # done with all the groups, so go back to group 0, page 1 for the next time
-                current_group = 0
-                page = 1
 
         next = {}
-        if len(all_events) >= limit and time_index < len(times) and current_group < len(groups):
-            next = {'page': page, 't': time_index, 'g': current_group}
+        if time_index < (len(times)-1) and group_index < (len(groups)-1):
+            next = {'t': time_index, 'g': group_index}
 
         # if this is the first request, get the event the user is currently attending
         attending_id = g.user.get_attending_id()
@@ -396,20 +361,20 @@ class EventMessageVoteResource(WigoResource):
         return {'success': True}
 
 
-def get_city_events(group, limit, page, min, max):
+def get_city_events(group, min, max):
     if max > time():
-        return __get_city_events(group, limit, page, min, max)
+        return __get_city_events(group, min, max)
     else:
-        return get_cached_city_events(group, limit, page, min, max)
+        return get_cached_city_events(group, min, max)
 
 
 @cache_maker.expiring_lrucache(maxsize=5000, timeout=60)
-def get_cached_city_events(group, limit, page, min, max):
-    return __get_city_events(group, limit, page, min, max)
+def get_cached_city_events(group, min, max):
+    return __get_city_events(group, min, max)
 
 
 @agent.function_trace()
-def __get_city_events(group, limit, page, min, max):
-    query = Event.select().group(group).limit(limit).page(page)
+def __get_city_events(group, min, max):
+    query = Event.select().group(group).limit(1000)
     query = query.min(min).max(max)
     return query.execute()
