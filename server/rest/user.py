@@ -347,8 +347,7 @@ class InviteListResource(WigoResource):
 
         p = wigo_db.redis.pipeline()
         for user in users:
-            if user:
-                p.zscore(skey(event, 'invited'), user.id)
+            p.zscore(skey(event, 'invited'), user.id if user else -1)
 
         scores = p.execute()
         for index, user in enumerate(users):
@@ -364,11 +363,15 @@ class InviteListResource(WigoResource):
     @api.response(200, 'Success')
     @api.response(403, 'Not friends or not attending')
     def post(self, event_id):
-        invite = Invite()
-        invite.user_id = g.user.id
-        invite.invited_id = self.get_id_field('invited_id')
-        invite.event_id = event_id
-        invite.save()
+        if 'friends' in request.get_json():
+            pass
+        else:
+            invite = Invite()
+            invite.user_id = g.user.id
+            invite.invited_id = self.get_id_field('invited_id')
+            invite.event_id = event_id
+            invite.save()
+
         return {'success': True}
 
 
