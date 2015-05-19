@@ -154,7 +154,7 @@ class WigoModel(Model):
             try:
                 return User.find(self.user_id)
             except DoesNotExist:
-                logger.warn('User {} not found'.format(self.user_id))
+                logger.warn('user {} not found'.format(self.user_id))
         return None
 
     @serializable(serialized_name='user', serialize_when_none=False)

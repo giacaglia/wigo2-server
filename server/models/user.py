@@ -1,17 +1,21 @@
 from __future__ import absolute_import
 
-from uuid import uuid4
-from datetime import timedelta, datetime
+import logging
 
+from uuid import uuid4
 from time import time
+from datetime import timedelta
+
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType, DateType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from config import Configuration
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, DEFAULT_EXPIRING_TTL, \
-    user_privacy_change, field_memoize
+    user_privacy_change, field_memoize, DoesNotExist
 from utils import epoch, ValidationException, prefix_score, memoize
+
+logger = logging.getLogger('wigo.model')
 
 
 class User(WigoPersistentModel):
@@ -108,6 +112,16 @@ class User(WigoPersistentModel):
     def is_friend(self, friend):
         friend_id = friend.id if isinstance(friend, User) else friend
         return self.db.sorted_set_is_member(skey(self, 'friends'), friend_id)
+
+    def friends_iter(self):
+        from server.db import wigo_db
+
+        for friend_id, score in wigo_db.sorted_set_iter(skey(self, 'friends')):
+            try:
+                friend = User.find(int(friend_id))
+                yield friend, score
+            except DoesNotExist:
+                logger.info('user {} does not exist'.format(friend_id))
 
     def is_tapped(self, tapped):
         tapped_id = tapped.id if isinstance(tapped, User) else tapped

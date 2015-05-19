@@ -122,8 +122,7 @@ def user_invited(event_id, inviter_id, invited_id):
     invited = User.find(invited_id)
 
     # make sure i am seeing all my friends attending now
-    for friend_id, score in wigo_db.sorted_set_iter(skey(invited, 'friends')):
-        friend = User.find(friend_id)
+    for friend, score in invited.friends_iter():
         if friend.is_attending(event):
             event.add_to_user_attending(invited, friend, score)
 
@@ -135,8 +134,7 @@ def tell_friends_user_attending(user_id, event_id):
 
     if user.is_attending(event):
         with user_lock(user.id):
-            for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-                friend = User.find(int(friend_id))
+            for friend, score in user.friends_iter():
                 if friend.can_see_event(event):
                     event.add_to_user_attending(friend, user, score)
 
@@ -148,8 +146,7 @@ def tell_friends_user_not_attending(user_id, event_id):
 
     if not user.is_attending(event):
         with user_lock(user.id):
-            for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-                friend = User.find(int(friend_id))
+            for friend, score in user.friends_iter():
                 event.remove_from_user_attending(friend, user)
 
 
@@ -159,13 +156,14 @@ def tell_friends_event_message(message_id):
     user = message.user
 
     with user_lock(user.id):
-        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-            friend = User.find(int(friend_id))
+        for friend, score in user.friends_iter():
             message.record_for_user(friend)
 
 
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_delete_event_message(user_id, event_id, message_id):
+    user = User.find(user_id)
+
     message = EventMessage({
         'id': message_id,
         'user_id': user_id,
@@ -173,20 +171,20 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
     })
 
     with user_lock(user_id):
-        for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
-            friend = User.find(int(friend_id))
+        for friend, score in user.friends_iter():
             message.remove_for_user(friend)
 
 
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_about_vote(message_id, user_id):
+    user = User.find(user_id)
+
     vote = EventMessageVote({
         'message_id': message_id,
         'user_id': user_id
     })
 
-    for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
-        friend = User.find(int(friend_id))
+    for friend, score in user.friends_iter():
         vote.record_for_user(friend)
 
 
@@ -260,11 +258,12 @@ def privacy_changed(user_id):
     # tell all friends about the privacy change
     with user_lock(user_id):
         user = User.find(user_id)
-        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+
+        for friend, score in user.friends_iter():
             if user.privacy == 'public':
-                wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
+                wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
             else:
-                wigo_db.set_add(skey('user', friend_id, 'friends', 'private'), user_id)
+                wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
 
 
 @contextmanager
