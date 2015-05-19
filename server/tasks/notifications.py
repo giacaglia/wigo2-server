@@ -77,7 +77,7 @@ def notify_on_eventmessage(message_id):
     user = message.user
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
-    with rate_limit('notifications:eventmessage:{}:'.format(user.id, message.event.id),
+    with rate_limit('notifications:eventmessage:{}:{}'.format(user.id, message.event.id),
                     message.event.expires) as limited:
         if limited:
             return
