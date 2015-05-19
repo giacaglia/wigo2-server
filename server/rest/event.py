@@ -32,9 +32,21 @@ class EventListResource(WigoDbListResource):
         query = self.select().group(group)
         query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
         query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
-        count, page, instances = query.execute()
+        count, page, events = query.execute()
 
-        return self.serialize_list(self.model, instances, count, page), 200, headers
+        attending_id = g.user.get_attending_id()
+        if attending_id:
+            try:
+                attending = Event.find(attending_id)
+                if attending in events:
+                    events.remove(attending)
+                if 'page' not in request.args:
+                    events.insert(0, attending)
+                    attending.current_user_attending = True
+            except DoesNotExist:
+                logger.warn('Event {} not found'.format(attending_id))
+
+        return self.serialize_list(self.model, events, count, page), 200, headers
 
     @user_token_required
     @api.expect(Event.to_doc_list_model(api))
