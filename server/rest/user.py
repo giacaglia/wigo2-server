@@ -345,9 +345,15 @@ class InviteListResource(WigoResource):
 
         users = User.find(friend_ids)
 
+        p = wigo_db.redis.pipeline()
         for user in users:
             if user:
-                user.invited = user.is_directly_invited(event)
+                p.zscore(skey(event, 'invited'), user.id)
+
+        scores = p.execute()
+        for index, user in enumerate(users):
+            if user:
+                user.invited = scores[index] is not None
 
         return self.serialize_list(self.model, users, num_friends, page)
 
