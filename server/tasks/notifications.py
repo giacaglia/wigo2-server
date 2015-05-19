@@ -34,6 +34,7 @@ def new_user(user_id):
                         notification = Notification({
                             'user_id': user.id,
                             'type': 'friend.joined',
+                            'navigate': '/find/users/user/{}'.format(friend.id),
                             'badge': 'Increment',
                             'message': 'Your Facebook friend {} just joined Wigo'.format(friend.full_name)
                         })
@@ -212,7 +213,7 @@ def notify_on_friend(user_id, friend_id, accepted):
         'user_id': friend_id,
         'type': 'friend.request' if not accepted else 'friend.accept',
         'from_user_id': user.id,
-        'navigate': '/users/{}'.format(user_id),
+        'navigate': '/users/{}'.format(user_id) if accepted else '/find/users/user/{}'.format(user_id),
         'badge': 'Increment',
         'message': message_text
     })
