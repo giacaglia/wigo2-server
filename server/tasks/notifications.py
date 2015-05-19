@@ -234,6 +234,7 @@ def send_notification_push(notification_id):
 def __send_notification_push(notification):
     data = {
         'id': notification.id,
+        'type': notification.type,
         'navigate': notification.navigate,
         'alert': {
             'body': notification.message

@@ -23,9 +23,9 @@ class UserSuggestionsResource(WigoResource):
         count, page, users = self.select().key(skey(user, 'friend', 'suggestions')).execute()
 
         if count == 0:
-            count, page, instances = self.select().group(g.group).execute()
+            count, page, users = self.select().group(g.group).execute()
         if count == 0:
-            count, page, instances = self.select().execute()
+            count, page, users = self.select().execute()
 
         return self.serialize_list(User, users, count, page), 200, {
             'Cache-Control': 'max-age=60'
