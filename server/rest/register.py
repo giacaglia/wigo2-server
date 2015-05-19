@@ -92,9 +92,9 @@ class RegisterResource(WigoResource):
                     user.email_validated_status = 'validated'
 
             user.timezone = timezone.zone
-            user.username = self.get_username(email)
             user.first_name = user_info.get('first_name') or user_info.get('given_name')
             user.last_name = user_info.get('last_name') or user_info.get('family_name')
+            user.username = self.get_username(email or user.full_name)
             user.gender = user_info.get('gender')
 
             if not birthdate:
@@ -173,22 +173,27 @@ class RegisterResource(WigoResource):
         else:
             return {}
 
-    def get_username(self, email):
-        (username, host) = email.split('@')
-        username = re.sub(r'[^A-Za-z0-9_\.\-]+', '', username)
-        username = username.lower()
 
-        # make sure the username is unique
-        num_checks = 0
-        while num_checks < 100:
-            try:
-                User.find(username=username)
-                username = "%s%s" % (username, randint(0, 10000))
-                num_checks += 1
-            except DoesNotExist:
-                break
+def get_username(str_value):
+    if '@' in str_value:
+        (username, host) = str_value.split('@')
+    else:
+        username = str_value
 
-        if num_checks >= 100:
-            raise ValueError('Username couldnt be created for user')
+    username = re.sub(r'[^A-Za-z0-9_\.\-]+', '', username)
+    username = username.lower()
 
-        return username
+    # make sure the username is unique
+    num_checks = 0
+    while num_checks < 100:
+        try:
+            User.find(username=username)
+            username = "%s%s" % (username, randint(0, 10000))
+            num_checks += 1
+        except DoesNotExist:
+            break
+
+    if num_checks >= 100:
+        raise ValueError('Username couldnt be created for user')
+
+    return username
