@@ -102,7 +102,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         for r in predictions.get('itemScores'):
             suggest_id = int(r['item'])
             if should_suggest(suggest_id):
-                wigo_db.sorted_set_add(suggestions, suggest_id, r['score'])
+                wigo_db.sorted_set_add(suggestions, suggest_id, user.get_num_friends_in_common(suggest_id))
                 suggested.add(suggest_id)
 
         user.track_meta('last_pio_check')
@@ -125,7 +125,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
                 try:
                     friend = User.find(facebook_id=facebook_id)
                     if should_suggest(friend.id):
-                        wigo_db.sorted_set_add(suggestions, friend.id, 3)
+                        wigo_db.sorted_set_add(suggestions, friend.id, user.get_num_friends_in_common(friend.id))
                         suggested.add(friend.id)
                 except DoesNotExist:
                     pass
@@ -151,7 +151,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
                     yield friends_friend
 
     for friends_friend in each_friends_friend():
-        num_friends_in_common = len(user.get_friend_ids_in_common(friends_friend))
+        num_friends_in_common = user.get_num_friends_in_common(friends_friend)
         if num_friends_in_common > 2:
             wigo_db.sorted_set_add(suggestions, friends_friend, num_friends_in_common)
             suggested.add(friends_friend)

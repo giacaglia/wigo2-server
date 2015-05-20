@@ -156,6 +156,9 @@ class User(WigoPersistentModel):
     def is_directly_invited(self, event):
         return self.db.sorted_set_is_member(skey(event, 'invited'), self.id)
 
+    def get_num_friends_in_common(self, with_user_id):
+        return len(self.get_friend_ids_in_common(with_user_id))
+
     def get_friend_ids_in_common(self, with_user_id):
         from server.db import wigo_db
 
