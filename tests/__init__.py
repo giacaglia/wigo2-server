@@ -3,10 +3,11 @@ import logging
 import ujson
 from datetime import datetime, timedelta
 from contextlib import contextmanager
+from httpretty import HTTPretty, httpretty
 from mock import Mock
 from mockredis import mock_redis_client, MockRedis
+import re
 from config import Configuration
-
 
 Configuration.ENVIRONMENT = 'test'
 Configuration.PUSH_ENABLED = False
@@ -21,6 +22,15 @@ def setup():
     import server.tasks
     import server.tasks.data
     from redis import Redis
+
+    logging.Logger.notify = logging.Logger.info
+    logging.Logger.alert = logging.Logger.info
+    logging.Logger.ops_alert = logging.Logger.info
+
+    HTTPretty.enable()
+    HTTPretty.register_uri(httpretty.GET, re.compile('.+'), status=500)
+    HTTPretty.register_uri(httpretty.HEAD, re.compile('.+'), status=500)
+    HTTPretty.register_uri(httpretty.POST, re.compile('.+'), status=500)
 
     mock_redis = mock_redis_client()
     mock_redis_queue = Mock(Redis)
@@ -40,7 +50,6 @@ def setup():
 
 @contextmanager
 def client():
-
     logging.getLogger().setLevel(level=logging.FATAL)
     logging.getLogger('web').setLevel(level=logging.FATAL)
     logging.getLogger('wigo').setLevel(level=logging.FATAL)

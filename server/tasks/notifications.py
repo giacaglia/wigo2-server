@@ -4,6 +4,7 @@ import logging
 from retry import retry
 from datetime import timedelta
 from rq.decorators import job
+from config import Configuration
 from server.db import rate_limit
 from server.services import push
 from server.models import DoesNotExist, post_model_save
@@ -18,6 +19,9 @@ logger = logging.getLogger('wigo.notifications')
 
 @job(notifications_queue, timeout=600, result_ttl=0)
 def new_user(user_id):
+    if Configuration.ENVIRONMENT == 'test':
+        return
+
     user = User.find(user_id)
 
     facebook = Facebook(user.facebook_token, user.facebook_token_expires)

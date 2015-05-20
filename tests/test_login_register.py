@@ -12,8 +12,7 @@ def test_register():
         resp = api_post(c, None, '/api/register', {
             'timezone': 'US/Eastern',
             'facebook_id': 'xxx123',
-            'facebook_access_token': '123',
-            'email': 'jhorman@gmail.com'
+            'facebook_access_token': '123'
         })
 
         assert 200 == resp.status_code, 'oops {}'.format(resp.data)
@@ -24,8 +23,7 @@ def test_register():
         resp = api_post(c, None, '/api/register', {
             'timezone': 'US/Eastern',
             'facebook_id': 'xxx123',
-            'facebook_access_token': '123',
-            'email': 'jhorman@gmail.com'
+            'facebook_access_token': '123'
         })
 
         assert 400 == resp.status_code, 'oops {}'.format(resp.data)
@@ -38,4 +36,4 @@ def test_register():
 
         assert 200 == resp.status_code, 'oops {}'.format(resp.data)
         resp = ujson.loads(resp.data)
-        assert resp['objects'][0]['email'] == 'jhorman@gmail.com'
+        assert resp['objects'][0]['facebook_id'] == 'xxx123'
