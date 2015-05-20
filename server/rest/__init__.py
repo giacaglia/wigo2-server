@@ -451,8 +451,7 @@ def check_last_modified(context_var, field, max_age=0):
             if last_change:
                 last_change = datetime.utcfromtimestamp(float(last_change))
             else:
-                last_change = datetime.utcnow()
-                wigo_db.redis.hset(skey(context, 'meta'), field, time())
+                return f(*args, **kw)
 
             if last_change > datetime.utcnow():
                 # if last-change is set to the future, the intent is to disable if-modified-since
