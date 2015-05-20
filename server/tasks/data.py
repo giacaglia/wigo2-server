@@ -72,6 +72,7 @@ def process_waitlist():
 def new_group(group_id):
     group = Group.find(group_id)
     logger.info('new group {} created, importing events'.format(group.name))
+    num_imported = 0
 
     for close_group in get_close_groups(group.latitude, group.longitude, 100):
         if close_group.id == group.id:
@@ -79,7 +80,9 @@ def new_group(group_id):
 
         for event in Event.select().group(close_group):
             event.update_global_events(group=group)
+            num_imported += 1
 
+    logger.info('imported {} events into group {}'.format(num_imported, group.name))
     group.track_meta('last_event_change', time(), expire=None)
 
 
