@@ -10,7 +10,10 @@ import logging
 from time import sleep
 from datetime import datetime, timedelta
 from threading import Thread
-from server.db import redis, scheduler
+from collections import defaultdict
+from rq import get_failed_queue, Queue
+
+from server.db import redis, scheduler, wigo_db
 from server.tasks.data import wire_data_listeners, process_waitlist
 from server.tasks.parse import wire_parse_listeners
 from server.tasks.predictions import wire_predictions_listeners
@@ -64,17 +67,41 @@ scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
 
 
 def process_expired():
-    from server.db import wigo_db
-
     wigo_db.process_expired()
+
+
+def check_queues():
+    possible_issues = defaultdict(int)
+
+    def check_queue(q, threshold_size, iterations):
+        if q.count > threshold_size:
+            possible_issues[q.name] += 1
+            if possible_issues[q.name] > iterations:
+                logger.ops_alert('queue {name} has {num} items, '
+                                 'possible issue'.format(name=q.name, num=q.count))
+                possible_issues[q.name] = 0
+        else:
+            possible_issues[q.name] = 0
+
+    try:
+        for q_name in QUEUES:
+            check_queue(Queue(q_name, connection=redis), 4000, 5)
+
+        f_queue = get_failed_queue(redis)
+        check_queue(f_queue, 50, 10)
+
+    except:
+        logger.exception('error checking queues')
 
 # schedule job to expire redis keys
 scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
                    process_expired, interval=60 * 60, timeout=600)
 
+
+# schedule job to check the queues
+scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
+                   check_queues, interval=60, timeout=600)
+
 # start schedule processor
 thread = SchedulerThread()
 thread.start()
-
-# process expired on startup
-process_expired()
