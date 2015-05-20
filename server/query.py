@@ -221,14 +221,14 @@ class SelectQuery(object):
 
     def __iter__(self):
         query = self.clone()
-        count, page, instances = self.execute()
-        pages = int(math.ceil(float(count) / self._limit))
+        count, page, instances = query.execute()
+        pages = int(math.ceil(float(count) / query._limit))
         while True:
             for instance in instances:
                 yield instance
             if page < pages:
                 query = query.page(page + 1)
-                count, page, instances = self.execute()
+                count, page, instances = query.execute()
             else:
                 break
 

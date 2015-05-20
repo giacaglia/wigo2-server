@@ -68,6 +68,21 @@ def process_waitlist():
                 lock.release()
 
 
+@job(data_queue, timeout=600, result_ttl=0)
+def new_group(group_id):
+    group = Group.find(group_id)
+    logger.info('new group {} created, importing events'.format(group.name))
+
+    for close_group in get_close_groups(group.latitude, group.longitude, 100):
+        if close_group.id == group.id:
+            continue
+
+        for event in Event.select().group(close_group):
+            event.update_global_events(group=group)
+
+    group.track_meta('last_event_change', time(), expire=None)
+
+
 @job(data_queue, timeout=30, result_ttl=0)
 def event_related_change(group_id, event_id):
     from server.db import redis
@@ -328,6 +343,7 @@ def wire_data_listeners():
 
     def data_save_listener(sender, instance, created):
         if isinstance(instance, User):
+            new_group.delay(instance.id)
             publish_model_change(instance)
 
             if created:
