@@ -71,7 +71,7 @@ def process_waitlist():
 @job(data_queue, timeout=600, result_ttl=0)
 def new_group(group_id):
     group = Group.find(group_id)
-    logger.info('new group {} created, importing events'.format(group.name))
+    logger.notify('new group {} created, importing events'.format(group.name))
     num_imported = 0
     imported = set()
 
