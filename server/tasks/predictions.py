@@ -81,6 +81,12 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             return False
         return True
 
+    def add_friend(suggest_id, score=None):
+        if score is None:
+            score = user.get_num_friends_in_common(suggest_id)
+        wigo_db.sorted_set_add(suggestions, suggest_id, score, replicate=False)
+        suggested.add(suggest_id)
+
     ##################################
     # add via prediction io
 
@@ -108,8 +114,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
                 if score >= 1:
                     score = .9
                 friends_in_common = float(user.get_num_friends_in_common(suggest_id))
-                wigo_db.sorted_set_add(suggestions, suggest_id, friends_in_common + score)
-                suggested.add(suggest_id)
+                add_friend(suggest_id, friends_in_common + score)
 
         user.track_meta('last_pio_check')
 
@@ -131,8 +136,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
                 try:
                     friend = User.find(facebook_id=facebook_id)
                     if should_suggest(friend.id):
-                        wigo_db.sorted_set_add(suggestions, friend.id, user.get_num_friends_in_common(friend.id))
-                        suggested.add(friend.id)
+                        add_friend(friend.id)
                 except DoesNotExist:
                     pass
 
@@ -159,8 +163,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     for friends_friend in each_friends_friend():
         num_friends_in_common = user.get_num_friends_in_common(friends_friend)
         if num_friends_in_common > 2:
-            wigo_db.sorted_set_add(suggestions, friends_friend, num_friends_in_common)
-            suggested.add(friends_friend)
+            add_friend(friends_friend, num_friends_in_common)
             if len(suggested) >= num_friends_to_recommend:
                 break
 
