@@ -343,13 +343,14 @@ def wire_data_listeners():
 
     def data_save_listener(sender, instance, created):
         if isinstance(instance, User):
-            new_group.delay(instance.id)
             publish_model_change(instance)
 
             if created:
                 new_user(instance.id)
 
         elif isinstance(instance, Group):
+            if created:
+                new_group.delay(instance.id)
             publish_model_change(instance)
         elif isinstance(instance, Friend) and created:
             if instance.accepted:
