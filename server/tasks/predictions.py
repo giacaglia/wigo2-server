@@ -4,7 +4,6 @@ import logging
 import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
-from time import time
 from rq.decorators import job
 from server.db import wigo_db, rate_limit
 from server.services.facebook import Facebook, FacebookTokenExpiredException
@@ -81,25 +80,34 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         return True
 
     ##################################
-    # add friends of friends
+    # add via prediction io
 
-    def each_friends_friend():
-        for friend_id in wigo_db.sorted_set_range(skey(user, 'friends'), 0, 50):
-            wigo_db.sorted_set_remove(suggestions, friend_id)
-            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'), 0, 50)
-            for friends_friend in friends_friends:
-                if should_suggest(friends_friend):
-                    yield friends_friend
+    last_pio_check = user.get_meta('last_pio_check')
+    if last_pio_check:
+        last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
 
-    for friends_friend in each_friends_friend():
-        num_friends_in_common = len(user.get_friend_ids_in_common(friends_friend))
-        if num_friends_in_common > 2:
-            wigo_db.sorted_set_add(suggestions, friends_friend, num_friends_in_common)
-            suggested.add(friends_friend)
-            if len(suggested) >= num_friends_to_recommend:
-                break
+    if not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(days=1)):
+        # flesh out the rest via prediction io
+        engine_client = predictionio.EngineClient(
+            url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
+                                      Configuration.PREDICTION_IO_PORT)
+        )
 
-    logger.info('common: found {} friends to suggest to user {}'.format(len(suggested), user_id))
+        predictions = engine_client.send_query({
+            'user': str(user_id),
+            'num': 100,
+            'blackList': [str(user_id)]
+        })
+
+        for r in predictions.get('itemScores'):
+            suggest_id = int(r['item'])
+            if should_suggest(suggest_id):
+                wigo_db.sorted_set_add(suggestions, suggest_id, r['score'])
+                suggested.add(suggest_id)
+
+        user.track_meta('last_pio_check')
+
+        logger.info('pio: found {} friends to suggest to user {}'.format(len(suggested), user_id))
 
     ##################################
     # add facebook friends
@@ -132,34 +140,25 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         logger.info('fb: found {} friends to suggest to user {}'.format(len(suggested), user_id))
 
     ##################################
-    # add via prediction io
+    # add friends of friends
 
-    last_pio_check = user.get_meta('last_pio_check')
-    if last_pio_check:
-        last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
+    def each_friends_friend():
+        for friend_id in wigo_db.sorted_set_range(skey(user, 'friends'), 0, 50):
+            wigo_db.sorted_set_remove(suggestions, friend_id)
+            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'), 0, 50)
+            for friends_friend in friends_friends:
+                if should_suggest(friends_friend):
+                    yield friends_friend
 
-    if not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(days=1)):
-        # flesh out the rest via prediction io
-        engine_client = predictionio.EngineClient(
-            url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
-                                      Configuration.PREDICTION_IO_PORT)
-        )
+    for friends_friend in each_friends_friend():
+        num_friends_in_common = len(user.get_friend_ids_in_common(friends_friend))
+        if num_friends_in_common > 2:
+            wigo_db.sorted_set_add(suggestions, friends_friend, num_friends_in_common)
+            suggested.add(friends_friend)
+            if len(suggested) >= num_friends_to_recommend:
+                break
 
-        predictions = engine_client.send_query({
-            'user': str(user_id),
-            'num': 100,
-            'blackList': [str(user_id)]
-        })
-
-        for r in predictions.get('itemScores'):
-            suggest_id = int(r['item'])
-            if should_suggest(suggest_id):
-                wigo_db.sorted_set_add(suggestions, suggest_id, r['score'])
-                suggested.add(suggest_id)
-
-        user.track_meta('last_pio_check')
-
-        logger.info('pio: found {} friends to suggest to user {}'.format(len(suggested), user_id))
+    logger.info('common: found {} friends to suggest to user {}'.format(len(suggested), user_id))
 
     wigo_db.redis.expire(suggestions, timedelta(days=30))
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))
