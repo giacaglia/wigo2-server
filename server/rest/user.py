@@ -215,7 +215,7 @@ class FriendsListResource(WigoResource):
 
         # check if already friends, or friend request already sent
         if g.user.is_friend(friend_id) or g.user.is_friend_request_sent(friend_id):
-            return {'success': True}
+            return {'success': True, 'status': 'already_friends'}
 
         friend = Friend()
         friend.user_id = g.user.id
@@ -230,7 +230,7 @@ class FriendsListResource(WigoResource):
     }))
     @api.response(200, 'Success')
     def delete(self, user_id):
-        friend = Friend({
+        Friend({
             'user_id': g.user.id,
             'friend_id': self.get_id_field('friend_id')
         }).delete()

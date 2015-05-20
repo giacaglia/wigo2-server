@@ -226,34 +226,28 @@ class Friend(WigoModel):
         super(Friend, self).index()
 
         if self.accepted:
-            self.db.sorted_set_add(skey('user', self.user_id, 'friends'), self.friend_id, 1)
-            self.db.sorted_set_add(skey('user', self.friend_id, 'friends'), self.user_id, 1)
+            def setup(u1, u2):
+                self.db.sorted_set_add(skey(u1, 'friends'), u2.id, 1)
+                self.db.sorted_set_add(skey(u1, 'friends', 'alpha'), u2.id,
+                                       prefix_score(u2.full_name.lower()), replicate=False)
+                if u2.privacy == 'private':
+                    self.db.set_add(skey(u1, 'friends', 'private'), u2.id, replicate=False)
 
-            self.db.sorted_set_add(skey('user', self.user_id, 'friends', 'alpha'),
-                                   self.friend_id, prefix_score(self.friend.full_name.lower()), replicate=False)
-
-            self.db.sorted_set_add(skey('user', self.friend_id, 'friends', 'alpha'),
-                                   self.user_id, prefix_score(self.user.full_name.lower()), replicate=False)
-
-            if self.user.privacy == 'private':
-                self.db.set_add(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
-
-            if self.friend.privacy == 'private':
-                self.db.set_add(skey('user', self.user_id, 'friends', 'private'), self.friend_id, replicate=False)
+            setup(self.user, self.friend)
+            setup(self.friend, self.user)
 
             for type in ('friend_requests', 'friend_requested'):
                 self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
                 self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
 
         else:
-            self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
-            self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
+            def teardown(u1, u2):
+                self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
+                self.db.sorted_set_remove(skey(u1, 'friends', 'alpha'), u2.id, replicate=False)
+                self.db.set_remove(skey(u1, 'friends', 'private'), u2.id, replicate=False)
 
-            self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id, replicate=False)
-            self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id, replicate=False)
-
-            self.db.set_remove(skey('user', self.user_id, 'friends', 'private'), self.friend_id, replicate=False)
-            self.db.set_remove(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
+            teardown(self.user, self.friend)
+            teardown(self.friend, self.user)
 
             friend_requested_key = skey('user', self.user_id, 'friend_requested')
             self.db.sorted_set_add(friend_requested_key, self.friend_id, epoch(self.created))
@@ -440,7 +434,7 @@ class Message(WigoPersistentModel):
 
     def validate(self, partial=False, strict=False):
         super(Message, self).validate(partial, strict)
-        if not self.user.is_friend(self.to_user):
+        if not self.user.is_friend(self.to_user_id):
             raise ValidationException('Not friends')
 
     def save(self):
