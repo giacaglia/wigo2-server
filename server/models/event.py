@@ -393,7 +393,7 @@ def get_cached_num_messages(event_id, user_id=None):
     from server.db import wigo_db
 
     key = (skey('user', user_id, 'event', event_id, 'messages')
-           if user_id else skey('event', event_id, 'messages'))
+           if user_id is not None else skey('event', event_id, 'messages'))
 
     return wigo_db.get_sorted_set_size(key)
 
@@ -409,6 +409,6 @@ def get_num_attending(event_id, user_id=None):
     from server.db import wigo_db
 
     key = (skey('user', user_id, 'event', event_id, 'attendees')
-           if user_id else skey('event', event_id, 'attendees'))
+           if user_id is not None else skey('event', event_id, 'attendees'))
 
     return wigo_db.get_sorted_set_size(key)
