@@ -417,7 +417,7 @@ class SelectQuery(object):
         if self._model_class == Event:
             events = []
             for e in objects:
-                if e.expired:
+                if e.is_expired:
                     group = self._group or e.group
                     num_messages = get_cached_num_messages(e.id, self._user.id if self._user else None)
                     num_attending = get_cached_num_attending(e.id, self._user.id if self._user else None)
