@@ -148,7 +148,7 @@ def notify_on_message(message_id):
         'sound': 'chord',
         'badge': 1,
         'alert': {
-            'body': '{}: {}'.format(from_user.full_name, message_text),
+            'body': '{}: {}'.format(from_user.full_name.encode('utf-8'), message_text.encode('utf-8')),
         }
     }, where={
         'wigo_id': user.id,
@@ -166,7 +166,7 @@ def notify_on_tap(user_id, tapped_id):
     with rate_limit('notifications:tap:{}:{}'.format(user_id, tapped_id), expires) as limited:
         if not limited:
             user = User.find(user_id)
-            message_text = '{} wants to see you out'.format(user.full_name)
+            message_text = '{} wants to see you out'.format(user.full_name.encode('utf-8'))
             notification = Notification({
                 'user_id': tapped_id,
                 'type': 'tap',
@@ -185,7 +185,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
     invited = User.find(invited_id)
     event = Event.find(event_id) if event_id else None
 
-    message_text = '{} invited you out to {}'.format(inviter.full_name, event.name)
+    message_text = '{} invited you out to {}'.format(inviter.full_name.encode('utf-8'), event.name.encode('utf-8'))
 
     notification = Notification({
         'user_id': invited_id,
@@ -205,9 +205,9 @@ def notify_on_friend(user_id, friend_id, accepted):
     friend = User.find(friend_id)
 
     if not accepted:
-        message_text = '{} wants to be friends with you'.format(user.full_name)
+        message_text = '{} wants to be friends with you'.format(user.full_name.encode('utf-8'))
     else:
-        message_text = '{} accepted your friend request'.format(user.full_name)
+        message_text = '{} accepted your friend request'.format(user.full_name.encode('utf-8'))
 
     notification = Notification({
         'user_id': friend_id,
