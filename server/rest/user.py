@@ -279,10 +279,10 @@ class DeleteFriendResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success')
     def delete(self, user_id, friend_id):
-        friend = Friend()
-        friend.user_id = g.user.id
-        friend.friend_id = friend_id
-        friend.delete()
+        Friend({
+            'user_id': g.user.id,
+            'friend_id': friend_id
+        }).delete()
 
         return {'success': True}
 
