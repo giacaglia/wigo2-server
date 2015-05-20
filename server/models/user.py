@@ -264,9 +264,9 @@ class Friend(WigoModel):
         from server.models.event import Event
 
         def cleanup(u1, u2):
-            self.db.sorted_set_remove(skey('user', u1, 'friends'), u2)
-            self.db.sorted_set_remove(skey('user', u1, 'friends', 'alpha'), u2, replicate=False)
-            self.db.set_remove(skey('user', u1, 'friends', 'private'), u2, replicate=False)
+            self.db.sorted_set_remove(skey('user', u1, 'friends'), u2.id)
+            self.db.sorted_set_remove(skey('user', u1, 'friends', 'alpha'), u2.id, replicate=False)
+            self.db.set_remove(skey('user', u1, 'friends', 'private'), u2.id, replicate=False)
 
         cleanup(self.user, self.friend)
         cleanup(self.friend, self.user)
