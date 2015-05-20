@@ -33,6 +33,7 @@ def __do_sync_parse(user_id):
     user = User.find(user_id)
 
     data = {
+        'username': user.username,
         'group_id': user.group_id,
         'group_name': user.group.name,
         'group_locked': user.group.locked,
