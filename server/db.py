@@ -12,7 +12,7 @@ from rq_scheduler import Scheduler
 
 from peewee import DoesNotExist, SQL
 from time import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urlparse import urlparse
 from redis import Redis
 from config import Configuration
@@ -33,7 +33,7 @@ class WigoDB(object):
             return ujson.loads(json)
         return None
 
-    def get_new_code(self, data, ttl=2592000):
+    def get_new_code(self, data, ttl=timedelta(days=30)):
         size = 12
         while size < 50:
             code = shortuuid.ShortUUID().random(length=size)
