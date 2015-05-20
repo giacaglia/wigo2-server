@@ -105,7 +105,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             suggest_id = int(r['item'])
             if should_suggest(suggest_id):
                 score = round(r['score'], 6)
-                print r['score']
                 friends_in_common = float(user.get_num_friends_in_common(suggest_id))
                 wigo_db.sorted_set_add(suggestions, suggest_id, friends_in_common + score)
                 suggested.add(suggest_id)
