@@ -446,6 +446,9 @@ def check_last_modified(context_var, field, max_age=0):
     def inner(f):
         @wraps(f)
         def decorated(*args, **kw):
+            headers = {}
+            kw['headers'] = headers
+
             context = getattr(g, context_var, None)
             if not context:
                 return f(*args, **kw)
@@ -459,9 +462,9 @@ def check_last_modified(context_var, field, max_age=0):
             if last_change > datetime.utcnow():
                 # if last-change is set to the future, the intent is to disable if-modified-since
                 # until that time. Last-Modified can't be set to the future or that doesn't work.
-                headers = {'Last-Modified': http_date(datetime.utcnow())}
+                headers['Last-Modified'] = http_date(datetime.utcnow())
             else:
-                headers = {'Last-Modified': http_date(last_change)}
+                headers['Last-Modified'] = http_date(last_change)
 
             if max_age:
                 headers['Cache-Control'] = 'max-age={}'.format(max_age)
@@ -469,7 +472,6 @@ def check_last_modified(context_var, field, max_age=0):
             if last_change and not is_resource_modified(request.environ, last_modified=last_change):
                 return 'Not modified', 304, headers
 
-            kw['headers'] = headers
             return f(*args, **kw)
 
         return decorated
