@@ -4,7 +4,8 @@ import math
 from datetime import datetime, timedelta
 from newrelic import agent
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
-from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages, EventMessageVote
+from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages, EventMessageVote, \
+    get_cached_num_attending
 from server.models.group import Group
 from server.models.user import Message, User, Notification
 from server.rdbms import DataStrings
@@ -408,12 +409,27 @@ class SelectQuery(object):
         return len(results), 1, results
 
     def __clean_results(self, objects):
+        from server.db import wigo_db
+
         objects = [o for o in objects if o is not None]
         objects = self.__secure_results(objects)
 
         if self._model_class == Event:
-            objects = [e for e in objects if not e.is_expired or
-                       get_cached_num_messages(e.id, self._user.id if self._user else None) > 0]
+            events = []
+            for e in objects:
+                if e.expired:
+                    group = self._group or e.group
+                    num_messages = get_cached_num_messages(e.id, self._user.id if self._user else None)
+                    num_attending = get_cached_num_attending(e.id, self._user.id if self._user else None)
+                    if num_messages == 0 or num_attending == 0:
+                        if self._user:
+                            wigo_db.sorted_set_remove(skey(self._user, 'events'), e.id)
+                        else:
+                            wigo_db.sorted_set_remove(skey(group, 'events'), e.id)
+                else:
+                    events.append(e)
+
+            objects = events
 
         return objects
 

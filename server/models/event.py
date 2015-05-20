@@ -12,7 +12,7 @@ from server.models import AlreadyExistsException, user_attendees_key, user_event
 from server.models import cache_maker
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException
 
-EVENT_LEADING_STOP_WORDS = {"a", "the"}
+EVENT_LEADING_STOP_WORDS = {'a', 'the'}
 
 
 class Event(WigoPersistentModel):
@@ -147,7 +147,7 @@ class Event(WigoPersistentModel):
 
             self.db.sorted_set_remove(events_key, self.id)
 
-    def update_user_events(self, user, remove_empty=False):
+    def update_user_events(self, user):
         events_key = skey(user, 'events')
 
         current_attending = user.get_attending_id()
@@ -156,7 +156,9 @@ class Event(WigoPersistentModel):
             self.clean_old(events_key)
         else:
             num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
-            if remove_empty and num_attending == 0:
+            num_messages = get_cached_num_messages(self.id, user.id) if self.is_expired else 10
+
+            if self.is_new is False and (num_attending == 0 or num_messages == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
                 distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
@@ -180,7 +182,7 @@ class Event(WigoPersistentModel):
         # remove from the users view of who is attending
         self.db.sorted_set_remove(user_attendees_key(user, self), attendee.id)
         # update the users event list for this event, removing if now empty
-        self.update_user_events(user, remove_empty=True)
+        self.update_user_events(user)
 
     def remove_index(self, group=None):
         super(Event, self).remove_index()
@@ -215,7 +217,6 @@ class EventAttendee(WigoModel):
 
         user = self.user
         event = self.event
-        group = event.group
 
         # check if the user is switching events for today
         current_event_id = user.get_attending_id()
@@ -252,7 +253,7 @@ class EventAttendee(WigoModel):
         # now update the users view of the events
         self.db.delete(skey(user, 'current_attending'))
         self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
-        event.update_user_events(user, remove_empty=True)
+        event.update_user_events(user)
 
 
 class EventMessage(WigoPersistentModel):
