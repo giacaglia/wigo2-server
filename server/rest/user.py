@@ -408,13 +408,15 @@ class BlockListResource(WigoResource):
 
     @user_token_required
     @api.expect(api.model('NewBlock', {
-        'blocked_id': fields.Integer(description='User to block', required=True)
+        'blocked_id': fields.Integer(description='User to block', required=True),
+        'type': fields.String(description='The block type, "abusive" is only supported value')
     }))
     @api.response(200, 'Success')
     def post(self, user_id):
         block = Block()
         block.user_id = g.user.id
         block.blocked_id = self.get_id_field('blocked_id')
+        block.type = request.get_json().get('type')
         block.save()
 
         return {'success': True}

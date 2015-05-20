@@ -328,11 +328,17 @@ class Block(WigoModel):
 
     user_id = LongType(required=True)
     blocked_id = LongType(required=True)
+    type = StringType()
 
     @property
     @field_memoize('tapped_id')
     def blocked(self):
         return User.find(self.blocked_id)
+
+    def validate(self, partial=False, strict=False):
+        super(Block, self).validate(partial, strict)
+        if self.user.is_blocked(self.blocked):
+            raise ValidationException('Already blocked')
 
     def save(self):
         super(Block, self).save()
@@ -341,6 +347,9 @@ class Block(WigoModel):
             'user_id': self.user_id,
             'blocked_id': self.blocked_id
         }).delete()
+
+        if self.type:
+            self.db.sorted_set_incr_score(skey('blocked', self.type), self.blocked_id)
 
         return self
 
@@ -455,4 +464,3 @@ class Message(WigoPersistentModel):
         wigo_db.delete(skey(user, 'conversation', to_user.id))
         user.track_meta('last_message')
         to_user.track_meta('last_message')
-
