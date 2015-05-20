@@ -111,7 +111,7 @@ class Event(WigoPersistentModel):
         if group is None:
             group = self.group
 
-        events_key = skey('group', self.group_id, 'events')
+        events_key = skey('group', group.id, 'events')
         attendees_key = skey(self, 'attendees')
 
         if group.id == self.group_id:
