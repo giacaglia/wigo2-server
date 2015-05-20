@@ -180,7 +180,14 @@ def wire_predictions_listeners():
         elif isinstance(instance, Friend) and instance.accepted:
             capture_interaction.delay(instance.user_id, instance.friend_id, instance.created, action='buy')
             capture_interaction.delay(instance.friend_id, instance.user_id, instance.created, action='buy')
+
             generate_friend_recs(instance.user_id, force=True)
             generate_friend_recs(instance.friend_id, force=True)
+
+            wigo_db.sorted_set_remove(skey('user', instance.user_id,
+                                           'friend', 'suggestions'), instance.friend_id)
+
+            wigo_db.sorted_set_remove(skey('user', instance.friend_id,
+                                           'friend', 'suggestions'), instance.user_id)
 
     post_model_save.connect(predictions_listener, weak=False)
