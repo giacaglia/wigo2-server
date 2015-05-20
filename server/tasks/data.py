@@ -286,7 +286,7 @@ def on_model_change_broadcast(message):
     from server.models import model_cache
 
     data = ujson.loads(message['data'])
-    logger.info('evicting {} from cache'.format(data))
+    logger.debug('evicting {} from cache'.format(data))
     model_cache.invalidate(data['id'])
 
 
