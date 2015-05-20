@@ -277,7 +277,7 @@ class SelectQuery(object):
             start = (page-1) * self._limit
             model_ids = range_f(key, min, max, start, self._limit, withscores=True)
             instances = self._model_class.find([m[0] for m in model_ids])
-            instances = [instance for instance in instances if instance[0] is not None]
+            instances = [instance for instance in instances if instance is not None]
             for index, instance in enumerate(instances):
                 instance.score = model_ids[index][1]
             secured = self.__clean_results(instances)
