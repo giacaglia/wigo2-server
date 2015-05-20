@@ -35,7 +35,7 @@ def new_user(user_id):
                             'user_id': user.id,
                             'type': 'friend.joined',
                             'navigate': '/find/users/user/{}'.format(friend.id),
-                            'badge': 'Increment',
+                            'badge': 1,
                             'message': 'Your Facebook friend {} just joined Wigo'.format(friend.full_name)
                         })
 
@@ -61,7 +61,7 @@ def notify_unlocked(user_id):
             notification = Notification({
                 'user_id': user.id,
                 'type': 'unlocked',
-                'badge': 'Increment',
+                'badge': 1,
                 'message': 'You\'re in! It\'s time to party!'
             })
 
@@ -146,7 +146,7 @@ def notify_on_message(message_id):
     push.alert(data={
         'navigate': '/messages/{}'.format(from_user.id),
         'sound': 'chord',
-        'badge': 'Increment',
+        'badge': 1,
         'alert': {
             'body': '{}: {}'.format(from_user.full_name, message_text),
         }
@@ -172,7 +172,7 @@ def notify_on_tap(user_id, tapped_id):
                 'type': 'tap',
                 'from_user_id': user_id,
                 'navigate': '/users/{}'.format(user_id),
-                'badge': 'Increment',
+                'badge': 1,
                 'message': message_text
             }).save()
 
@@ -192,7 +192,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
         'type': 'invite',
         'from_user_id': inviter_id,
         'navigate': '/users/me/events/{}'.format(event_id),
-        'badge': 'Increment',
+        'badge': 1,
         'message': message_text
     }).save()
 
@@ -214,7 +214,7 @@ def notify_on_friend(user_id, friend_id, accepted):
         'type': 'friend.request' if not accepted else 'friend.accept',
         'from_user_id': user.id,
         'navigate': '/users/{}'.format(user_id) if accepted else '/find/users/user/{}'.format(user_id),
-        'badge': 'Increment',
+        'badge': 1,
         'message': message_text
     })
 
