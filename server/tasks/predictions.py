@@ -66,6 +66,8 @@ def generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
 @job(predictions_queue, timeout=600, result_ttl=0)
 def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     logger.info('generating friend suggestions for user {}'.format(user_id))
+    is_dev = Configuration.ENVIRONMENT == 'dev'
+
     user = User.find(user_id)
 
     suggested = set()
@@ -86,7 +88,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     if last_pio_check:
         last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
 
-    if not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(days=1)):
+    if is_dev or (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(days=1))):
         # flesh out the rest via prediction io
         engine_client = predictionio.EngineClient(
             url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
@@ -102,7 +104,10 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         for r in predictions.get('itemScores'):
             suggest_id = int(r['item'])
             if should_suggest(suggest_id):
-                wigo_db.sorted_set_add(suggestions, suggest_id, user.get_num_friends_in_common(suggest_id))
+                score = round(r['score'], 6)
+                print r['score']
+                friends_in_common = float(user.get_num_friends_in_common(suggest_id))
+                wigo_db.sorted_set_add(suggestions, suggest_id, friends_in_common + score)
                 suggested.add(suggest_id)
 
         user.track_meta('last_pio_check')

@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logging
+from random import shuffle
 from flask import g
 from server.models import skey
 from server.models.user import User
@@ -26,6 +27,14 @@ class UserSuggestionsResource(WigoResource):
             count, page, users = self.select().group(g.group).execute()
         if count == 0:
             count, page, users = self.select().execute()
+
+        shuffle(users)
+
+        for u in users:
+            if hasattr(u, 'score'):
+                score = u.score
+                delattr(u, 'score')
+                u.num_friends_in_common = int(score)
 
         return self.serialize_list(User, users, count, page), 200, {
             'Cache-Control': 'max-age=60'

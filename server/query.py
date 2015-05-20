@@ -275,8 +275,10 @@ class SelectQuery(object):
         page = start_page
         for page in range(start_page, pages+1):
             start = (page-1) * self._limit
-            model_ids = range_f(key, min, max, start, self._limit)
-            instances = self._model_class.find(model_ids)
+            model_ids = range_f(key, min, max, start, self._limit, withscores=True)
+            instances = self._model_class.find([m[0] for m in model_ids])
+            for index, instance in enumerate(instances):
+                instance.score = model_ids[index][1]
             secured = self.__clean_results(instances)
             collected.extend(secured)
 

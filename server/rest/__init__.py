@@ -230,6 +230,9 @@ class WigoResource(Resource):
                 if User.key.name in prim:
                     del prim[User.key.name]
 
+            if hasattr(obj, 'num_friends_in_common'):
+                prim['num_friends_in_common'] = obj.num_friends_in_common
+
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
 
