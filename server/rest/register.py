@@ -21,8 +21,6 @@ from server.rest import WigoResource, api
 from server.services.facebook import Facebook, FacebookTimeoutException
 from server.tasks.email import send_email_verification
 
-from utils import check_email
-
 logger = logging.getLogger('wigo.web')
 
 
@@ -48,28 +46,27 @@ class RegisterResource(WigoResource):
         facebook_token = data.get('facebook_access_token')
         facebook_token_expires = datetime.utcnow() + timedelta(
             seconds=data.get('facebook_access_token_expires') or 1728000)
-        email = data.get('email')
         birthdate = data.get('birthdate')
         education = data.get('education')
         work = data.get('work')
 
         properties = data.get('properties')
 
-        logger.info('attempting to register user {}, facebook_id={}'.format(email, facebook_id))
+        logger.info('attempting to register user for facebook_id {}'.format(facebook_id))
 
         if not facebook_id or not facebook_token:
             abort(400, message='Missing facebook id or token')
 
         with redis.lock('locks:register:{}'.format(facebook_id), timeout=30):
             try:
-                User.find(facebook_id=facebook_id, email=email)
+                User.find(facebook_id=facebook_id)
                 abort(400, message='Account already exists')
             except DoesNotExist:
                 pass
 
             user_info = self.get_me(facebook_id, facebook_token, facebook_token_expires)
 
-            logger.info('creating new user account for email "%s"' % email)
+            logger.info('creating new user account for facebook_id {}'.format(facebook_id))
 
             user = User()
             user.key = uuid4().hex
@@ -77,24 +74,16 @@ class RegisterResource(WigoResource):
             user.facebook_token = facebook_token
             user.facebook_token_expires = facebook_token_expires
 
-            if email:
-                try:
-                    user.email = check_email(email)
-                    user.email_validated = False
-                except Exception, e:
-                    pass
-
-            if not user.email:
-                user.email = user_info.get('email')
-                if user.email:
-                    user.email_validated = True
-                    user.email_validated_date = datetime.utcnow()
-                    user.email_validated_status = 'validated'
+            user.email = user_info.get('email')
+            if user.email:
+                user.email_validated = True
+                user.email_validated_date = datetime.utcnow()
+                user.email_validated_status = 'validated'
 
             user.timezone = timezone.zone
             user.first_name = user_info.get('first_name') or user_info.get('given_name')
             user.last_name = user_info.get('last_name') or user_info.get('family_name')
-            user.username = get_username(email or user.full_name)
+            user.username = get_username(user.email or user.full_name)
             user.gender = user_info.get('gender')
 
             if not birthdate:
@@ -113,10 +102,6 @@ class RegisterResource(WigoResource):
 
             if g.group:
                 user.group_id = g.group.id
-
-            # mark the testuser (apple approval process) as a 'test' user
-            if email == 'testuser@wigo.us':
-                user.role = 'test'
 
             if properties:
                 for key, value in properties.items():
