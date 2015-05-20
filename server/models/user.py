@@ -269,14 +269,13 @@ class Friend(WigoModel):
         super(Friend, self).remove_index()
         from server.models.event import Event
 
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friends'), self.friend_id)
-        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends'), self.user_id)
+        def cleanup(u1, u2):
+            self.db.sorted_set_remove(skey('user', u1, 'friends'), u2)
+            self.db.sorted_set_remove(skey('user', u1, 'friends', 'alpha'), u2, replicate=False)
+            self.db.set_remove(skey('user', u1, 'friends', 'private'), u2, replicate=False)
 
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friends', 'alpha'), self.friend_id, replicate=False)
-        self.db.sorted_set_remove(skey('user', self.friend_id, 'friends', 'alpha'), self.user_id, replicate=False)
-
-        self.db.set_remove(skey('user', self.user_id, 'friends', 'private'), self.friend_id, replicate=False)
-        self.db.set_remove(skey('user', self.friend_id, 'friends', 'private'), self.user_id, replicate=False)
+        cleanup(self.user_id, self.friend_id)
+        cleanup(self.friend_id, self.user_id)
 
         # clean it out of the current users friend_requests and friend_requested but
         # leave the request on the other side of the relationship so it still seems to be pending
@@ -316,8 +315,8 @@ class Tap(WigoModel):
     def validate(self, partial=False, strict=False):
         super(Tap, self).validate(partial, strict)
 
-        # if not self.user.is_friend(self.tapped_id):
-        #     raise ValidationException('Not friends')
+        if not self.user.is_friend(self.tapped_id):
+            raise ValidationException('Not friends')
 
         if Configuration.ENVIRONMENT != 'dev' and self.user.is_tapped(self.tapped_id):
             raise ValidationException('Already tapped')

@@ -226,17 +226,14 @@ class FriendsListResource(WigoResource):
 
     @user_token_required
     @api.expect(api.model('DeleteFriend', {
-        'friend_id': fields.Integer(description='User to removing connection with', required=True)
+        'friend_id': fields.Integer(description='User to remove connection with', required=True)
     }))
     @api.response(200, 'Success')
     def delete(self, user_id):
-        user = g.user
-
-        friend = Friend()
-        friend.user_id = g.user.id
-        friend.friend_id = self.get_id_field('friend_id')
-        friend.delete()
-
+        friend = Friend({
+            'user_id': g.user.id,
+            'friend_id': self.get_id_field('friend_id')
+        }).delete()
         return {'success': True}
 
 
