@@ -268,8 +268,8 @@ class Friend(WigoModel):
             self.db.sorted_set_remove(skey('user', u1, 'friends', 'alpha'), u2, replicate=False)
             self.db.set_remove(skey('user', u1, 'friends', 'private'), u2, replicate=False)
 
-        cleanup(self.user_id, self.friend_id)
-        cleanup(self.friend_id, self.user_id)
+        cleanup(self.user, self.friend)
+        cleanup(self.friend, self.user)
 
         # clean it out of the current users friend_requests and friend_requested but
         # leave the request on the other side of the relationship so it still seems to be pending
