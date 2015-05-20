@@ -277,9 +277,9 @@ class SelectQuery(object):
             start = (page-1) * self._limit
             model_ids = range_f(key, min, max, start, self._limit, withscores=True)
             instances = self._model_class.find([m[0] for m in model_ids])
-            instances = [instance for instance in instances if instance is not None]
             for index, instance in enumerate(instances):
-                instance.score = model_ids[index][1]
+                if instance is not None:
+                    instance.score = model_ids[index][1]
             secured = self.__clean_results(instances)
             collected.extend(secured)
 
@@ -417,6 +417,7 @@ class SelectQuery(object):
     def __clean_results(self, objects):
         from server.db import wigo_db
 
+        objects = [o for o in objects if o is not None]
         objects = self.__secure_results(objects)
 
         if self._model_class == Event:
