@@ -135,7 +135,6 @@ class Facebook(object):
 
     def handle_exception(self, e):
         if isinstance(e, TokenExpiredError):
-            print e.json
             raise FacebookTokenExpiredException()
         elif isinstance(e, socket.timeout):
             raise FacebookTimeoutException('Timeout')
