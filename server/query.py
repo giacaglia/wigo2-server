@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import math
+import logging
 from datetime import datetime, timedelta
 from newrelic import agent
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
