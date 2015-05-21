@@ -83,7 +83,7 @@ def notify_on_eventmessage(message_id):
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
     with rate_limit('notifications:eventmessage:{}:{}'.format(user.id, message.event.id),
-                    message.event.expires) as limited:
+                    timedelta(hours=2)) as limited:
         if limited:
             return
 
@@ -118,8 +118,8 @@ def notify_on_eventmessage_vote(voter_id, message_id):
             message.user.is_blocked(voter):
         return
 
-    expires = message.user.group.get_day_end()
-    with rate_limit('notifications:vote:%s:%s:%s' % (message.user_id, message_id, voter_id), expires) as limited:
+    with rate_limit('notifications:vote:%s:%s:%s' % (message.user_id, message_id, voter_id),
+                    timedelta(hours=2)) as limited:
         if not limited:
             message_text = '{name} liked your {type} in {event}'.format(
                 name=voter.full_name.encode('utf-8'),
@@ -166,8 +166,7 @@ def notify_on_message(message_id):
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_tap(user_id, tapped_id):
     tapped = User.find(tapped_id)
-    expires = tapped.group.get_day_end()
-    with rate_limit('notifications:tap:{}:{}'.format(user_id, tapped_id), expires) as limited:
+    with rate_limit('notifications:tap:{}:{}'.format(user_id, tapped_id), timedelta(hours=2)) as limited:
         if not limited:
             user = User.find(user_id)
             message_text = '{} wants to see you out'.format(user.full_name.encode('utf-8'))
