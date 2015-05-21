@@ -442,20 +442,20 @@ class SelectQuery(object):
         return objects
 
     def __secure_results(self, objects):
-        if not self._secure:
-            return objects
         if self._model_class not in (User, EventAttendee, EventMessage):
             return objects
 
         secure_user = self._secure
-        private_friends = secure_user.get_private_friend_ids()
-        blocked = secure_user.get_blocked_ids()
+        private_friends = secure_user.get_private_friend_ids() if secure_user else set()
+        blocked = secure_user.get_blocked_ids() if secure_user else set()
 
         def can_see_user(u):
             if u is None:
                 return True
             if u == secure_user:
                 return True
+            if u.status == 'hidden':
+                return False
             if u.id in blocked:
                 return False
             if u.privacy == 'public':
