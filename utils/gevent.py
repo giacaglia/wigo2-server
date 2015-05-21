@@ -15,7 +15,7 @@ try:  # for rq >= 0.5.0
 except ImportError:  # for rq <= 0.4.6
     from rq.job import Status as JobStatus
 from rq.timeouts import BaseDeathPenalty, JobTimeoutException
-from rq.worker import StopRequested, green, blue
+from rq.worker import StopRequested, green, blue, WorkerStatus
 from rq.exceptions import DequeueTimeout
 from rq.logutils import setup_loghandlers
 from rq.version import VERSION
@@ -86,10 +86,11 @@ class GeventWorker(Worker):
         setup_loghandlers()
         self._install_signal_handlers()
 
-        self.did_perform_work = False
+        did_perform_work = False
         self.register_birth()
         self.log.info('RQ worker started, version %s' % VERSION)
-        self.set_state('starting')
+        self.set_state(WorkerStatus.STARTED)
+
         try:
             while True:
                 if self.stopped:
@@ -119,7 +120,8 @@ class GeventWorker(Worker):
         finally:
             if not self.is_horse:
                 self.register_death()
-        return self.did_perform_work
+
+        return did_perform_work
 
     def execute_job(self, job, queue):
         def job_done(child):
@@ -148,7 +150,7 @@ class GeventWorker(Worker):
                     raise StopRequested()
 
             try:
-                result = self.queue_class.dequeue_any(self.queues, timeout, connection=self.connection)
+                result = self.queue_class.dequeue_any(self.queues, 5, connection=self.connection)
                 if result is not None:
                     job, queue = result
                     self.log.info('%s: %s (%s)' % (green(queue.name),
