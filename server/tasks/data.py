@@ -28,6 +28,11 @@ logger = logging.getLogger('wigo.tasks.data')
 
 
 def new_user(user_id, score=None):
+    user = User.find(user_id)
+
+    if user.status != 'waiting':
+        return
+
     user_queue_key = skey('user_queue')
 
     if score is None:
