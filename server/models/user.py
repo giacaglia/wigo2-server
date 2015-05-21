@@ -252,18 +252,24 @@ class Friend(WigoModel):
             teardown(self.user, self.friend)
             teardown(self.friend, self.user)
 
-            friend_requested_key = skey('user', self.user_id, 'friend_requested')
-            self.db.sorted_set_add(friend_requested_key, self.friend_id, epoch(self.created))
+            f_reqed_key = skey('user', self.user_id, 'friend_requested')
+            self.db.sorted_set_add(f_reqed_key, self.friend_id, epoch(self.created))
 
-            friend_requests_key = skey('user', self.friend_id, 'friend_requests')
-            self.db.sorted_set_add(friend_requests_key, self.user_id, epoch(self.created))
+            f_req_key = skey('user', self.friend_id, 'friend_requests')
+            self.db.sorted_set_add(f_req_key, self.user_id, epoch(self.created))
+
+            f_req_in_common_key = skey('user', self.friend_id, 'friend_requests', 'common')
+            f_in_common = self.user.get_num_friends_in_common(self.friend_id)
+            self.db.sorted_set_add(f_req_in_common_key, self.user_id, f_in_common)
 
             # clean out old friend requests
-            self.clean_old(friend_requested_key, timedelta(days=30))
-            self.clean_old(friend_requests_key, timedelta(days=30))
+            self.clean_old(f_reqed_key, timedelta(days=30))
+            self.clean_old(f_req_key, timedelta(days=30))
+            self.clean_old(f_req_in_common_key, timedelta(days=30))
 
     def remove_index(self):
         super(Friend, self).remove_index()
+
         from server.models.event import Event
 
         def cleanup(u1, u2):
@@ -276,8 +282,9 @@ class Friend(WigoModel):
 
         # clean it out of the current users friend_requests and friend_requested but
         # leave the request on the other side of the relationship so it still seems to be pending
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requested'), self.friend_id)
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
+        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests', 'common'), self.friend_id)
 
         user_event_id = self.user.get_attending_id()
         if user_event_id:

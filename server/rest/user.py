@@ -264,7 +264,7 @@ class FriendRequestedListResource(WigoResource):
     @check_last_modified('user', 'last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
-        user = User.find(self.get_id(user_id))
+        user = g.user
         count, page, friends = self.setup_query(self.select(User).user(user).friend_requested()).execute()
         for friend in friends:
             friend.friend_request = 'sent'
@@ -277,8 +277,18 @@ class FriendRequestsListResource(WigoResource):
     @check_last_modified('user', 'last_friend')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
-        user = User.find(self.get_id(user_id))
+        user = g.user
         count, page, friends = self.setup_query(self.select(User).user(user).friend_requests()).execute()
+
+        p = wigo_db.redis.pipeline()
+        for friend in friends:
+            p.zscore(skey(user, 'friend_requests', 'common'), friend.id if friend else -1)
+        scores = p.execute()
+
+        for index, friend in enumerate(friends):
+            if friend:
+                friend.num_friends_in_common = scores[index]
+
         return self.serialize_list(User, friends, count, page), 200, headers
 
 
