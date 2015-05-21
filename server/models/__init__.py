@@ -383,7 +383,7 @@ class WigoModel(Model):
             id_value = getattr(self, id_field, None)
             if id_value:
                 # check if the old index entry needs to be removed
-                if fields and self.is_changed(fields):
+                if fields and self.is_changed(*fields):
                     old_values = {f: (self.get_old_value(f) if self.is_changed(f)
                                       else getattr(self, f, None)) for f in fields}
                     self.db.sorted_set_remove(index_key(key_template, old_values), id_value)

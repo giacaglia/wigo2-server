@@ -119,9 +119,6 @@ class WigoRedisDB(WigoDB):
         self.redis = redis
         self.queued_db = queued_db
 
-        if self.queued_db:
-            logger.info('enabling rdbms redis replication')
-
         ID_SCRIPT = """
             local epoch = 1288834974657
             local seq = tonumber(redis.call('INCR', 'sequence')) % 4096
