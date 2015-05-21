@@ -150,7 +150,7 @@ class GeventWorker(Worker):
                     raise StopRequested()
 
             try:
-                result = self.queue_class.dequeue_any(self.queues, 5, connection=self.connection)
+                result = self.queue_class.dequeue_any(self.queues, 2, connection=self.connection)
                 if result is not None:
                     job, queue = result
                     self.log.info('%s: %s (%s)' % (green(queue.name),
