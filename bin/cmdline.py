@@ -62,9 +62,29 @@ def initialize(create_tables=False, import_cities=False):
                           DataSortedSets, DataIntSortedSets, DataExpires], safe=True)
 
         db.execute_sql("""
-          CREATE INDEX data_strings_gin ON data_strings USING gin (value);
+           CREATE OR REPLACE FUNCTION timestamp_cast(VARCHAR) RETURNS TIMESTAMP
+              AS 'select cast($1 as timestamp)'
+              LANGUAGE SQL
+              IMMUTABLE
+              RETURNS NULL ON NULL INPUT;
 
-          CREATE INDEX data_strings_first_name ON data_strings(
+           CREATE INDEX data_strings_gin ON data_strings USING gin (value);
+
+           CREATE INDEX data_strings_id ON data_strings(
+              (value->>'$type'),
+              CAST(value->>'id' AS BIGINT) DESC
+            )
+
+           CREATE INDEX data_strings_events ON data_strings(
+              (value->>'$type'),
+              cast(value->>'expires' AS TIMESTAMP)
+            ) WHERE value->>'$type' = 'Event';
+
+           CREATE INDEX data_strings_groups ON data_strings(
+              (value->>'$type',
+            ) WHERE value->>'$type' = 'Group';
+
+           CREATE INDEX data_strings_first_name ON data_strings(
               (value->>'$type'),
               LOWER(value->>'first_name') varchar_pattern_ops
             ) WHERE value->>'$type' = 'User';
@@ -89,10 +109,12 @@ def initialize(create_tables=False, import_cities=False):
               FROM data_strings WHERE value->>'$type' = 'Group';
 
             CREATE OR REPLACE VIEW events AS
-              SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'owner_id' AS BIGINT) owner_id,
-              CAST(value->>'group_id' AS BIGINT) group_id, value->>'name' "name"
-              FROM data_strings WHERE value->>'$type' = 'Event';
-
+                SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'owner_id' AS BIGINT) owner_id,
+                CAST(value->>'group_id' AS BIGINT) group_id, value->>'name' "name",
+                timestamp_cast(value->>'expires') "expires",
+                (SELECT COUNT(key) FROM data_int_sorted_sets WHERE
+                  key = format('{event:%s}:attendees', (data_strings.value->>'id'))) num_attendees
+                FROM data_strings WHERE value->>'$type' = 'Event';
           """)
 
     if import_cities:
