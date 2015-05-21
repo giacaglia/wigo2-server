@@ -14,7 +14,7 @@ flask-restplus==0.7.1
 geodis==2.0.9
 generic==0.3.1
 gevent==1.0.1
-greenlet==0.4.6
+greenlet==0.4.7
 gunicorn==19.3.0
 hiredis==0.2.0
 msgpack-python==0.4.6
@@ -22,7 +22,7 @@ parse==1.6.6
 peewee==2.5.1
 psycopg2==2.6
 python-dateutil==2.4.2
-pytz==2015.2
+pytz==2015.4
 redis==2.10.3
 redis-shard==0.3.0
 repoze.lru==0.6
@@ -36,6 +36,6 @@ rq-scheduler==0.5.1
 schematics==1.0.4
 sendgrid==1.4.0
 shortuuid==0.4.2
-simplejson==3.6.5
+simplejson==3.7.1
 ujson==1.33
 newrelic==2.50.0.39
