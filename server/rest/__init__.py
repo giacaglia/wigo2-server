@@ -233,6 +233,12 @@ class WigoResource(Resource):
             if hasattr(obj, 'num_friends_in_common'):
                 prim['num_friends_in_common'] = obj.num_friends_in_common
 
+            if hasattr(obj, 'friend'):
+                prim['is_friend'] = obj.friend
+
+            if hasattr(obj, 'friend_request'):
+                prim['friend_request'] = obj.friend_request
+
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
 
