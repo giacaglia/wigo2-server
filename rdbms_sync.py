@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import click
 
 import logconfig
 from config import Configuration
@@ -10,14 +11,14 @@ import cPickle
 
 from redis import ReadOnlyError
 from time import sleep
-from clize import clize, run
 
 from server.db import redis, wigo_rdbms
 from server.rdbms import db
 from utils import BreakHandler
 
 
-@clize
+@click.command()
+@click.option('--debug', type=bool)
 def start(debug=False):
     logger = logging.getLogger('wigo.rdbms.sync')
 
@@ -69,4 +70,4 @@ def start(debug=False):
 
 
 if __name__ == '__main__':
-    run(start)
+    start()

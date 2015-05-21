@@ -8,12 +8,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import logging
 import logconfig
 import ujson
+import click
 import geodis
 from server.models.location import WigoCity
 from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
 from config import Configuration
-from clize import run, clize
 from server.models import IntegrityException, DoesNotExist
 from server.models.group import Group
 from server.models.user import User, Friend, Tap
@@ -21,7 +21,12 @@ from server.models.user import User, Friend, Tap
 logger = logging.getLogger('wigo.cmdline')
 
 
-@clize
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
 def deploy():
     from git import Repo
 
@@ -51,7 +56,9 @@ def deploy():
     os.system('git push %s %s:master' % (target, repo.active_branch.name))
 
 
-@clize
+@cli.command()
+@click.option('--create_tables', type=bool)
+@click.option('--import_cities', type=bool)
 def initialize(create_tables=False, import_cities=False):
     logconfig.configure('dev')
 
@@ -166,7 +173,11 @@ def initialize(create_tables=False, import_cities=False):
         pipe.execute()
 
 
-@clize
+@cli.command()
+@click.option('--groups', type=bool)
+@click.option('--users', type=bool)
+@click.option('--friends', type=bool)
+@click.option('--taps', type=bool)
 def import_old_db(groups=False, users=False, friends=False, taps=False):
     from server.tasks.predictions import wire_predictions_listeners
 
@@ -301,7 +312,7 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
                 logger.error('tap import error, {}'.format(e.message))
 
 
-@clize
+@cli.command()
 def import_predictions():
     import predictionio
 
@@ -359,4 +370,4 @@ def import_predictions():
 
 
 if __name__ == '__main__':
-    run((deploy, initialize, import_old_db, import_predictions))
+    cli()

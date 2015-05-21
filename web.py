@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import click
 
 import logconfig
 from config import Configuration
@@ -13,7 +14,6 @@ import requests
 from newrelic import agent
 from datetime import datetime
 from urlparse import urlparse
-from clize import clize
 from flask.ext.restful import abort
 from flask.ext.sslify import SSLify
 from rq_dashboard import RQDashboard
@@ -290,7 +290,7 @@ def strftime(value, format='%H:%M / %d-%m-%Y'):
     return value.strftime(format)
 
 
-@clize
+@click.command()
 def run_server():
     port = int(os.environ.get('WIGO_PORT', 5100))
     logger.info('starting wigo web server on port %s, pid=%s' % (port, os.getpid()))
@@ -298,6 +298,4 @@ def run_server():
 
 
 if __name__ == '__main__':
-    import sys
-
-    run_server(*sys.argv)
+    run_server()
