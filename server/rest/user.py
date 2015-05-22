@@ -294,6 +294,7 @@ class FriendRequestsListResource(WigoResource):
         for index, friend in enumerate(friends):
             if friend:
                 friend.num_friends_in_common = scores[index]
+                friend.friend_request = 'received'
 
         return self.serialize_list(User, friends, count, page), 200, headers
 
