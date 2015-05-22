@@ -97,7 +97,7 @@ class UserMetaResource(WigoResource):
 
     @user_token_required
     @api.response(200, 'Success', model=api.model('UserMeta', {
-        'last_message': fields.DateTime(),
+        'last_message_received': fields.DateTime(),
         'last_friend_request': fields.DateTime(),
         'last_notification': fields.DateTime(),
         'is_tapped': fields.Boolean(),
@@ -114,7 +114,13 @@ class UserMetaResource(WigoResource):
         if user_id == g.user.id:
             user_meta = wigo_db.redis.hgetall(skey('user', user_id, 'meta'))
             if user_meta:
-                meta.update({k: datetime.utcfromtimestamp(float(v)).isoformat() for k, v in user_meta.items()})
+                if 'last_message_received' in user_meta:
+                    meta['last_message_received'] = user_meta['last_message_received']
+                if 'last_friend_request' in user_meta:
+                    meta['last_friend_request'] = user_meta['last_friend_request']
+                if 'last_notification' in user_meta:
+                    meta['last_notification'] = user_meta['last_notification']
+
             meta['attending_event_id'] = g.user.get_attending_id()
         else:
             meta['is_tapped'] = g.user.is_tapped(user_id)
@@ -174,7 +180,7 @@ class FriendsListResource(WigoResource):
     model = Friend
 
     @user_token_required
-    @check_last_modified('user', 'last_friend')
+    @check_last_modified('user', 'last_friend_change')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
         user = User.find(self.get_id(user_id))
@@ -250,7 +256,7 @@ class FriendIdsListResource(WigoResource):
     model = Friend
 
     @user_token_required
-    @check_last_modified('user', 'last_friend', 60*60)
+    @check_last_modified('user', 'last_friend_change', 60*60)
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         user_id = self.get_id(user_id)
@@ -261,7 +267,7 @@ class FriendIdsListResource(WigoResource):
 @api.route('/users/<user_id>/friends/requested')
 class FriendRequestedListResource(WigoResource):
     @user_token_required
-    @check_last_modified('user', 'last_friend')
+    @check_last_modified('user', 'last_friend_change')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
         user = g.user
@@ -274,7 +280,7 @@ class FriendRequestedListResource(WigoResource):
 @api.route('/users/<user_id>/friends/requests')
 class FriendRequestsListResource(WigoResource):
     @user_token_required
-    @check_last_modified('user', 'last_friend')
+    @check_last_modified('user', 'last_friend_change')
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self, user_id, headers):
         user = g.user
@@ -397,7 +403,7 @@ class TapListResource(WigoResource):
     model = Tap
 
     @user_token_required
-    @check_last_modified('user', 'last_tap', 60*60)
+    @check_last_modified('user', 'last_tap_change', 60*60)
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         return g.user.get_tapped_ids(), 200, headers
@@ -421,7 +427,7 @@ class BlockListResource(WigoResource):
     model = Block
 
     @user_token_required
-    @check_last_modified('user', 'last_block', 60*60)
+    @check_last_modified('user', 'last_block_change', 60*60)
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         return g.user.get_blocked_ids(), 200, headers
@@ -497,7 +503,7 @@ class ConversationsResource(WigoResource):
     model = Message
 
     @user_token_required
-    @check_last_modified('user', 'last_message')
+    @check_last_modified('user', 'last_message_change')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, headers):
         count, page, instances = self.select().user(g.user).execute()
@@ -509,7 +515,7 @@ class ConversationWithUserResource(WigoResource):
     model = Message
 
     @user_token_required
-    @check_last_modified('user', 'last_message')
+    @check_last_modified('user', 'last_message_change')
     @api.response(200, 'Success', model=Message.to_doc_list_model(api))
     def get(self, with_user_id, headers):
         with_user = User.find(with_user_id)

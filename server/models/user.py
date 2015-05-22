@@ -472,5 +472,5 @@ class Message(WigoPersistentModel):
 
         wigo_db.sorted_set_remove(skey(user, 'conversations'), to_user.id)
         wigo_db.delete(skey(user, 'conversation', to_user.id))
-        user.track_meta('last_message')
-        to_user.track_meta('last_message')
+        user.track_meta('last_message_change')
+        to_user.track_meta('last_message_change')

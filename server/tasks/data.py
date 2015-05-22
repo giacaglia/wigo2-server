@@ -95,7 +95,7 @@ def new_group(group_id):
                 num_imported += 1
 
     logger.info('imported {} events into group {}'.format(num_imported, group.name))
-    group.track_meta('last_event_change', time(), expire=None)
+    group.track_meta('last_event_change', expire=None)
 
 
 @job(data_queue, timeout=30, result_ttl=0)
@@ -373,12 +373,12 @@ def wire_data_listeners():
             else:
                 instance.friend.track_meta('last_friend_request', epoch(instance.created))
 
-            instance.user.track_meta('last_friend', epoch(instance.created))
-            instance.friend.track_meta('last_friend', epoch(instance.created))
+            instance.user.track_meta('last_friend_change')
+            instance.friend.track_meta('last_friend_change')
         elif isinstance(instance, Tap):
-            instance.user.track_meta('last_tap', epoch(instance.created))
+            instance.user.track_meta('last_tap_change')
         elif isinstance(instance, Block):
-            instance.user.track_meta('last_block', epoch(instance.created))
+            instance.user.track_meta('last_block_change')
         elif isinstance(instance, Event):
             event_related_change.delay(instance.group_id, instance.id)
         elif isinstance(instance, Invite):
@@ -393,8 +393,8 @@ def wire_data_listeners():
             event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
             tell_friends_about_vote.delay(instance.message_id, instance.user_id)
         elif isinstance(instance, Message):
-            instance.user.track_meta('last_message', epoch(instance.created))
-            instance.to_user.track_meta('last_message', epoch(instance.created))
+            instance.user.track_meta('last_message_change')
+            instance.to_user.track_meta('last_message_change')
             instance.to_user.track_meta('last_message_received', epoch(instance.created))
 
     def data_delete_listener(sender, instance):
@@ -408,12 +408,12 @@ def wire_data_listeners():
             tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, Friend):
             delete_friend.delay(instance.user_id, instance.friend_id)
-            instance.user.track_meta('last_friend')
-            instance.friend.track_meta('last_friend')
+            instance.user.track_meta('last_friend_change')
+            instance.friend.track_meta('last_friend_change')
         elif isinstance(instance, Tap):
-            instance.user.track_meta('last_tap')
+            instance.user.track_meta('last_tap_change')
         elif isinstance(instance, Block):
-            instance.user.track_meta('last_block')
+            instance.user.track_meta('last_block_change')
 
     def privacy_changed_listener(sender, instance):
         privacy_changed.delay(instance.id)
