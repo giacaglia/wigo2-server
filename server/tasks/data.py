@@ -424,6 +424,9 @@ def wire_data_listeners():
             if is_new_user(instance, created):
                 new_user(instance.id)
 
+            if instance.status == 'deleted':
+                delete_user.delay(instance.id, instance.group_id)
+
             if not created:
                 publish_model_change(instance)
 
