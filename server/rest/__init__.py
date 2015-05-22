@@ -206,8 +206,10 @@ class WigoResource(Resource):
 
         filtered = []
         for event in events:
-            if event.is_expired:
-                if event.messages and len(event.messages[1]) > 0:
+            if hasattr(event, 'attendees') and len(event.attendees[1]) > 0:
+                filtered.append(event)
+            elif event.is_expired:
+                if hasattr(event, 'messages') and len(event.messages[1]) > 0:
                     filtered.append(event)
             else:
                 filtered.append(event)
