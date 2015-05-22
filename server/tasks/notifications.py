@@ -52,8 +52,6 @@ def new_user(user_id):
     except FacebookTokenExpiredException:
         logger.warn('error finding facebook friends to alert for user {}, token expired'.format(user_id))
         user.track_meta('last_facebook_check')
-    except Exception:
-        logger.exception('error finding facebook friends to alert for user {}'.format(user_id))
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
