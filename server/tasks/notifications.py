@@ -36,11 +36,11 @@ def new_user(user_id):
                         friend = User.find(facebook_id=facebook_id)
 
                         notification = Notification({
-                            'user_id': user.id,
+                            'user_id': friend.id,
                             'type': 'friend.joined',
-                            'navigate': '/find/users/user/{}'.format(friend.id),
+                            'navigate': '/find/users/user/{}'.format(user.id),
                             'badge': 1,
-                            'message': 'Your Facebook friend {} just joined Wigo'.format(friend.full_name)
+                            'message': 'Your Facebook friend {} just joined Wigo'.format(user.full_name)
                         })
 
                         __send_notification_push(notification)
