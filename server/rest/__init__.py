@@ -249,6 +249,7 @@ class WigoResource(Resource):
             prim['is_invited'] = obj.invited
 
         if hasattr(obj, 'attendees'):
+            alimit = int(request.args.get('attendees_limit', 5))
             count = obj.attendees[0]
             attendees = obj.attendees[1]
             prim['attendees'] = {
@@ -260,13 +261,14 @@ class WigoResource(Resource):
 
             prim['num_attending'] = count
 
-            if count > len(attendees):
+            if count > alimit:
                 path = ('/api/users/me/events/{}/attendees' if '/users/' in request.path
                         else '/api/events/{}/attendees').format(obj.id)
                 prim['attendees']['meta']['next'] = '{}?page=2&limit={}'.format(path,
                                                                                 request.args.get('attendees_limit', 5))
 
         if hasattr(obj, 'messages'):
+            mlimit = int(request.args.get('messages_limit', 5))
             count = obj.messages[0]
             messages = obj.messages[1]
             prim['messages'] = {
@@ -275,7 +277,7 @@ class WigoResource(Resource):
                 },
                 'objects': [{'$ref': 'EventMessage:{}'.format(m.id)} for m in messages if m]
             }
-            if count > len(messages):
+            if count > mlimit:
                 path = ('/api/users/me/events/{}/messages' if '/users/' in request.path
                         else '/api/events/{}/messages').format(obj.id)
                 prim['messages']['meta']['next'] = '{}?page=2&limit={}'.format(path,

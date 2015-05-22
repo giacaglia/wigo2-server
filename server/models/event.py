@@ -387,7 +387,7 @@ class EventMessageVote(WigoModel):
         self.db.sorted_set_remove(skey(event, 'messages', 'by_votes'), self.message_id, replicate=False)
 
 
-@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60 * 12)
 def get_cached_num_messages(event_id, user_id=None):
     """ Should only be called on expired events. """
     from server.db import wigo_db
@@ -398,7 +398,7 @@ def get_cached_num_messages(event_id, user_id=None):
     return wigo_db.get_sorted_set_size(key)
 
 
-@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60)
+@cache_maker.expiring_lrucache(maxsize=5000, timeout=60 * 60 * 12)
 def get_cached_num_attending(event_id, user_id=None):
     """ Should only be called on expired events. """
     return get_num_attending(event_id, user_id)
