@@ -16,7 +16,7 @@ from config import Configuration
 from server.db import wigo_db, scheduler, redis
 from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite, Tap, Block, Message
-from server.tasks import data_queue
+from server.tasks import data_queue, is_new_user
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
     user_attendees_key
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
@@ -358,10 +358,10 @@ def wire_data_listeners():
 
     def data_save_listener(sender, instance, created):
         if isinstance(instance, User):
-            publish_model_change(instance)
-
-            if created:
+            if is_new_user(instance, created):
                 new_user(instance.id)
+
+            publish_model_change(instance)
 
         elif isinstance(instance, Group):
             if created:

@@ -133,6 +133,11 @@ class WigoModel(Model):
             return self._changes.get(key)[0]
         return None
 
+    def get_previous_old_value(self, key):
+        if self.was_changed(key):
+            return self._previous_changes.get(key)[0]
+        return None
+
     def __setattr__(self, key, value):
         is_field = key in self.__class__.fields
         is_already_dirty = key in self._changes if is_field else False

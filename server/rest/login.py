@@ -77,6 +77,10 @@ class LoginResource(WigoResource):
         if work:
             user.work = work
 
+        if user.status == 'existing':
+            user.status = 'active'
+            # user.status = 'waiting'
+
         if properties:
             for key, value in properties.items():
                 if user.get_custom_property(key) != value:

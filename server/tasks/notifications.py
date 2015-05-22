@@ -11,7 +11,7 @@ from server.models import DoesNotExist, post_model_save
 from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
 from server.services.facebook import FacebookTokenExpiredException, Facebook
-from server.tasks import notifications_queue, push_queue
+from server.tasks import notifications_queue, push_queue, is_new_user
 from utils import epoch
 
 logger = logging.getLogger('wigo.notifications')
@@ -258,9 +258,10 @@ def __send_notification_push(notification):
 def wire_notifications_listeners():
     def notifications_model_listener(sender, instance, created):
         if isinstance(instance, User):
-            if created:
+            if is_new_user(instance, created):
                 new_user.delay(instance.id)
-            if not created and instance.was_changed('status') and instance.status == 'active':
+            if not created and (instance.was_changed('status')
+                                and instance.get_previous_old_value('status') == 'waiting'):
                 notify_unlocked.delay(instance.id)
         elif isinstance(instance, EventMessage) and created:
             notify_on_eventmessage.delay(instance.id)

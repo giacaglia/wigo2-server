@@ -7,7 +7,7 @@ from pytz import UTC, timezone
 from rq.decorators import job
 from server.db import wigo_db, rate_limit
 from server.services.facebook import Facebook, FacebookTokenExpiredException
-from server.tasks import predictions_queue
+from server.tasks import predictions_queue, is_new_user
 from server.models import post_model_save, skey, DoesNotExist
 from server.models.user import User, Tap, Message, Invite, Friend
 from config import Configuration
@@ -175,8 +175,9 @@ def wire_predictions_listeners():
         return
 
     def predictions_listener(sender, instance, created):
-        if isinstance(instance, User) and created:
-            generate_friend_recs(instance.id, force=True)
+        if isinstance(instance, User):
+            if is_new_user(instance, created):
+                generate_friend_recs(instance.id, force=True)
         elif isinstance(instance, Tap):
             capture_interaction.delay(instance.user_id, instance.tapped_id, instance.created)
         elif isinstance(instance, Message):
