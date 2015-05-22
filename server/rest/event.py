@@ -4,9 +4,10 @@ import logging
 
 from time import time
 from datetime import timedelta
-from flask import g, request
+from flask import g, request, redirect, current_app
 from flask.ext.restful import abort
 from newrelic import agent
+from werkzeug.urls import url_encode
 from server.db import wigo_db
 from server.models import skey, user_eventmessages_key, AlreadyExistsException, DoesNotExist
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
@@ -33,6 +34,16 @@ class EventListResource(WigoDbListResource):
         query = query.min(epoch(group.get_day_end() - timedelta(days=7)))
         query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
         count, page, events = query.execute()
+
+        if count == 0 and group.status == 'initializing':
+            tries = int(request.args.get('tries', 0))
+            if tries < 5:
+                tries += 1
+                request_arguments = request.args.copy().to_dict()
+                request_arguments['tries'] = tries
+                response = redirect('%s?%s' % (request.path, url_encode(request_arguments)))
+                response.headers.add('Retry-After', 2*tries)
+                return response
 
         attending_id = g.user.get_attending_id()
         if attending_id:
