@@ -19,10 +19,10 @@ logger = logging.getLogger('wigo.parse')
 
 @job(parse_queue, timeout=30, result_ttl=0)
 def sync_parse(user_id):
-    with rate_limit('parse:sync:{}'.format(user_id), timedelta(hours=1)) as limited:
-        if not limited:
-            lock = redis.lock('locks:parse:sync:{}'.format(user_id), timeout=30)
-            if lock.acquire(blocking=False):
+    lock = redis.lock('locks:parse:sync:{}'.format(user_id), timeout=30)
+    if lock.acquire(blocking=False):
+        with rate_limit('parse:sync:{}'.format(user_id), timedelta(hours=1)) as limited:
+            if not limited:
                 try:
                     __do_sync_parse(user_id)
                 finally:
