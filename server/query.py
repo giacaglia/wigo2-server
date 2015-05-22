@@ -446,23 +446,24 @@ class SelectQuery(object):
             return objects
 
         secure_user = self._secure
-        private_friends = secure_user.get_private_friend_ids() if secure_user else set()
-        blocked = secure_user.get_blocked_ids() if secure_user else set()
+        private_friends = secure_user.get_private_friend_ids() if secure_user else None
+        blocked = secure_user.get_blocked_ids() if secure_user else None
 
         def can_see_user(u):
             if u is None:
-                return True
-            if u == secure_user:
-                return True
+                return False
             if u.status == 'hidden':
                 return False
-            if u.id in blocked:
+            if secure_user:
+                if u == secure_user:
+                    return True
+                if u.id in blocked:
+                    return False
+                if u.privacy == 'public' or u.id in private_friends:
+                    return True
                 return False
-            if u.privacy == 'public':
+            else:
                 return True
-            if u.id in private_friends:
-                return True
-            return False
 
         if self._model_class in (User, EventAttendee):
             objects = [u for u in objects if can_see_user(u)]
