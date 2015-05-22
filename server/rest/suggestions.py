@@ -35,6 +35,8 @@ class UserSuggestionsResource(WigoResource):
                 score = u.score
                 delattr(u, 'score')
                 u.num_friends_in_common = int(score)
+            else:
+                u.num_friends_in_common = 0
 
         return self.serialize_list(User, users, count, page), 200, {
             'Cache-Control': 'max-age=60'
