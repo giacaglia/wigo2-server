@@ -77,7 +77,7 @@ class LoginResource(WigoResource):
         if work:
             user.work = work
 
-        if user.status == 'existing':
+        if user.status in ('existing', 'deleted'):
             user.status = 'active'
             # user.status = 'waiting'
 
