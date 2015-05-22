@@ -177,8 +177,10 @@ class WigoModel(Model):
     def owner(self):
         if hasattr(self, 'owner_id') and self.owner_id:
             from server.models.user import User
-
-            return User.find(self.owner_id)
+            try:
+                return User.find(self.owner_id)
+            except DoesNotExist:
+                logger.warn('user {} not found'.format(self.owner_id))
         return None
 
     @serializable(serialized_name='owner', serialize_when_none=False)

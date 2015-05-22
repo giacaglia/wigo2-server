@@ -208,7 +208,11 @@ class Friend(WigoModel):
     @property
     @field_memoize('friend_id')
     def friend(self):
-        return User.find(self.friend_id)
+        try:
+            return User.find(self.friend_id)
+        except DoesNotExist:
+            logger.warn('user {} not found'.format(self.friend_id))
+        return None
 
     def validate(self, partial=False, strict=False):
         super(Friend, self).validate(partial, strict)
@@ -423,7 +427,11 @@ class Notification(WigoPersistentModel):
     @property
     @field_memoize('from_user_id')
     def from_user(self):
-        return User.find(self.from_user_id)
+        try:
+            return User.find(self.from_user_id)
+        except DoesNotExist:
+            logger.warn('user {} not found'.format(self.from_user_id))
+        return None
 
     @serializable(serialized_name='from_user', serialize_when_none=False)
     def from_user_ref(self):
@@ -446,7 +454,11 @@ class Message(WigoPersistentModel):
     @property
     @field_memoize('to_user_id')
     def to_user(self):
-        return User.find(self.to_user_id)
+        try:
+            return User.find(self.to_user_id)
+        except DoesNotExist:
+            logger.warn('user {} not found'.format(self.to_user_id))
+        return None
 
     @serializable(serialized_name='to_user', serialize_when_none=False)
     def to_user_ref(self):
