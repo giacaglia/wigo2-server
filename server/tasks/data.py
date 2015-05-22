@@ -301,6 +301,45 @@ def privacy_changed(user_id):
                 wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
 
 
+@job(data_queue, timeout=60, result_ttl=0)
+def delete_user(user_id, group_id):
+    logger.info('deleting user {}'.format(user_id))
+
+    friend_ids = wigo_db.sorted_set_range(skey('user', user_id, 'friends'))
+
+    for event_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'events')):
+        wigo_db.sorted_set_remove(skey('event', event_id, 'attendees'), user_id)
+        for friend_id in friend_ids:
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'attendees'), user_id)
+
+    for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'event_messages')):
+        message = EventMessage.find(message_id)
+        event_id = message.event_id
+        wigo_db.sorted_set_remove(skey('event', event_id, 'messages'), message_id)
+        wigo_db.sorted_set_remove(skey('event', event_id, 'messages', 'by_votes'), message_id)
+        for friend_id in friend_ids:
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages'), message_id)
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'), message_id)
+
+    for friend_id in friend_ids:
+        wigo_db.sorted_set_remove(skey('user', friend_id, 'friends'), user_id)
+        wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'alpha'), user_id)
+        wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
+
+    for friend_id in wigo_db.sorted_set_range(skey('user', user_id, 'friend_requested')):
+        wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests'), user_id)
+        wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests', 'common'), user_id)
+
+    wigo_db.delete(skey('user', user_id, 'events'))
+    wigo_db.delete(skey('user', user_id, 'friends'))
+    wigo_db.delete(skey('user', user_id, 'friends', 'private'))
+    wigo_db.delete(skey('user', user_id, 'friends', 'alpha'))
+    wigo_db.delete(skey('user', user_id, 'friends', 'friend_requested'))
+    wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests'))
+    wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests', 'common'))
+    wigo_db.delete(skey('user', user_id, 'blocked'))
+
+
 @contextmanager
 def user_lock(user_id):
     if Configuration.ENVIRONMENT != 'test':
@@ -398,7 +437,9 @@ def wire_data_listeners():
             instance.to_user.track_meta('last_message_received', epoch(instance.created))
 
     def data_delete_listener(sender, instance):
-        if isinstance(instance, Event):
+        if isinstance(instance, User):
+            delete_user.delay(instance.id, instance.group_id)
+        elif isinstance(instance, Event):
             event_related_change.delay(instance.group_id, instance.id)
         elif isinstance(instance, EventMessage):
             event_related_change.delay(instance.event.group_id, instance.event_id)
