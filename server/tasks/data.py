@@ -6,7 +6,7 @@ import ujson
 from random import randint
 from threading import Thread
 from time import time, sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import contextmanager
 from urlparse import urlparse
 from redis import Redis
@@ -80,11 +80,14 @@ def new_group(group_id):
     num_imported = 0
     imported = set()
 
+    min = epoch(group.get_day_end() - timedelta(days=7))
+    max = epoch(group.get_day_end() + timedelta(hours=1))
+
     for close_group in get_close_groups(group.latitude, group.longitude, 100):
         if close_group.id == group.id:
             continue
 
-        for event in Event.select().group(close_group):
+        for event in Event.select().group(close_group).min(min).max(max):
             # only import the events the group actually owns
             if event.group_id != close_group.id:
                 continue
