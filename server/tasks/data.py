@@ -312,6 +312,11 @@ def delete_user(user_id, group_id):
         for friend_id in friend_ids:
             wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'attendees'), user_id)
 
+    for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'votes')):
+        wigo_db.sorted_set_remove(skey('eventmessage', message_id, 'votes'), user_id)
+        for friend_id in friend_ids:
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'eventmessage', message_id, 'votes'), user_id)
+
     for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'event_messages')):
         message = EventMessage.find(message_id)
         event_id = message.event_id
@@ -322,6 +327,10 @@ def delete_user(user_id, group_id):
             wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'), message_id)
 
     for friend_id in friend_ids:
+        wigo_db.sorted_set_remove(skey('user', friend_id, 'conversations'), user_id)
+        wigo_db.delete(skey('user', friend_id, 'conversation', user_id))
+        wigo_db.delete(skey('user', user_id, 'conversation', friend_id))
+
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friends'), user_id)
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'alpha'), user_id)
         wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
@@ -338,6 +347,10 @@ def delete_user(user_id, group_id):
     wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests'))
     wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests', 'common'))
     wigo_db.delete(skey('user', user_id, 'blocked'))
+    wigo_db.delete(skey('user', user_id, 'notifications'))
+    wigo_db.delete(skey('user', user_id, 'conversations'))
+    wigo_db.delete(skey('user', user_id, 'tapped'))
+    wigo_db.delete(skey('user', user_id, 'votes'))
 
 
 @contextmanager
@@ -400,12 +413,22 @@ def wire_data_listeners():
             if is_new_user(instance, created):
                 new_user(instance.id)
 
-            publish_model_change(instance)
+            if not created:
+                publish_model_change(instance)
 
         elif isinstance(instance, Group):
             if created:
                 new_group.delay(instance.id)
-            publish_model_change(instance)
+
+            if not created:
+                publish_model_change(instance)
+
+        elif isinstance(instance, Event):
+            event_related_change.delay(instance.group_id, instance.id)
+
+            if not created:
+                publish_model_change(instance)
+
         elif isinstance(instance, Friend) and created:
             if instance.accepted:
                 new_friend.delay(instance.user_id, instance.friend_id)
@@ -414,12 +437,11 @@ def wire_data_listeners():
 
             instance.user.track_meta('last_friend_change')
             instance.friend.track_meta('last_friend_change')
+
         elif isinstance(instance, Tap):
             instance.user.track_meta('last_tap_change')
         elif isinstance(instance, Block):
             instance.user.track_meta('last_block_change')
-        elif isinstance(instance, Event):
-            event_related_change.delay(instance.group_id, instance.id)
         elif isinstance(instance, Invite):
             user_invited.delay(instance.event_id, instance.user_id, instance.invited_id)
         elif isinstance(instance, EventAttendee):
@@ -439,6 +461,7 @@ def wire_data_listeners():
     def data_delete_listener(sender, instance):
         if isinstance(instance, User):
             delete_user.delay(instance.id, instance.group_id)
+            publish_model_change(instance)
         elif isinstance(instance, Event):
             event_related_change.delay(instance.group_id, instance.id)
         elif isinstance(instance, EventMessage):
