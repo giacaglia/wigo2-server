@@ -99,6 +99,8 @@ def new_group(group_id):
 
     logger.info('imported {} events into group {}'.format(num_imported, group.name))
     group.track_meta('last_event_change', expire=None)
+    group.status = 'active'
+    group.save()
 
 
 @job(data_queue, timeout=30, result_ttl=0)

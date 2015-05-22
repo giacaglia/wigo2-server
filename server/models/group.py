@@ -42,11 +42,11 @@ class Group(WigoPersistentModel):
     population = IntType()
 
     timezone = StringType(default='US/Eastern', required=True)
-    locked = BooleanType(default=True, required=True)
-    verified = BooleanType(default=False, required=True)
 
     latitude = FloatType()
     longitude = FloatType()
+
+    status = StringType(default='initializing')
 
     def get_day_start(self, current=None):
         tz = timezone(self.timezone)
@@ -125,8 +125,7 @@ class Group(WigoPersistentModel):
                             'state': city.state,
                             'continent_id': city.continent_id,
                             'country_id': city.country_id,
-                            'state_id': city.state_id,
-                            'verified': True
+                            'state_id': city.state_id
                         }).save()
 
                     except IntegrityException:

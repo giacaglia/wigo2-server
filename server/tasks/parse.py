@@ -36,7 +36,6 @@ def __do_sync_parse(user_id):
         'username': user.username,
         'group_id': user.group_id,
         'group_name': user.group.name,
-        'group_locked': user.group.locked,
         'group_state': user.group.state,
         'group_country': user.group.country,
         'gender': user.gender,
