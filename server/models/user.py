@@ -432,6 +432,7 @@ class Notification(WigoPersistentModel):
 
 class Message(WigoPersistentModel):
     indexes = (
+        ('user:{user_id}:messages', False, False),
         ('user:{user_id}:conversations={to_user_id}', False, False),
         ('user:{user_id}:conversation:{to_user_id}', False, False),
         ('user:{to_user_id}:conversations={user_id}', False, False),

@@ -307,16 +307,19 @@ def delete_user(user_id, group_id):
 
     friend_ids = wigo_db.sorted_set_range(skey('user', user_id, 'friends'))
 
+    # remove from attendees
     for event_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'events')):
         wigo_db.sorted_set_remove(skey('event', event_id, 'attendees'), user_id)
         for friend_id in friend_ids:
             wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'attendees'), user_id)
 
+    # remove event message votes
     for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'votes')):
         wigo_db.sorted_set_remove(skey('eventmessage', message_id, 'votes'), user_id)
         for friend_id in friend_ids:
             wigo_db.sorted_set_remove(skey('user', friend_id, 'eventmessage', message_id, 'votes'), user_id)
 
+    # remove event messages
     for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'event_messages')):
         message = EventMessage.find(message_id)
         event_id = message.event_id
@@ -327,17 +330,24 @@ def delete_user(user_id, group_id):
             wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'), message_id)
 
     for friend_id in friend_ids:
+        # remove conversations
         wigo_db.sorted_set_remove(skey('user', friend_id, 'conversations'), user_id)
         wigo_db.delete(skey('user', friend_id, 'conversation', user_id))
         wigo_db.delete(skey('user', user_id, 'conversation', friend_id))
 
+        # remove friends
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friends'), user_id)
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'alpha'), user_id)
         wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
 
+    # remove friend requests
     for friend_id in wigo_db.sorted_set_range(skey('user', user_id, 'friend_requested')):
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests'), user_id)
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests', 'common'), user_id)
+
+    # remove messages
+    for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'messages')):
+        wigo_db.delete(skey('message', message_id))
 
     wigo_db.delete(skey('user', user_id, 'events'))
     wigo_db.delete(skey('user', user_id, 'friends'))
@@ -351,6 +361,7 @@ def delete_user(user_id, group_id):
     wigo_db.delete(skey('user', user_id, 'conversations'))
     wigo_db.delete(skey('user', user_id, 'tapped'))
     wigo_db.delete(skey('user', user_id, 'votes'))
+    wigo_db.delete(skey('user', user_id, 'messages'))
 
 
 @contextmanager

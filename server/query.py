@@ -442,7 +442,7 @@ class SelectQuery(object):
         return objects
 
     def __secure_results(self, objects):
-        if self._model_class not in (User, EventAttendee, EventMessage):
+        if self._model_class not in (User, EventAttendee, EventMessage, Message):
             return objects
 
         secure_user = self._secure
@@ -469,5 +469,7 @@ class SelectQuery(object):
             objects = [u for u in objects if can_see_user(u)]
         elif self._model_class == EventMessage:
             objects = [m for m in objects if can_see_user(m.user)]
+        elif self._model_class == Message:
+            objects = [m for m in objects if can_see_user(m.user) and can_see_user(m.to_user)]
 
         return objects
