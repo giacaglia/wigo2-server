@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+
 import logging
 import ujson
 from datetime import datetime, timedelta
@@ -35,13 +36,24 @@ def setup():
     mock_redis = mock_redis_client()
     mock_redis_queue = Mock(Redis)
 
+    def run_job(job, at_front=False):
+        job.perform()
+
     server.tasks.data_queue.connection = mock_redis_queue
+    server.tasks.data_queue.enqueue_job = run_job
     server.tasks.predictions_queue.connection = mock_redis_queue
+    server.tasks.predictions_queue.enqueue_job = run_job
     server.tasks.parse_queue.connection = mock_redis_queue
+    server.tasks.parse_queue.enqueue_job = run_job
     server.tasks.notifications_queue.connection = mock_redis_queue
+    server.tasks.notifications_queue.enqueue_job = run_job
     server.tasks.push_queue.connection = mock_redis_queue
+    server.tasks.push_queue.enqueue_job = run_job
     server.tasks.images_queue.connection = mock_redis_queue
+    server.tasks.images_queue.enqueue_job = run_job
     server.tasks.email_queue.connection = mock_redis_queue
+    server.tasks.email_queue.enqueue_job = run_job
+
     server.db.redis = mock_redis
     server.db.wigo_db.redis = mock_redis
     server.db.wigo_queued_db.redis = mock_redis
@@ -50,10 +62,6 @@ def setup():
 
 @contextmanager
 def client():
-    logging.getLogger().setLevel(level=logging.FATAL)
-    logging.getLogger('web').setLevel(level=logging.FATAL)
-    logging.getLogger('wigo').setLevel(level=logging.FATAL)
-
     from web import app
     from server.db import wigo_db, redis
     from server.models.group import Group
@@ -65,6 +73,10 @@ def client():
 
     assert isinstance(wigo_db.redis, MockRedis)
     assert isinstance(redis, MockRedis)
+
+    logging.getLogger().setLevel(level=logging.FATAL)
+    logging.getLogger('web').setLevel(level=logging.FATAL)
+    logging.getLogger('wigo').setLevel(level=logging.FATAL)
 
     model_cache.clear()
     model_cache_maker.clear()
