@@ -4,7 +4,7 @@ import logging
 
 from time import time
 from datetime import timedelta
-from flask import g, request, redirect, current_app
+from flask import g, request, redirect
 from flask.ext.restful import abort
 from newrelic import agent
 from werkzeug.urls import url_encode

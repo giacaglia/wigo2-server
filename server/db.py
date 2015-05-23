@@ -312,8 +312,6 @@ class WigoRedisDB(WigoDB):
         return self.redis.zremrangebyrank(key, start, stop)
 
     def process_expired(self):
-        logger.info('expiring redis keys')
-
         num_expired = 0
         for redis in self.redis.connections.values():
             with redis.lock('locks:expire_keys', timeout=180):
@@ -327,7 +325,8 @@ class WigoRedisDB(WigoDB):
                     else:
                         break
 
-        logger.info('expired {} keys'.format(num_expired))
+        if num_expired > 0:
+            logger.info('expired {} keys'.format(num_expired))
 
 
 class WigoQueuedDB(WigoDB):

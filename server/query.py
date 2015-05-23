@@ -374,7 +374,7 @@ class SelectQuery(object):
         if self._model_class == EventMessage:
             query_class = EventMessage
             if self._user:
-                keys = [user_eventmessages_key(self._user, event) for event in self._events]
+                keys = [user_eventmessages_key(self._user, event, self._by_votes) for event in self._events]
             else:
                 keys = [skey(event, 'messages', 'by_votes') if self._by_votes else
                         skey(event, 'messages') for event in self._events]
