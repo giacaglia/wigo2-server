@@ -95,7 +95,7 @@ def check_queues():
 
 # schedule job to expire redis keys
 scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
-                   process_expired, interval=60 * 60, timeout=600)
+                   process_expired, interval=60, timeout=600)
 
 
 # schedule job to check the queues
