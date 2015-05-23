@@ -18,7 +18,7 @@ from server.models.group import Group, get_close_groups
 from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue, is_new_user
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
-    user_attendees_key
+    user_attendees_key, user_votes_key
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
 from utils import epoch
 
@@ -322,7 +322,7 @@ def delete_user(user_id, group_id):
     for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'votes')):
         wigo_db.sorted_set_remove(skey('eventmessage', message_id, 'votes'), user_id)
         for friend_id in friend_ids:
-            wigo_db.sorted_set_remove(skey('user', friend_id, 'eventmessage', message_id, 'votes'), user_id)
+            wigo_db.sorted_set_remove(user_votes_key(friend_id, message_id), user_id)
 
     # remove event messages
     for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'event_messages')):
@@ -470,8 +470,8 @@ def wire_data_listeners():
             event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
-            event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
             tell_friends_about_vote.delay(instance.message_id, instance.user_id)
+            event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
         elif isinstance(instance, Message):
             instance.user.track_meta('last_message_change')
             instance.to_user.track_meta('last_message_change')

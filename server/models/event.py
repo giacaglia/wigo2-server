@@ -312,7 +312,7 @@ class EventMessage(WigoPersistentModel):
         self.db.expire(user_emessages_key, DEFAULT_EXPIRING_TTL)
 
         # record into users list by vote count
-        num_votes = self.db.get_set_size(user_votes_key(user, self))
+        num_votes = self.db.get_sorted_set_size(user_votes_key(user, self))
         sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
         by_votes_key = user_eventmessages_key(user, event, True)
         self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort, replicate=False)
@@ -372,7 +372,7 @@ class EventMessageVote(WigoModel):
         event = message.event
 
         user_votes = user_votes_key(user, self.message)
-        self.db.set_add(user_votes, self.user.id, replicate=False)
+        self.db.sorted_set_add(user_votes, self.user.id, epoch(self.created), replicate=False)
         self.db.expire(user_votes, self.ttl())
 
         # this forces the message to update its indexes for the user

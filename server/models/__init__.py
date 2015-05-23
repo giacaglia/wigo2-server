@@ -578,8 +578,9 @@ def user_eventmessages_key(user, event, by_votes=False):
 
 
 def user_votes_key(user, message):
+    user_id = user.id if isinstance(user, Model) else user
     message_id = message.id if isinstance(message, Model) else message
-    return skey(user, 'eventmessage', message_id, 'votes')
+    return skey('user', user_id, 'eventmessage', message_id, 'votes')
 
 
 def skey(*keys):
