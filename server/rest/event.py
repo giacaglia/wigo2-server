@@ -214,7 +214,10 @@ class EventMessageListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, page, messages = self.select().event(event).secure(g.user).execute()
+        query = self.select().event(event).secure(g.user)
+        if event.is_expired:
+            query = query.by_votes()
+        count, page, messages = query.execute()
         return self.serialize_list(self.model, messages, count, page), 200, headers
 
     @user_token_required
@@ -239,7 +242,10 @@ class UserEventMessageListResource(WigoResource):
         event = Event.find(event_id)
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
-        count, page, messages = self.select().event(event).user(g.user).secure(g.user).execute()
+        query = self.select().event(event).user(g.user).secure(g.user)
+        if event.is_expired:
+            query = query.by_votes()
+        count, page, messages = query.execute()
         return self.serialize_list(self.model, messages, count, page), 200, headers
 
 
