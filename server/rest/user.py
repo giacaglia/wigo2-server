@@ -259,7 +259,7 @@ class FriendIdsListResource(WigoResource):
     model = Friend
 
     @user_token_required
-    @check_last_modified('user', 'last_friend_change', 60*60)
+    @check_last_modified('user', 'last_friend_change')
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         user_id = self.get_id(user_id)
@@ -407,7 +407,7 @@ class TapListResource(WigoResource):
     model = Tap
 
     @user_token_required
-    @check_last_modified('user', 'last_tap_change', 60*60)
+    @check_last_modified('user', 'last_tap_change')
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         return g.user.get_tapped_ids(), 200, headers
@@ -431,7 +431,7 @@ class BlockListResource(WigoResource):
     model = Block
 
     @user_token_required
-    @check_last_modified('user', 'last_block_change', 60*60)
+    @check_last_modified('user', 'last_block_change')
     @api.response(200, 'Success')
     def get(self, user_id, headers):
         return g.user.get_blocked_ids(), 200, headers
