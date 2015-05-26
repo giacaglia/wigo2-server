@@ -391,7 +391,12 @@ class InviteListResource(WigoResource):
     @api.response(403, 'Not friends or not attending')
     def post(self, event_id):
         if 'friends' in request.get_json():
-            pass
+            for friend_id, score in wigo_db.sorted_set_iter(skey(g.user, 'friends')):
+                invite = Invite()
+                invite.user_id = g.user.id
+                invite.invited_id = friend_id
+                invite.event_id = event_id
+                invite.save()
         else:
             invite = Invite()
             invite.user_id = g.user.id
