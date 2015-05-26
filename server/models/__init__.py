@@ -166,6 +166,10 @@ class WigoModel(Model):
                 logger.warn('user {} not found'.format(self.user_id))
         return None
 
+    @user.setter
+    def user(self, user):
+        self.user_id = user.id
+
     @serializable(serialized_name='user', serialize_when_none=False)
     def user_ref(self):
         from server.models.user import User
@@ -182,6 +186,10 @@ class WigoModel(Model):
             except DoesNotExist:
                 logger.warn('user {} not found'.format(self.owner_id))
         return None
+
+    @owner.setter
+    def owner(self, user):
+        self.owner_id = user.id
 
     @serializable(serialized_name='owner', serialize_when_none=False)
     def owner_ref(self):

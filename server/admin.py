@@ -21,6 +21,7 @@ from wtforms.validators import Optional, DataRequired
 from server.models import JsonType, DoesNotExist
 from server.models.event import Event
 from server.models.group import Group
+from server.models.user import User
 from server.security import check_basic_auth, authenticate
 
 
@@ -38,10 +39,19 @@ class WigoAjaxModelLoader(AjaxModelLoader):
 
     def get_list(self, query, offset=0, limit=DEFAULT_PAGE_SIZE):
         model = self.options['model']
-        return list(model.select().where(code=query).limit(limit))
+        if model == Group:
+            return list(model.select().where(code=query).limit(limit))
+        else:
+            return list(model.select().where(username=query).limit(limit))
 
     def format(self, model):
-        return (str(model.id), model.name) if model else None
+        if isinstance(model, Group):
+            return (str(model.id), model.name) if model else None
+        elif isinstance(model, User):
+            return (str(model.id), model.full_name) if model else None
+        else:
+            return (str(model.id), str(model)) if model else None
+
 
 
 def actions_formatter(view, context, model, name):
@@ -55,16 +65,25 @@ def group_formatter(view, context, model, name):
         return ""
 
 
+def user_formatter(view, context, model, name):
+    try:
+        return Markup(model.user.full_name) if model.user else ""
+    except DoesNotExist:
+        return ""
+
+
 class WigoModelView(BaseModelView):
     edit_template = 'admin_overrides/edit.html'
 
     column_formatters = {
         'actions': actions_formatter,
-        'group': group_formatter
+        'group': group_formatter,
+        'user': user_formatter,
     }
 
     form_ajax_refs = {
-        'group': WigoAjaxModelLoader('group', {'model': Group})
+        'group': WigoAjaxModelLoader('group', {'model': Group}),
+        'owner': WigoAjaxModelLoader('owner', {'model': User})
     }
 
     def __init__(self, model, name=None, category=None, endpoint=None, url=None, static_folder=None,
@@ -134,6 +153,9 @@ class WigoModelView(BaseModelView):
             if 'group_id' == field.name:
                 setattr(WigoModelForm, 'group', AjaxSelectField(
                     WigoAjaxModelLoader('group', {'model': Group}), 'group', validators=validators))
+            elif 'owner_id' == field.name:
+                setattr(WigoModelForm, 'owner', AjaxSelectField(
+                    WigoAjaxModelLoader('owner', {'model': User}), 'owner', validators=validators))
             elif isinstance(field, DateTimeType):
                 setattr(WigoModelForm, field.name,
                         DateTimeField(field.name, default=field.default, validators=validators))
