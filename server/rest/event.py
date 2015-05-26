@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import logging
 
-from time import time
+from time import time, sleep
 from datetime import timedelta
 from flask import g, request, redirect
 from flask.ext.restful import abort
@@ -38,12 +38,15 @@ class EventListResource(WigoDbListResource):
         if count == 0 and group.status == 'initializing':
             tries = int(request.args.get('tries', 0))
             if tries < 5:
-                tries += 1
+                sleep(1)  # clients seem to not obey Retry-After, so artificially delay
                 request_arguments = request.args.copy().to_dict()
                 request_arguments['tries'] = tries
                 response = redirect('%s?%s' % (request.path, url_encode(request_arguments)))
-                response.headers.add('Retry-After', 2*tries)
+                response.headers.add('Retry-After', 1)
                 return response
+            else:
+                # return without "headers" so this response isn't cached
+                return self.serialize_list(self.model, events, count, page), 200
 
         attending_id = g.user.get_attending_id()
         if attending_id:
