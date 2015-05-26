@@ -114,12 +114,15 @@ class UserMetaResource(WigoResource):
         if user_id == g.user.id:
             user_meta = wigo_db.redis.hgetall(skey('user', user_id, 'meta'))
             if user_meta:
+                def format_date(field):
+                    return datetime.utcfromtimestamp(float(user_meta[field])).isoformat()
+
                 if 'last_message_received' in user_meta:
-                    meta['last_message_received'] = user_meta['last_message_received']
+                    meta['last_message_received'] = format_date('last_message_received')
                 if 'last_friend_request' in user_meta:
-                    meta['last_friend_request'] = user_meta['last_friend_request']
+                    meta['last_friend_request'] = format_date('last_friend_request')
                 if 'last_notification' in user_meta:
-                    meta['last_notification'] = user_meta['last_notification']
+                    meta['last_notification'] = format_date('last_notification')
 
             meta['attending_event_id'] = g.user.get_attending_id()
         else:
