@@ -246,7 +246,7 @@ class GroupModelView(WigoModelView):
     column_filters = ('code', 'name', 'city_id')
 
     def scaffold_list_columns(self):
-        return ['id', 'name', 'created']
+        return ['id', 'name', 'status', 'created']
 
 
 class EventModelView(WigoModelView):

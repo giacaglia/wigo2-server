@@ -60,7 +60,7 @@ class Event(WigoPersistentModel):
             if not group:
                 raise TypeError('Missing group argument')
 
-            uniqe_name_key = skey(group, Event, Event.event_key(name))
+            uniqe_name_key = skey(group, Event, Event.event_key(name, group))
             event_id = wigo_db.get(uniqe_name_key)
             if event_id:
                 try:
@@ -72,7 +72,7 @@ class Event(WigoPersistentModel):
         return super(Event, cls).find(*args, **kwargs)
 
     @classmethod
-    def event_key(cls, event_name):
+    def event_key(cls, event_name, group):
         event_key = event_name
         if event_key:
             event_key = strip_unicode(strip_punctuation(event_key.strip().lower())).strip()
@@ -81,7 +81,7 @@ class Event(WigoPersistentModel):
                 event_key = ' '.join(words[1:])
         if not event_key:
             event_key = event_name
-        return event_key.encode('utf-8')
+        return '{}:{}'.format(event_key.encode('utf-8'), group.get_day_end().date().isoformat())
 
     def save(self):
         created = self.id is None
@@ -116,7 +116,7 @@ class Event(WigoPersistentModel):
 
         if group.id == self.group_id:
             distance = 0
-            event_name_key = skey(group, Event, Event.event_key(self.name))
+            event_name_key = skey(group, Event, Event.event_key(self.name, group))
         else:
             event_name_key = None
             distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
@@ -198,7 +198,7 @@ class Event(WigoPersistentModel):
             try:
                 existing_event = self.find(group=group, name=self.name)
                 if existing_event.id == self.id:
-                    self.db.delete(skey(group, Event, Event.event_key(self.name)))
+                    self.db.delete(skey(group, Event, Event.event_key(self.name, group)))
             except:
                 pass
 

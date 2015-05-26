@@ -32,7 +32,7 @@ class EventListResource(WigoDbListResource):
 
         query = self.select().group(group)
         query = query.min(epoch(group.get_day_end() - timedelta(days=7)))
-        query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
+        query = query.max(epoch(group.get_day_end() + timedelta(minutes=10)))
         count, page, events = query.execute()
 
         if count == 0 and group.status == 'initializing':
