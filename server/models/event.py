@@ -150,7 +150,7 @@ class Event(WigoPersistentModel):
     def update_user_events(self, user):
         events_key = skey(user, 'events')
 
-        current_attending = user.get_attending_id()
+        current_attending = user.get_attending_id(self)
         if current_attending and current_attending == self.id:
             self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, 100000))
             self.clean_old(events_key)
@@ -218,8 +218,8 @@ class EventAttendee(WigoModel):
         user = self.user
         event = self.event
 
-        # check if the user is switching events for today
-        current_event_id = user.get_attending_id()
+        # check if the user is switching events for the date the event is on
+        current_event_id = user.get_attending_id(event)
         if current_event_id and current_event_id != event.id:
             EventAttendee({'event_id': current_event_id, 'user_id': user.id}).delete()
 

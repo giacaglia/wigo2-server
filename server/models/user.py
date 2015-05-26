@@ -99,12 +99,19 @@ class User(WigoPersistentModel):
     def is_active(self):
         return self.status == 'active'
 
-    def get_attending_id(self):
-        event_id = self.db.get(skey(self, 'current_attending'))
+    def get_attending_id(self, event=None):
+        date = event.date if event else self.group.get_day_start()
+        date = date.date().isoformat()
+
+        event_id = self.db.get(skey(self, 'current_attending_{}'.format(date)))
+        if not event_id:
+            # TODO remove
+            event_id = self.db.get(skey(self, 'current_attending'))
+
         return int(event_id) if event_id else None
 
     def set_attending(self, event):
-        self.db.set(skey(self, 'current_attending'), event.id, event.expires, event.expires)
+        self.db.set(skey(self, 'current_attending_{}'.format(event.date.date().isoformat())), event.id, event.expires, event.expires)
 
     def is_attending(self, event):
         return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id)
@@ -289,16 +296,6 @@ class Friend(WigoModel):
         self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requested'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
         self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests', 'common'), self.friend_id)
-
-        user_event_id = self.user.get_attending_id()
-        if user_event_id:
-            user_event = Event.find(user_event_id)
-            user_event.remove_from_user_attending(self.friend, self.user)
-
-        friend_event_id = self.friend.get_attending_id()
-        if friend_event_id:
-            friend_event = Event.find(friend_event_id)
-            friend_event.remove_from_user_attending(self.user, self.friend)
 
 
 class Tap(WigoModel):
