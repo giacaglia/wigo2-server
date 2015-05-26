@@ -338,7 +338,7 @@ class EventMessageVoteResource(WigoResource):
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
         message = EventMessage.find(message_id)
-        count, page, votes = self.select().eventmessage(message).secure(g.user).execute()
+        count, page, votes = self.select().eventmessage(message).execute()
         return self.serialize_list(User, votes, count, page), 200, headers
 
     @user_token_required
