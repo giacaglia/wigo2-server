@@ -172,7 +172,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
 
     for friends_friend in each_friends_friend():
         num_friends_in_common = user.get_num_friends_in_common(friends_friend)
-        if num_friends_in_common > 2:
+        if num_friends_in_common > 0:
             add_friend(user, friends_friend, num_friends_in_common)
             if len(suggested) >= num_friends_to_recommend:
                 break
