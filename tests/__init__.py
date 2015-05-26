@@ -68,6 +68,7 @@ def client():
     from server.models.user import User
     from server.models import model_cache
     from server.models import cache_maker as model_cache_maker
+    from server.models.group import cache_maker as group_cache_maker
     from server.rest import cache_maker as rest_cache_maker
     from server.models.location import WigoCity
 
@@ -79,6 +80,7 @@ def client():
     logging.getLogger('wigo').setLevel(level=logging.FATAL)
 
     model_cache.clear()
+    group_cache_maker.clear()
     model_cache_maker.clear()
     rest_cache_maker.clear()
 

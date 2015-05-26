@@ -35,6 +35,10 @@ class Event(WigoPersistentModel):
     def is_expired(self):
         return datetime.utcnow() > self.expires
 
+    @property
+    def is_global(self):
+        return self.tags and 'global' in self.tags
+
     def ttl(self):
         return DEFAULT_EXPIRING_TTL
 
@@ -106,6 +110,8 @@ class Event(WigoPersistentModel):
         # TODO also the global event needs to be updated
 
         self.clean_old(skey('group', self.group_id, 'events'))
+        if self.is_global:
+            self.clean_old(skey('global', 'events'))
 
     def update_global_events(self, group=None):
         if group is None:
@@ -131,9 +137,16 @@ class Event(WigoPersistentModel):
 
             if self.is_new is False and self.owner_id is not None and (num_attending == 0 or num_messages == 0):
                 self.db.sorted_set_remove(events_key, self.id)
+
+                if group.id == self.group_id and self.is_global:
+                    self.db.sorted_set_remove(skey('global', 'events'), self.id)
+
             else:
                 score = get_score_key(self.expires, distance, num_attending)
                 self.db.sorted_set_add(events_key, self.id, score)
+
+                if group.id == self.group_id and self.is_global:
+                    self.db.sorted_set_add(skey('global', 'events'), self.id, score)
 
         else:
             # if the event is being made private, make sure it hasn't taken the name

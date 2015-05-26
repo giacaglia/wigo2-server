@@ -14,7 +14,8 @@ from rq.decorators import job
 from config import Configuration
 
 from server.db import wigo_db, scheduler, redis
-from server.models.group import Group, get_close_groups
+from server.models.group import Group, get_close_groups, get_all_groups
+
 from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue, is_new_user
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
@@ -96,6 +97,12 @@ def new_group(group_id):
                 imported.add(event.id)
                 num_imported += 1
 
+    for event in Event.select().key(skey('global', 'events')).min(min):
+        if event.id not in imported:
+            event.update_global_events(group=group)
+            imported.add(event.id)
+            num_imported += 1
+
     logger.info('imported {} events into group {}'.format(num_imported, group.name))
     group.track_meta('last_event_change', expire=None)
     group.status = 'active'
@@ -127,28 +134,33 @@ def event_related_change(group_id, event_id):
             # or in case the job queues get backed up
             group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
 
-            radius = 100
-            population = group.population or 50000
-            if population < 50000:
-                radius = 40
-            elif population < 100000:
-                radius = 60
+            if event.is_global:
+                groups_to_add_to = get_all_groups()
+            else:
+                radius = 100
+                population = group.population or 50000
+                if population < 50000:
+                    radius = 40
+                elif population < 100000:
+                    radius = 60
 
-            for close_group in get_close_groups(group.latitude, group.longitude, radius):
-                if close_group.id == group.id:
+                groups_to_add_to = get_close_groups(group.latitude, group.longitude, radius)
+
+            for group_to_add_to in groups_to_add_to:
+                if group_to_add_to.id == group.id:
                     continue
 
                 # index this event into the close group
                 if event.deleted is False:
-                    event.update_global_events(group=close_group)
+                    event.update_global_events(group=group_to_add_to)
                 else:
-                    event.remove_index(group=close_group)
+                    event.remove_index(group=group_to_add_to)
 
                 # clean out old events
-                event.clean_old(skey(close_group, 'events'))
+                event.clean_old(skey(group_to_add_to, 'events'))
 
                 # track the change for the group
-                close_group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
+                group_to_add_to.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
 
         finally:
             lock.release()
@@ -381,10 +393,14 @@ def user_lock(user_id):
 
 def on_model_change_broadcast(message):
     from server.models import model_cache
+    from server.models.group import cache_maker as group_cache_maker
 
     data = ujson.loads(message['data'])
     logger.debug('evicting {} from cache'.format(data))
     model_cache.invalidate(data['id'])
+
+    if data['type'] == 'Group':
+        group_cache_maker.clear()
 
 
 def wire_event_bus():
@@ -431,15 +447,13 @@ def wire_data_listeners():
             if instance.status == 'deleted':
                 delete_user.delay(instance.id, instance.group_id)
 
-            if not created:
-                publish_model_change(instance)
+            publish_model_change(instance)
 
         elif isinstance(instance, Group):
             if created:
                 new_group.delay(instance.id)
 
-            if not created:
-                publish_model_change(instance)
+            publish_model_change(instance)
 
         elif isinstance(instance, Event):
             event_related_change.delay(instance.group_id, instance.id)

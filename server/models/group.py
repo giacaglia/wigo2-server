@@ -4,16 +4,17 @@ import re
 import logging
 import requests
 
-from geodis.location import Location
+from repoze.lru import CacheMaker
 from datetime import datetime, timedelta
 from time import time
 from pytz import timezone, UTC
-from schematics.types import StringType, BooleanType, FloatType, IntType
+from schematics.types import StringType, FloatType, IntType
 
 from server.db import redis
-from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, skey
+from server.models import WigoPersistentModel, DoesNotExist, IntegrityException
 from server.models.location import WigoCity
-from server.models import cache_maker
+
+cache_maker = CacheMaker(maxsize=1000, timeout=60)
 
 logger = logging.getLogger('wigo.model')
 
@@ -155,6 +156,11 @@ def get_close_groups(lat, lon, radius=50):
             pass
 
     return close_groups
+
+
+@cache_maker.expiring_lrucache(maxsize=10, timeout=60 * 60)
+def get_all_groups():
+    return list(Group.select())
 
 
 @cache_maker.expiring_lrucache(maxsize=1000, timeout=60 * 60)
