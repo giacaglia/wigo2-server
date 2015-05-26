@@ -78,13 +78,24 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             return False
         if user.is_friend(suggest_id) or user.is_friend_request_sent(suggest_id):
             return False
-        return True
+        try:
+            suggest_user = User.find(suggest_id)
+            return suggest_user.status != 'hidden'
+        except DoesNotExist:
+            return False
 
     def add_friend(user_to_add_to, suggest_id, score=None):
         if score is None:
             score = user_to_add_to.get_num_friends_in_common(suggest_id)
         wigo_db.sorted_set_add(skey(user_to_add_to, 'friend', 'suggestions'), suggest_id, score, replicate=False)
         suggested.add(suggest_id)
+
+    #################################################
+    # first clean out all the old suggestions
+
+    for suggest_id, score in wigo_db.sorted_set_iter(skey(user, 'friend', 'suggestions')):
+        if not should_suggest(suggest_id):
+            wigo_db.sorted_set_remove(skey(user, 'friend', 'suggestions'), suggest_id, replicate=False)
 
     ##################################
     # add via prediction io
