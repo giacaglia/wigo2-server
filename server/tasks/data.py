@@ -81,13 +81,12 @@ def new_group(group_id):
     imported = set()
 
     min = epoch(group.get_day_end() - timedelta(days=7))
-    max = epoch(group.get_day_end() + timedelta(hours=1))
 
     for close_group in get_close_groups(group.latitude, group.longitude, 100):
         if close_group.id == group.id:
             continue
 
-        for event in Event.select().group(close_group).min(min).max(max):
+        for event in Event.select().group(close_group).min(min):
             # only import the events the group actually owns
             if event.group_id != close_group.id:
                 continue
