@@ -129,7 +129,7 @@ class Event(WigoPersistentModel):
             num_attending = self.db.get_sorted_set_size(attendees_key)
             num_messages = get_cached_num_messages(self.id) if self.is_expired else 10
 
-            if self.is_new is False and self.owner_id is None and (num_attending == 0 or num_messages == 0):
+            if self.is_new is False and self.owner_id is not None and (num_attending == 0 or num_messages == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
                 score = get_score_key(self.expires, distance, num_attending)
