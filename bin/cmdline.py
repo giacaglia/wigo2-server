@@ -10,13 +10,14 @@ import logconfig
 import ujson
 import click
 import geodis
+
+from server.db import wigo_db
 from server.models.location import WigoCity
 from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
 from config import Configuration
-from server.models import IntegrityException, DoesNotExist
-from server.models.group import Group
-from server.models.user import User, Friend, Tap
+from server.models import IntegrityException, DoesNotExist, skey
+from server.models.user import User
 
 logger = logging.getLogger('wigo.cmdline')
 
@@ -174,11 +175,10 @@ def initialize(create_tables=False, import_cities=False):
 
 
 @cli.command()
-@click.option('--groups', type=bool)
 @click.option('--users', type=bool)
 @click.option('--friends', type=bool)
 @click.option('--taps', type=bool)
-def import_old_db(groups=False, users=False, friends=False, taps=False):
+def import_old_db(users=False, friends=False):
     from server.tasks.predictions import wire_predictions_listeners
 
     logconfig.configure('dev')
@@ -194,34 +194,19 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
 
     wire_predictions_listeners()
 
-    if groups:
-        for dbgroup in groups_table.find():
-            group = Group(dbgroup)
-
-            try:
-                group.validate()
-                group.save()
-                num_saved += 1
-
-                if (num_saved % 100) == 0:
-                    logger.info('saved {} groups'.format(num_saved))
-
-            except ModelValidationError, e:
-                logger.error('model validation error, {}'.format(e.message))
-                logger.error(ujson.dumps(dbgroup))
-
     num_saved = 0
 
-    if users:
-        try:
-            boston = Group.find(code='boston')
-        except DoesNotExist:
-            boston = Group({
-                'name': 'Boston', 'code': 'boston', 'city_id': 4930956,
-                'latitude': 42.3584, 'longitude': -71.0598
-            }).save()
+    schools = {}
 
-        for dbuser in users_table.find(email_validated=True, group=1):
+    def get_school(school_id):
+        school = schools.get(school_id)
+        if not school:
+            school = groups_table.find_one(id=school_id)
+            schools[school_id] = school
+        return school
+
+    if users:
+        for dbuser in users_table.find(email_validated=True, status='active'):
             properties = dbuser.get('properties')
             if isinstance(properties, dict) and 'images' in properties:
                 images = properties.get('images')
@@ -238,18 +223,27 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
             except DoesNotExist:
                 pass
 
+            if dbuser['group'] not in (1, 2, 1938, 3570):
+                continue
+
+            school = get_school(dbuser['group'])
+
             assoc = aa_table.find_one(user=dbuser['id'])
+
             user = User(dbuser)
 
             try:
-                user.group_id = boston.id
                 user.facebook_id = dbuser['facebook']
                 user.facebook_token = assoc['service_token']
                 user.facebook_token_expires = assoc['service_token_expires']
-                user.latitude = boston.latitude
-                user.longitude = boston.longitude
+                user.status = 'existing'
+
+                if school:
+                    user.education = school['name']
+
                 user.validate()
                 user.save()
+
                 num_saved += 1
 
                 if (num_saved % 100) == 0:
@@ -266,23 +260,21 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
 
     if friends:
         results = rdbms.query("""
-            select t1.user_id, t1.follow_id, t1.created from follow t1, follow t2 where t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-            t1.accepted is True and t2.accepted is True and t1.user_id in (select id from "user" where group_id = 1)
+            select t1.user_id, t1.follow_id, t1.created from follow t1, follow t2 where
+            t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
+            t1.accepted is True and t2.accepted is True
         """)
 
         for result in results:
             try:
-                User.find(result[0])
-                User.find(result[1])
+                u1 = User.find(result[0])
+                u2 = User.find(result[1])
             except DoesNotExist:
                 continue
 
             try:
-                Friend({
-                    'user_id': result[0],
-                    'friend_id': result[1],
-                    'accepted': True
-                }).save()
+                wigo_db.sorted_set_add(skey(u1, 'friend', 'suggestions'), u2.id, 1, replicate=False)
+                wigo_db.sorted_set_add(skey(u2, 'friend', 'suggestions'), u1.id, 1, replicate=False)
                 num_saved += 1
 
                 if (num_saved % 100) == 0:
@@ -290,26 +282,6 @@ def import_old_db(groups=False, users=False, friends=False, taps=False):
 
             except Exception, e:
                 logger.error('friend import error, {}'.format(e.message))
-
-    if taps:
-        results = rdbms.query("""
-            select user_id, tapped_id from tap where user_id in (select id from "user" where group_id = 1)
-        """)
-
-        for result in results:
-            try:
-                Tap({
-                    'user_id': result[0],
-                    'tapped_id': result[1]
-                }).save()
-
-                num_saved += 1
-
-                if (num_saved % 100) == 0:
-                    logger.info('saved {} taps'.format(num_saved))
-
-            except Exception, e:
-                logger.error('tap import error, {}'.format(e.message))
 
 
 @cli.command()
