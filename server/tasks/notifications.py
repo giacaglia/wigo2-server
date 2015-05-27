@@ -225,6 +225,18 @@ def notify_on_friend(user_id, friend_id, accepted):
     else:
         __send_notification_push(notification)
 
+        # for imported users from wigo1, send them a push saying their friend just joined wigo2
+        if friend.status == 'imported':
+            notification = Notification({
+                'user_id': friend_id,
+                'type': 'system',
+                'message': '{} added you to his Wigo Summer friend list. Update Wigo now!'.format(
+                    user.full_name.encode('utf-8'))
+            })
+
+            __send_notification_push(notification, api_version_num=1)
+
+
 
 @job(push_queue, timeout=30, result_ttl=0)
 @retry(tries=3, delay=2, backoff=2)
@@ -233,26 +245,34 @@ def send_notification_push(notification_id):
     __send_notification_push(notification)
 
 
-def __send_notification_push(notification):
+def __send_notification_push(notification, api_version_num=2):
     data = {
-        'id': notification.id,
-        'type': notification.type,
-        'navigate': notification.navigate,
         'alert': {
             'body': notification.message
         }
     }
 
+    if notification.id:
+        data['id'] = notification.id
+
+    if notification.type:
+        data['type'] = notification.type
+
+    if notification.navigate:
+        data['navigate'] = notification.navigate
+
     if notification.badge:
         data['badge'] = notification.badge
 
-    push.alert(data=data, where={
-        'wigo_id': notification.user_id,
-        'deviceType': 'ios',
-        'api_version_num': {
-            '$gte': 2
-        }
-    }, enterprise=notification.user.enterprise)
+    where = {'wigo_id': notification.user_id,
+             'deviceType': 'ios'}
+
+    if api_version_num >= 2:
+        where['api_version_num'] = {'$gte': api_version_num}
+    else:
+        where['api_version'] = '1.0.7'
+
+    push.alert(data=data, where=where, enterprise=notification.user.enterprise)
 
 
 def wire_notifications_listeners():
