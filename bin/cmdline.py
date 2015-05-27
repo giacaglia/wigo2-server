@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import sys
 import os
+from peewee import SQL
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -175,10 +176,10 @@ def initialize(create_tables=False, import_cities=False):
 
 
 @cli.command()
-@click.option('--users', type=bool)
-@click.option('--friends', type=bool)
-@click.option('--taps', type=bool)
-def import_old_db(users=False, friends=False):
+@click.option('--users', type=bool, default=False)
+@click.option('--friends', type=bool, default=False)
+@click.option('--start', type=int, default=None)
+def import_old_db(users=False, friends=False, start=None):
     from server.tasks.predictions import wire_predictions_listeners
 
     logconfig.configure('dev')
@@ -206,7 +207,10 @@ def import_old_db(users=False, friends=False):
         return school
 
     if users:
-        for dbuser in users_table.find(email_validated=True, status='active'):
+        query = users_table.find(email_validated=True, status='active').order_by(SQL('id desc'))
+        if start:
+            query = query.where(SQL('id < {}'.format(start)))
+        for dbuser in query.iterator():
             properties = dbuser.get('properties')
             if isinstance(properties, dict) and 'images' in properties:
                 images = properties.get('images')
@@ -223,8 +227,11 @@ def import_old_db(users=False, friends=False):
             except DoesNotExist:
                 pass
 
-            if dbuser['group'] not in (1, 2, 1938, 3570):
+            if dbuser['group'] in (1, 2, 1938, 3570):
                 continue
+
+            if ' ' in dbuser['email']:
+                dbuser['email'] = dbuser['email'].replace(' ', '')
 
             school = get_school(dbuser['group'])
 
@@ -247,7 +254,7 @@ def import_old_db(users=False, friends=False):
                 num_saved += 1
 
                 if (num_saved % 100) == 0:
-                    logger.info('saved {} users'.format(num_saved))
+                    logger.info('saved {} users, last user_id {}'.format(num_saved, user.id))
 
             except ModelValidationError, e:
                 logger.error('model validation error, {}'.format(e.message))
