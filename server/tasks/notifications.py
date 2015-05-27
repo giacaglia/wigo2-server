@@ -230,8 +230,9 @@ def notify_on_friend(user_id, friend_id, accepted):
             notification = Notification({
                 'user_id': friend_id,
                 'type': 'system',
-                'message': '{} added you to his Wigo Summer friend list. Update Wigo now!'.format(
-                    user.full_name.encode('utf-8'))
+                'message': '{} added you to {} Wigo Summer friend list. Update Wigo now!'.format(
+                    user.full_name.encode('utf-8'), ('his' if user.gender == 'male' else
+                                                     'her' if user.gender == 'female' else 'their'))
             })
 
             __send_notification_push(notification, api_version_num=1)
