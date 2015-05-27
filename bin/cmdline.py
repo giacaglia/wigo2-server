@@ -236,7 +236,7 @@ def import_old_db(users=False, friends=False):
                 user.facebook_id = dbuser['facebook']
                 user.facebook_token = assoc['service_token']
                 user.facebook_token_expires = assoc['service_token_expires']
-                user.status = 'existing'
+                user.status = 'imported'
 
                 if school:
                     user.education = school['name']

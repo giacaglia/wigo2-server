@@ -18,12 +18,12 @@ data_queue = Queue(name='data', connection=redis, async=is_not_tests)
 
 
 def is_new_user(user, created):
-    if user.status == 'existing':
+    if user.status == 'imported':
         return False
 
     if created:
         return True
 
     return (user.was_changed('status') and
-            user.get_previous_old_value('status') in ('existing', 'deleted') and
+            user.get_previous_old_value('status') in ('imported', 'deleted') and
             user.status == 'active')
