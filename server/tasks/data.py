@@ -103,7 +103,7 @@ def new_group(group_id):
             imported.add(event.id)
             num_imported += 1
 
-    logger.info('imported {} events into group {}'.format(num_imported, group.name))
+    logger.info('imported {} events into group {}'.format(num_imported, group.name.encode('utf-8')))
     group.track_meta('last_event_change', expire=None)
     group.status = 'active'
     group.save()
