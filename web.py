@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-import click
 
 import logconfig
 from config import Configuration
@@ -10,6 +9,7 @@ import os
 import ujson
 import logging
 import requests
+import click
 
 from newrelic import agent
 from datetime import datetime
@@ -147,6 +147,9 @@ def after_request(response):
         response.headers.add('X-Wigo-Group', g.group.code)
         response.headers.add('X-Wigo-Group-ID', g.group.id)
         response.headers.add('X-Wigo-City-ID', g.group.city_id)
+
+    agent.end_of_transaction()
+
     return response
 
 
