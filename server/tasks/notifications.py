@@ -279,6 +279,9 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
     except DoesNotExist:
         return
 
+    if event.owner_id == user_id:
+        return
+
     num_attending = get_num_attending(event_id, user_id)
     if num_attending < 5:
         return
