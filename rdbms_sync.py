@@ -36,7 +36,7 @@ def start(debug=False):
             found_something = False
 
             try:
-                command = redis.lindex('db:queue:commands', -1)
+                commands = redis.lrange('db:queue:commands', -50, -1)
             except ReadOnlyError:
                 logger.warn('error popping item from redis queue, redis in readonly mode, retrying')
                 sleep(5)
@@ -46,14 +46,20 @@ def start(debug=False):
                 sleep(1)
                 continue
             else:
-                if command:
+                if commands:
                     found_something = True
-                    parsed = cPickle.loads(command)
-                    fn = getattr(wigo_rdbms, parsed[0])
+
                     with db.transaction():
-                        fn(*parsed[1:])
-                    redis.rpop('db:queue:commands')
-                    num_run += 1
+                        p = redis.pipeline()
+                        for command in reversed(commands):
+                            parsed = cPickle.loads(command)
+                            fn = getattr(wigo_rdbms, parsed[0])
+                            fn(*parsed[1:])
+                            num_run += 1
+
+                            p.lrem('db:queue:commands', command, -1)
+
+                        p.execute()
 
                     if (num_run % 500) == 0:
                         logger.info('{} sync commands completed'.format(num_run))
