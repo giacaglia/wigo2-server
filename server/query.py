@@ -245,7 +245,7 @@ class SelectQuery(object):
         min = self._min or '-inf'
         max = self._max or '+inf'
 
-        count = self.db.get_sorted_set_size(key, self._min, self._max)
+        count = self.db.get_sorted_set_size(key, min, max)
         if count == 0:
             return 0, start_page, []
 
