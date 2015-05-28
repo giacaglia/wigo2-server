@@ -65,6 +65,10 @@ def __do_sync_parse(user_id):
         log_suffix = 'for user %s' % user.email
 
         for installation in results:
+            api_version_num = installation.get('api_version_num')
+            if not api_version_num or api_version_num < 2:
+                continue
+
             # if the values are exactly the same, skip
             if {k: installation.get(k) for k in data.keys()} == data:
                 continue
