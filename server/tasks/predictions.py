@@ -65,7 +65,6 @@ def generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
 
 @job(predictions_queue, timeout=600, result_ttl=0)
 def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
-    logger.info('generating friend suggestions for user {}'.format(user_id))
     is_dev = Configuration.ENVIRONMENT == 'dev'
 
     user = User.find(user_id)
@@ -145,8 +144,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
 
         user.track_meta('last_pio_check')
 
-        logger.info('pio: found {} friends to suggest to user {}'.format(len(suggested), user_id))
-
     ##################################
     # add facebook friends
 
@@ -174,8 +171,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             user.track_meta('last_facebook_check')
         except Exception:
             logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
-
-        logger.info('fb: found {} friends to suggest to user {}'.format(len(suggested), user_id))
 
     wigo_db.redis.expire(skey(user, 'friend', 'suggestions'), timedelta(days=30))
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))
