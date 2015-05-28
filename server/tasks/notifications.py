@@ -286,12 +286,12 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
     rl_key = 'notify:friends_attending:{}:{}'.format(event_id, user_id)
     with rate_limit(rl_key, event.expires) as limited:
         if not limited:
-            logger.info('notifying user {} of {} friends attending event {}'.format(
-                user_id, num_attending-1, event_id))
             friends = list(islice(EventAttendee.select().event(event).user(user).limit(6), 5))
             if user in friends:
                 friends.remove(user)
                 num_attending -= 1
+
+            logger.info('notifying user {} of {} friends attending event {}'.format(user_id, num_attending, event_id))
             if len(friends) >= 2:
                 notification = Notification({
                     'user_id': user.id,

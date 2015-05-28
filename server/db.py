@@ -588,7 +588,7 @@ def get_range_val(val):
 
 
 @contextmanager
-def rate_limit(key, expires):
+def rate_limit(key, expires, timeout=30):
     if Configuration.ENVIRONMENT in ('dev', 'test'):
         yield False
     else:
@@ -600,8 +600,13 @@ def rate_limit(key, expires):
         if redis.exists(key):
             yield True
         else:
-            yield False
-            redis.setex(key, True, expires)
+            lock = redis.lock('locks:{}'.format(key), timeout=timeout)
+            if lock.acquire(blocking=False):
+                try:
+                    yield False
+                    redis.setex(key, True, expires)
+                finally:
+                    lock.release()
 
 
 redis_url = urlparse(Configuration.REDIS_URL)

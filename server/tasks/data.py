@@ -188,7 +188,7 @@ def tell_friends_user_attending(user_id, event_id):
             for friend, score in user.friends_iter():
                 if friend.can_see_event(event):
                     event.add_to_user_attending(friend, user, score)
-                    friend_attending.send(None, event=event, user=user, friend=friend)
+                    friend_attending.send(None, event=event, user=friend, friend=user)
 
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_user_not_attending(user_id, event_id):
