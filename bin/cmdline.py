@@ -270,10 +270,10 @@ def import_old_db(users=False, friends=False, start=None):
 
     if friends:
         results = rdbms.query("""
-            select t1.user_id, t1.follow_id, t1.created from follow t1, follow t2 where
-            t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
+            select t1.user_id, t1.follow_id, t1.created from follow t1 inner join "user" u1 on t1.user_id = u1.id,
+            follow t2 where t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
             t1.accepted is True and t2.accepted is True and
-            t1.group_id not in (1, 2, 1938, 3570)
+            u1.group_id not in (1, 2, 1938, 3570)
             order by t1.user_id, t1.follow_id
         """)
 
