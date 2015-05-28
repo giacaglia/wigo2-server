@@ -141,30 +141,27 @@ def notify_on_eventmessage(message_id):
 def notify_on_eventmessage_vote(voter_id, message_id):
     voter = User.find(voter_id)
     message = EventMessage.find(message_id)
+    user = message.user
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
-    # don't send a notification if blocked
-    if voter_id == message.user_id or voter.group_id != message.user.group_id or \
-            message.user.is_blocked(voter):
+    # don't send to self or if not friend
+    if (voter_id == message.user_id) or (not user.is_friend(voter_id)):
         return
 
-    with rate_limit('notifications:vote:%s:%s:%s' % (message.user_id, message_id, voter_id),
-                    timedelta(hours=2)) as limited:
-        if not limited:
-            message_text = '{name} liked your {type} in {event}'.format(
-                name=voter.full_name.encode('utf-8'),
-                type=type,
-                event=message.event.name.encode('utf-8'))
+    message_text = '{name} liked your {type} in {event}'.format(
+        name=voter.full_name.encode('utf-8'),
+        type=type,
+        event=message.event.name.encode('utf-8'))
 
-            notification = Notification({
-                'user_id': message.user_id,
-                'type': 'eventmessage.vote',
-                'from_user_id': voter_id,
-                'navigate': '/users/me/events/{}/messages/{}'.format(message.event_id, message.id),
-                'message': message_text
-            }).save()
+    notification = Notification({
+        'user_id': message.user_id,
+        'type': 'eventmessage.vote',
+        'from_user_id': voter_id,
+        'navigate': '/users/me/events/{}/messages/{}'.format(message.event_id, message.id),
+        'message': message_text
+    }).save()
 
-            send_notification_push.delay(notification.id)
+    send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
