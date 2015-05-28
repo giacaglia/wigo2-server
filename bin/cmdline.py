@@ -1,8 +1,11 @@
 from __future__ import absolute_import
+from collections import Counter
 
 import sys
 import os
+from datetime import timedelta
 from peewee import SQL
+from repoze.lru import LRUCache
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -269,19 +272,42 @@ def import_old_db(users=False, friends=False, start=None):
         results = rdbms.query("""
             select t1.user_id, t1.follow_id, t1.created from follow t1, follow t2 where
             t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-            t1.accepted is True and t2.accepted is True
+            t1.accepted is True and t2.accepted is True and
+            t1.group_id not in (1, 2, 1938, 3570)
+            order by t1.user_id, t1.follow_id
         """)
 
+        num_recs = Counter()
+        users = LRUCache(1000)
+
+        def get_user(user_id):
+            u = users.get(user_id)
+            if u is None:
+                try:
+                    u = User.find(user_id)
+                    users.put(user_id, u)
+                except DoesNotExist, e:
+                    users.put(user_id, e)
+            if isinstance(u, DoesNotExist):
+                raise u
+            return u
+
         for result in results:
+            if num_recs[result[0]] > 100:
+                continue
+
             try:
-                u1 = User.find(result[0])
-                u2 = User.find(result[1])
+                u1 = get_user(result[0])
+                u2 = get_user(result[1])
             except DoesNotExist:
                 continue
 
             try:
                 wigo_db.sorted_set_add(skey(u1, 'friend', 'suggestions'), u2.id, .9, replicate=False)
-                wigo_db.sorted_set_add(skey(u2, 'friend', 'suggestions'), u1.id, .9, replicate=False)
+                wigo_db.redis.expire(skey(u1, 'friend', 'suggestions'), timedelta(days=30))
+
+                num_recs[result[0]] += 1
+
                 num_saved += 1
 
                 if (num_saved % 100) == 0:
