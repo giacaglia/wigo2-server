@@ -30,7 +30,7 @@ def new_user(user_id):
     try:
         for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
             facebook_id = fb_friend.get('id')
-            with rate_limit('notifications:friend_joined:{}:{}'.format(user_id, facebook_id),
+            with rate_limit('notify:friend_joined:{}:{}'.format(user_id, facebook_id),
                             timedelta(hours=1)) as limited:
                 if not limited:
                     try:
@@ -57,7 +57,7 @@ def new_user(user_id):
 
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_unlocked(user_id):
-    with rate_limit('notifications:unlock:{}'.format(user_id), timedelta(hours=1)) as limited:
+    with rate_limit('notify:unlock:{}'.format(user_id), timedelta(hours=1)) as limited:
         if not limited:
             user = User.find(user_id)
 
@@ -112,7 +112,7 @@ def notify_on_eventmessage(message_id):
     user = message.user
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
-    with rate_limit('notifications:eventmessage:{}:{}'.format(user.id, message.event.id),
+    with rate_limit('notify:eventmessage:{}:{}'.format(user.id, message.event.id),
                     timedelta(hours=2)) as limited:
         if limited:
             return
@@ -148,20 +148,23 @@ def notify_on_eventmessage_vote(voter_id, message_id):
     if (voter_id == message.user_id) or (not user.is_friend(voter_id)):
         return
 
-    message_text = '{name} liked your {type} in {event}'.format(
-        name=voter.full_name.encode('utf-8'),
-        type=type,
-        event=message.event.name.encode('utf-8'))
+    with rate_limit('notify:vote:%s:%s:%s' % (message.user_id, message_id, voter_id),
+                    timedelta(hours=2)) as limited:
+        if not limited:
+            message_text = '{name} liked your {type} in {event}'.format(
+                name=voter.full_name.encode('utf-8'),
+                type=type,
+                event=message.event.name.encode('utf-8'))
 
-    notification = Notification({
-        'user_id': message.user_id,
-        'type': 'eventmessage.vote',
-        'from_user_id': voter_id,
-        'navigate': '/users/me/events/{}/messages/{}'.format(message.event_id, message.id),
-        'message': message_text
-    }).save()
+            notification = Notification({
+                'user_id': message.user_id,
+                'type': 'eventmessage.vote',
+                'from_user_id': voter_id,
+                'navigate': '/users/me/events/{}/messages/{}'.format(message.event_id, message.id),
+                'message': message_text
+            }).save()
 
-    send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -194,7 +197,7 @@ def notify_on_message(message_id):
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_tap(user_id, tapped_id):
     tapped = User.find(tapped_id)
-    with rate_limit('notifications:tap:{}:{}'.format(user_id, tapped_id), timedelta(hours=2)) as limited:
+    with rate_limit('notify:tap:{}:{}'.format(user_id, tapped_id), timedelta(hours=2)) as limited:
         if not limited:
             user = User.find(user_id)
             message_text = '{} wants to see you out'.format(user.full_name.encode('utf-8'))
