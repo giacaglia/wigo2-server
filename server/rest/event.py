@@ -8,6 +8,8 @@ from flask import g, request, redirect
 from flask.ext.restful import abort
 from newrelic import agent
 from werkzeug.urls import url_encode
+from dateutil.parser import parse
+
 from server.db import wigo_db
 from server.models import skey, user_eventmessages_key, AlreadyExistsException, DoesNotExist, user_votes_key
 from server.models.event import Event, EventMessage, EventAttendee, EventMessageVote
@@ -81,6 +83,14 @@ class EventListResource(WigoDbListResource):
                 'owner_id': g.user.id,
                 'privacy': json.get('privacy') or 'public'
             })
+
+            if 'date' in json:
+                date = parse(json.get('date'))
+                event.date = group.get_day_start(date)
+                event.expires = group.get_day_end(date)
+            else:
+                event.date = group.get_day_start()
+                event.expires = group.get_day_end()
 
             event.save()
             return self.serialize_list(Event, [event])
