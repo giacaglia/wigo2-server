@@ -4,7 +4,7 @@ import logging
 
 from uuid import uuid4
 from time import time
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType, DateType
@@ -100,9 +100,14 @@ class User(WigoPersistentModel):
         return self.status == 'active'
 
     def get_attending_id(self, event=None):
-        date = event.date if event else self.group.get_day_start()
-        date = date.date().isoformat()
+        if event:
+            date = event.date
+        else:
+            now = datetime.utcnow()
+            day_start = self.group.get_day_start()
+            date = now if now >= day_start else now - timedelta(days=1)
 
+        date = date.date().isoformat()
         event_id = self.db.get(skey(self, 'current_attending_{}'.format(date)))
         if not event_id:
             # TODO remove
@@ -111,7 +116,9 @@ class User(WigoPersistentModel):
         return int(event_id) if event_id else None
 
     def set_attending(self, event):
-        self.db.set(skey(self, 'current_attending_{}'.format(event.date.date().isoformat())), event.id, event.expires, event.expires)
+        date = event.date
+        date = date.date().isoformat()
+        self.db.set(skey(self, 'current_attending_{}'.format(date)), event.id, event.expires, event.expires)
 
     def is_attending(self, event):
         return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id)
