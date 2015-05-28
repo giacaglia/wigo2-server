@@ -34,14 +34,16 @@ def __do_sync_parse(user_id):
 
     data = {
         'username': user.username,
-        'group_id': user.group_id,
-        'group_name': user.group.name,
-        'group_state': user.group.state,
-        'group_country': user.group.country,
         'gender': user.gender,
         'status': user.status,
-        'privacy': user.privacy,
+        'privacy': user.privacy
     }
+
+    if user.group_id:
+        data['group_id'] = user.group_id
+        data['group_name'] = user.group.name
+        data['group_state'] = user.group.state
+        data['group_country'] = user.group.country
 
     if user.work:
         data['work'] = user.work
