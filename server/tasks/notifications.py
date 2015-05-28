@@ -8,7 +8,7 @@ from config import Configuration
 from server.db import rate_limit
 from server.services import push
 from server.models import DoesNotExist, post_model_save
-from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee
+from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee, get_num_attending
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
 from server.services.facebook import FacebookTokenExpiredException, Facebook
 from server.tasks import notifications_queue, push_queue, is_new_user
@@ -68,6 +68,35 @@ def notify_unlocked(user_id):
             })
 
             __send_notification_push(notification)
+
+
+@job(notifications_queue, timeout=30, result_ttl=0)
+def notify_on_attendee(event_id, user_id):
+    try:
+        event = Event.find(event_id)
+        if event.owner is None:
+            return
+    except DoesNotExist:
+        return
+
+    targets = [5, 10, 20, 30, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500]
+    num_attending = get_num_attending(event_id)
+    target = next(reversed([t for t in targets if t <= num_attending]), None)
+
+    if target:
+        rl_key = 'notify:event_creators:{}:{}:{}'.format(event.id, event.owner_id, target)
+        with rate_limit(rl_key, event.expires) as limited:
+            if not limited:
+                notification = Notification({
+                    'user_id': event.owner_id,
+                    'type': 'system',
+                    'navigate': '/events/{}'.format(event_id),
+                    'badge': 1,
+                    'message': '{} people are going to your event {}'.format(
+                        num_attending, event.name.encode('utf-8'))
+                }).save()
+
+                send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -235,8 +264,7 @@ def notify_on_friend(user_id, friend_id, accepted):
                                                      'her' if user.gender == 'female' else 'their'))
             })
 
-            #__send_notification_push(notification, api_version_num=1)
-
+            # __send_notification_push(notification, api_version_num=1)
 
 
 @job(push_queue, timeout=30, result_ttl=0)
@@ -284,6 +312,8 @@ def wire_notifications_listeners():
             if not created and (instance.was_changed('status')
                                 and instance.get_previous_old_value('status') == 'waiting'):
                 notify_unlocked.delay(instance.id)
+        elif isinstance(instance, EventAttendee) and created:
+            notify_on_attendee.delay(instance.event_id, instance.user_id)
         elif isinstance(instance, EventMessage) and created:
             notify_on_eventmessage.delay(instance.id)
         elif isinstance(instance, EventMessageVote) and created:
