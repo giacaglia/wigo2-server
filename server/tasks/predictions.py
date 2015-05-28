@@ -91,11 +91,13 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         suggested.add(suggest_id)
 
     #################################################
-    # first clean out all the old suggestions
+    # first clean up all the old suggestions
 
     for suggest_id, score in wigo_db.sorted_set_iter(skey(user, 'friend', 'suggestions')):
         if not should_suggest(suggest_id):
             wigo_db.sorted_set_remove(skey(user, 'friend', 'suggestions'), suggest_id, replicate=False)
+        else:
+            add_friend(user, suggest_id)
 
     ##################################
     # add via prediction io
@@ -120,11 +122,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         for r in predictions.get('itemScores'):
             suggest_id = int(r['item'])
             if should_suggest(suggest_id):
-                score = round(r['score'] / 1000.0, 6)
-                if score >= 1:
-                    score = .9
-                friends_in_common = float(user.get_num_friends_in_common(suggest_id))
-                add_friend(user, suggest_id, friends_in_common + score)
+                add_friend(user, suggest_id)
 
         user.track_meta('last_pio_check')
 
