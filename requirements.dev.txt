@@ -1,5 +1,4 @@
 GitPython==1.0.1
-bpython
 freezegun==0.3.3
 httpretty==0.8.10
 mock==1.0.1

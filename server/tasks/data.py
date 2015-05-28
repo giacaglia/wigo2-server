@@ -19,7 +19,7 @@ from server.models.group import Group, get_close_groups, get_all_groups
 from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue, is_new_user
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
-    user_attendees_key, user_votes_key
+    user_attendees_key, user_votes_key, friend_attending
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
 from utils import epoch
 
@@ -188,7 +188,7 @@ def tell_friends_user_attending(user_id, event_id):
             for friend, score in user.friends_iter():
                 if friend.can_see_event(event):
                     event.add_to_user_attending(friend, user, score)
-
+                    friend_attending.send(None, event=event, user=user, friend=friend)
 
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_user_not_attending(user_id, event_id):

@@ -1,13 +1,14 @@
 from __future__ import absolute_import
 
 import logging
+from itertools import islice
 from retry import retry
 from datetime import timedelta
 from rq.decorators import job
 from config import Configuration
 from server.db import rate_limit
 from server.services import push
-from server.models import DoesNotExist, post_model_save
+from server.models import DoesNotExist, post_model_save, friend_attending
 from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee, get_num_attending
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
 from server.services.facebook import FacebookTokenExpiredException, Facebook
@@ -175,6 +176,7 @@ def notify_on_message(message_id):
         message_text = message_text[0:1000]
 
     push.alert(data={
+        'message_id': message_id,
         'navigate': '/messages/{}'.format(from_user.id),
         'sound': 'chord',
         'badge': 1,
@@ -267,6 +269,42 @@ def notify_on_friend(user_id, friend_id, accepted):
             # __send_notification_push(notification, api_version_num=1)
 
 
+@job(notifications_queue, timeout=30, result_ttl=0)
+def notify_on_friend_attending(event_id, user_id, friend_id):
+    try:
+        event = Event.find(event_id)
+        user = User.find(user_id)
+    except DoesNotExist:
+        return
+
+    num_attending = get_num_attending(event_id, user_id)
+    if num_attending < 5:
+        pass
+
+    rl_key = 'notify:friends_attending:{}:{}'.format(event_id, user_id)
+    with rate_limit(rl_key, event.expires) as limited:
+        if not limited:
+            logger.info('notifying user {} of {} friends attending event {}'.format(
+                user_id, num_attending-1, event_id))
+            friends = list(islice(EventAttendee.select().event(event).user(user).limit(6), 5))
+            if user in friends:
+                friends.remove(user)
+                num_attending -= 1
+            if len(friends) >= 2:
+                notification = Notification({
+                    'user_id': user.id,
+                    'type': 'system',
+                    'navigate': '/users/me/events/{}'.format(event_id),
+                    'badge': 1,
+                    'message': '{}, {}, and {} others are going to {}'.format(
+                        friends[0].full_name, friends[1].full_name,
+                        num_attending - 2, event.name.encode('utf-8'))
+                }).save()
+
+                send_notification_push.delay(notification.id)
+
+
+
 @job(push_queue, timeout=30, result_ttl=0)
 @retry(tries=3, delay=2, backoff=2)
 def send_notification_push(notification_id):
@@ -330,3 +368,8 @@ def wire_notifications_listeners():
             instance.user.track_meta('last_notification', epoch(instance.created))
 
     post_model_save.connect(notifications_model_listener, weak=False)
+
+    def on_friend_attending(sender, event, user, friend):
+        notify_on_friend_attending.delay(event.id, user.id, friend.id)
+
+    friend_attending.connect(on_friend_attending, weak=False)
