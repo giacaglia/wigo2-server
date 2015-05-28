@@ -242,12 +242,12 @@ class SelectQuery(object):
     def __get_page(self, key):
         start_page = self._page
 
+        min = self._min or '-inf'
+        max = self._max or '+inf'
+
         count = self.db.get_sorted_set_size(key, self._min, self._max)
         if count == 0:
             return 0, start_page, []
-
-        min = self._min or '-inf'
-        max = self._max or '+inf'
 
         if self._model_class == Event and self._group:
             if min is None:

@@ -256,7 +256,7 @@ class WigoRedisDB(WigoDB):
             yield self.decode(item, dt), score
 
     def get_sorted_set_size(self, key, min=None, max=None, dt=None):
-        if min is None and max is None:
+        if (min is None and max is None) or (min == '-inf' and max == '+inf'):
             return self.redis.zcard(key)
         else:
             return self.redis.zcount(key, min, max)
