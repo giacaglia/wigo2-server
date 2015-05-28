@@ -280,8 +280,8 @@ def import_old_db(users=False, friends=False, start=None):
                 continue
 
             try:
-                wigo_db.sorted_set_add(skey(u1, 'friend', 'suggestions'), u2.id, 1, replicate=False)
-                wigo_db.sorted_set_add(skey(u2, 'friend', 'suggestions'), u1.id, 1, replicate=False)
+                wigo_db.sorted_set_add(skey(u1, 'friend', 'suggestions'), u2.id, .9, replicate=False)
+                wigo_db.sorted_set_add(skey(u2, 'friend', 'suggestions'), u1.id, .9, replicate=False)
                 num_saved += 1
 
                 if (num_saved % 100) == 0:
