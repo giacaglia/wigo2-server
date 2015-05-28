@@ -84,20 +84,22 @@ def notify_on_attendee(event_id, user_id):
     num_attending = get_num_attending(event_id)
     target = next(reversed([t for t in targets if t <= num_attending]), None)
 
-    if target:
-        rl_key = 'notify:event_creators:{}:{}:{}'.format(event.id, event.owner_id, target)
-        with rate_limit(rl_key, event.expires) as limited:
-            if not limited:
-                notification = Notification({
-                    'user_id': event.owner_id,
-                    'type': 'system',
-                    'navigate': '/events/{}'.format(event_id),
-                    'badge': 1,
-                    'message': '{} people are going to your event {}'.format(
-                        num_attending, event.name.encode('utf-8'))
-                }).save()
+    if target is None:
+        return
 
-                send_notification_push.delay(notification.id)
+    rl_key = 'notify:event_creators:{}:{}:{}'.format(event.id, event.owner_id, target)
+    with rate_limit(rl_key, event.expires) as limited:
+        if not limited:
+            notification = Notification({
+                'user_id': event.owner_id,
+                'type': 'system',
+                'navigate': '/events/{}'.format(event_id),
+                'badge': 1,
+                'message': '{} people are going to your event {}'.format(
+                    num_attending, event.name.encode('utf-8'))
+            }).save()
+
+            send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
@@ -279,7 +281,7 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
 
     num_attending = get_num_attending(event_id, user_id)
     if num_attending < 5:
-        pass
+        return
 
     rl_key = 'notify:friends_attending:{}:{}'.format(event_id, user_id)
     with rate_limit(rl_key, event.expires) as limited:
