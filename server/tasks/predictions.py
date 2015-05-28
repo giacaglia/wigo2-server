@@ -100,6 +100,23 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             add_friend(user, suggest_id)
 
     ##################################
+    # add friends of friends
+
+    def each_friends_friend():
+        for friend_id in wigo_db.sorted_set_range(skey(user, 'friends'), 0, 50):
+            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'), 0, 50)
+            for friends_friend in friends_friends:
+                if should_suggest(friends_friend):
+                    yield friends_friend
+
+    for friends_friend in each_friends_friend():
+        num_friends_in_common = user.get_num_friends_in_common(friends_friend)
+        if num_friends_in_common > 0:
+            add_friend(user, friends_friend, num_friends_in_common)
+            if len(suggested) >= num_friends_to_recommend:
+                break
+
+    ##################################
     # add via prediction io
 
     last_pio_check = user.get_meta('last_pio_check')
@@ -115,7 +132,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
 
         predictions = engine_client.send_query({
             'user': str(user_id),
-            'num': 100,
+            'num': 50,
             'blackList': [str(user_id)]
         })
 
@@ -123,6 +140,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             suggest_id = int(r['item'])
             if should_suggest(suggest_id):
                 add_friend(user, suggest_id)
+                if len(suggested) >= num_friends_to_recommend:
+                    break
 
         user.track_meta('last_pio_check')
 
@@ -157,23 +176,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
             logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
 
         logger.info('fb: found {} friends to suggest to user {}'.format(len(suggested), user_id))
-
-    ##################################
-    # add friends of friends
-
-    def each_friends_friend():
-        for friend_id in wigo_db.sorted_set_range(skey(user, 'friends'), 0, 50):
-            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'), 0, 50)
-            for friends_friend in friends_friends:
-                if should_suggest(friends_friend):
-                    yield friends_friend
-
-    for friends_friend in each_friends_friend():
-        num_friends_in_common = user.get_num_friends_in_common(friends_friend)
-        if num_friends_in_common > 0:
-            add_friend(user, friends_friend, num_friends_in_common)
-            if len(suggested) >= num_friends_to_recommend:
-                break
 
     wigo_db.redis.expire(skey(user, 'friend', 'suggestions'), timedelta(days=30))
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))
