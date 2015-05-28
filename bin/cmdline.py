@@ -124,6 +124,14 @@ def initialize(create_tables=False, import_cities=False):
               value
             ) WHERE key ~ '\{event:\d+\}:attendees';
 
+           CREATE INDEX data_int_sorted_sets_votes_message_id ON data_int_sorted_sets(
+              cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+            ) WHERE key ~ '\{eventmessage:\d+\}:votes';
+
+           CREATE INDEX data_int_sorted_sets_votes_user_id ON data_int_sorted_sets(
+              value
+            ) WHERE key ~ '\{eventmessage:\d+\}:votes';
+
             CREATE OR REPLACE VIEW users AS
               SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'group_id' AS BIGINT) group_id,
               value->>'first_name' first_name, value->>'last_name' last_name, value->>'gender' gender,
@@ -143,7 +151,8 @@ def initialize(create_tables=False, import_cities=False):
                 CAST(value->>'group_id' AS BIGINT) group_id, value->>'name' "name",
                 timestamp_cast(value->>'expires') "expires",
                 (SELECT COUNT(key) FROM data_int_sorted_sets WHERE
-                  key = format('{event:%s}:attendees', (data_strings.value->>'id'))) num_attendees
+                  key = format('{event:%s}:attendees', (data_strings.value->>'id'))) num_attendees,
+                timestamp_cast(value->>'date') "date",
                 FROM data_strings WHERE value->>'$type' = 'Event';
 
             CREATE OR REPLACE VIEW eventmessages AS
@@ -156,6 +165,10 @@ def initialize(create_tables=False, import_cities=False):
             CREATE OR REPLACE VIEW attendees AS
                 select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
                 event_id, value as user_id from data_int_sorted_sets where key ~ '\{event:\d+\}:attendees'
+
+            CREATE OR REPLACE VIEW votes AS
+                select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+                message_id, value as user_id from data_int_sorted_sets where key ~ '\{eventmessage:\d+\}:votes'
           """)
 
     if import_cities:
