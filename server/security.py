@@ -4,6 +4,7 @@ from functools import wraps
 from flask import request, g, Response
 from flask.ext.restful import abort
 from datetime import datetime, timedelta
+from newrelic import agent
 
 from config import Configuration
 from server.models import DoesNotExist
@@ -60,6 +61,10 @@ def setup_user_by_token():
 
             if user.is_changed():
                 user.save()
+
+            agent.add_custom_parameter('user_id', user.id)
+            if user.group_id:
+                agent.add_custom_parameter('group_code', group.code)
 
         except DoesNotExist:
             pass

@@ -8,6 +8,7 @@ from gevent.hub import LoopExit
 import signal
 import gevent
 import gevent.pool
+from newrelic import agent
 from rq import Worker
 
 try:  # for rq >= 0.5.0
@@ -132,6 +133,10 @@ class GeventWorker(Worker):
 
         child_greenlet = self.gevent_pool.spawn(self.perform_job, job)
         child_greenlet.link(job_done)
+
+    @agent.background_task()
+    def perform_job(self, job):
+        return super(GeventWorker, self).perform_job(job)
 
     def dequeue_job_and_maintain_ttl(self, timeout):
         if self._stopped:

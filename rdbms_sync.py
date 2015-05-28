@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import click
+from newrelic import agent
 
 import logconfig
 from config import Configuration
@@ -19,6 +20,7 @@ from utils import BreakHandler
 
 @click.command()
 @click.option('--debug', type=bool)
+@agent.background_task()
 def start(debug=False):
     logger = logging.getLogger('wigo.rdbms.sync')
 
