@@ -89,11 +89,21 @@ def initialize(create_tables=False, import_cities=False):
 
            CREATE INDEX data_strings_events ON data_strings(
               (value->>'$type'),
-              cast(value->>'expires' AS TIMESTAMP)
+              CAST(value->>'expires' AS TIMESTAMP)
             ) WHERE value->>'$type' = 'Event';
 
+           CREATE INDEX data_strings_eventmessages ON data_strings(
+              (value->>'$type'),
+              CAST(value->>'id' AS BIGINT) DESC
+            ) WHERE value->>'$type' = 'EventMessage';
+
+           CREATE INDEX data_strings_eventmessages_event_id ON data_strings(
+              (value->>'$type'),
+              CAST(value->>'event_id' AS BIGINT) DESC
+            ) WHERE value->>'$type' = 'EventMessage';
+
            CREATE INDEX data_strings_groups ON data_strings(
-              (value->>'$type',
+              (value->>'$type'),
             ) WHERE value->>'$type' = 'Group';
 
            CREATE INDEX data_strings_first_name ON data_strings(
@@ -105,6 +115,14 @@ def initialize(create_tables=False, import_cities=False):
               (value->>'$type'),
               LOWER(value->>'last_name') varchar_pattern_ops
             ) WHERE value->>'$type' = 'User';
+
+           CREATE INDEX data_int_sorted_sets_attendees_event_id ON data_int_sorted_sets(
+              cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+            ) WHERE key ~ '\{event:\d+\}:attendees';
+
+           CREATE INDEX data_int_sorted_sets_attendees_user_id ON data_int_sorted_sets(
+              value
+            ) WHERE key ~ '\{event:\d+\}:attendees';
 
             CREATE OR REPLACE VIEW users AS
               SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'group_id' AS BIGINT) group_id,
@@ -127,6 +145,17 @@ def initialize(create_tables=False, import_cities=False):
                 (SELECT COUNT(key) FROM data_int_sorted_sets WHERE
                   key = format('{event:%s}:attendees', (data_strings.value->>'id'))) num_attendees
                 FROM data_strings WHERE value->>'$type' = 'Event';
+
+            CREATE OR REPLACE VIEW eventmessages AS
+                SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'user_id' AS BIGINT) user_id,
+                CAST(value->>'event_id' AS BIGINT) event_id,
+                value->>'media' "media", value->>'media_mime_type' "media_mime_type",
+                timestamp_cast(value->>'created') "created"
+                FROM data_strings WHERE value->>'$type' = 'EventMessage';
+
+            CREATE OR REPLACE VIEW attendees AS
+                select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+                event_id, value as user_id from data_int_sorted_sets where key ~ '\{event:\d+\}:attendees'
           """)
 
     if import_cities:
