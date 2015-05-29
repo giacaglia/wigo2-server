@@ -447,11 +447,8 @@ class WigoModel(Model):
             self.db.sorted_set_remove(key, id_value)
 
     def clean_old(self, key, ttl=None):
-        if ttl is None:
-            ttl = self.ttl()
-        if isinstance(ttl, timedelta):
-            up_to = datetime.utcnow() - ttl
-            self.db.sorted_set_remove_by_score(key, '-inf', epoch(up_to))
+        up_to = datetime.utcnow() - DEFAULT_EXPIRING_TTL
+        self.db.sorted_set_remove_by_score(key, '-inf', epoch(up_to))
 
     def to_json(self, role=None):
         return ujson.dumps(self.to_primitive(role=role))

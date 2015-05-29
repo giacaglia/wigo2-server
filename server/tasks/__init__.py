@@ -26,4 +26,4 @@ def is_new_user(user, created):
 
     return (user.was_changed('status') and
             user.get_previous_old_value('status') in ('imported', 'deleted') and
-            user.status == 'active')
+            user.is_active())
