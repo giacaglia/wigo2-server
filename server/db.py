@@ -607,6 +607,8 @@ def rate_limit(key, expires, timeout=30):
                     redis.setex(key, True, expires)
                 finally:
                     lock.release()
+            else:
+                yield True
 
 
 redis_url = urlparse(Configuration.REDIS_URL)

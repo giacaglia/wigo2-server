@@ -7,7 +7,7 @@ from datetime import timedelta
 import requests
 
 from rq.decorators import job
-from server.db import rate_limit, redis
+from server.db import rate_limit
 
 from server.tasks import parse_queue
 from server.models import post_model_save
