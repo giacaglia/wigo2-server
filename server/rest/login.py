@@ -78,8 +78,7 @@ class LoginResource(WigoResource):
             user.work = work
 
         if user.status in ('imported', 'deleted'):
-            user.status = 'active'
-            # user.status = 'waiting'
+            user.status = 'waiting'
 
         if properties:
             for key, value in properties.items():
