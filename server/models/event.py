@@ -323,6 +323,10 @@ class EventMessage(WigoPersistentModel):
     def record_for_user(self, user):
         event = self.event
 
+        # check if the messase is valid
+        if event is None:
+            return
+
         # record into users list of messages by time
         user_emessages_key = user_eventmessages_key(user, event)
         self.db.sorted_set_add(user_emessages_key, self.id, epoch(self.created))
