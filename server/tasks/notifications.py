@@ -273,20 +273,17 @@ def notify_on_friend(user_id, friend_id, accepted):
 
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_friend_attending(event_id, user_id, friend_id):
+    num_attending = get_num_attending(event_id, user_id)
+    if num_attending < 5:
+        return
+
     try:
         event = Event.find(event_id)
         user = User.find(user_id)
     except DoesNotExist:
         return
 
-    if event.owner_id == user_id:
-        return
-
-    num_attending = get_num_attending(event_id, user_id)
-    if num_attending < 5:
-        return
-
-    rl_key = 'notify:friends_attending:{}:{}'.format(event_id, user_id)
+    rl_key = 'notify:nofa:{}:{}'.format(event_id, user_id)
     with rate_limit(rl_key, event.expires) as limited:
         if not limited:
             friends = list(islice(EventAttendee.select().event(event).user(user).limit(6), 5))
@@ -375,6 +372,7 @@ def wire_notifications_listeners():
     post_model_save.connect(notifications_model_listener, weak=False)
 
     def on_friend_attending(sender, event, user, friend):
-        notify_on_friend_attending.delay(event.id, user.id, friend.id)
+        if event.owner_id != user.id and get_num_attending(event.id, user.id) >= 5:
+            notify_on_friend_attending.delay(event.id, user.id, friend.id)
 
     friend_attending.connect(on_friend_attending, weak=False)
