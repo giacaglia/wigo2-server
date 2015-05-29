@@ -103,9 +103,7 @@ class User(WigoPersistentModel):
         if event:
             date = event.date
         else:
-            now = datetime.utcnow()
-            day_start = self.group.get_day_start()
-            date = day_start if now >= day_start else day_start - timedelta(days=1)
+            date = self.group.get_day_start()
 
         date = date.date().isoformat()
         event_id = self.db.get(skey(self, 'current_attending_{}'.format(date)))

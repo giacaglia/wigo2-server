@@ -58,12 +58,10 @@ class Group(WigoPersistentModel):
 
         current = current.replace(minute=0, second=0, microsecond=0)
 
-        # if it is < 6am, the date will be 0am, and the expires will be 6am the SAME day
-        # if it is > 6am, the date will be 6am, and the expires will be 6am the NEXT day
         if current.hour < 6:
-            return current.replace(hour=0).astimezone(UTC).replace(tzinfo=None)
-        else:
-            return current.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
+            current = current - timedelta(days=1)
+
+        return current.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
 
     def get_day_end(self, current=None):
         tz = timezone(self.timezone)
@@ -74,13 +72,11 @@ class Group(WigoPersistentModel):
 
         current = current.replace(minute=0, second=0, microsecond=0)
 
-        # if it is < 6am, the date will be 0am, and the expires will be 6am the SAME day
-        # if it is > 6am, the date will be 6am, and the expires will be 6am the NEXT day
         if current.hour < 6:
-            return current.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
-        else:
-            next_day = current + timedelta(days=1)
-            return next_day.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
+            current = current - timedelta(days=1)
+
+        next_day = current + timedelta(days=1)
+        return next_day.replace(hour=6).astimezone(UTC).replace(tzinfo=None)
 
     @classmethod
     def find(cls, *args, **kwargs):
