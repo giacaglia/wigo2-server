@@ -261,14 +261,15 @@ def new_friend(user_id, friend_id):
             for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
                 try:
                     message = EventMessage.find(message_id)
-                    message.record_for_user(f)
+                    if message.event:
+                        message.record_for_user(f)
                 except DoesNotExist:
                     pass
 
             # capture the events being attended
-            for event_id, score in wigo_db.sorted_set_iter(skey(u, 'events')):
+            min = epoch(datetime.utcnow() - timedelta(days=8))
+            for event in Event.select().user(u).min(min):
                 try:
-                    event = Event.find(event_id)
                     if u.is_attending(event) and f.can_see_event(event):
                         event.add_to_user_attending(f, u)
                 except DoesNotExist:
