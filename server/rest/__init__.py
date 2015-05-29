@@ -90,7 +90,10 @@ class WigoResource(Resource):
         return g.user.id if id_value == 'me' else int(id_value)
 
     def get_id_field(self, field):
-        value = request.get_json().get(field)
+        json = request.get_json()
+        if not json:
+            abort(400, message='Field {} is required'.format(field))
+        value = json.get(field)
         if not value:
             abort(400, message='Field {} is required'.format(field))
         return self.get_id(value)

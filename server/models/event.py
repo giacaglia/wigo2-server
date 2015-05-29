@@ -259,14 +259,18 @@ class EventAttendee(WigoModel):
         user = self.user
         event = self.event
 
-        # first update the global state of the event
-        self.db.sorted_set_remove(skey(event, 'attendees'), user.id)
-        event.update_global_events()
+        # the event may have been deleted
+        if event:
+            # first update the global state of the event
+            self.db.sorted_set_remove(skey(event, 'attendees'), user.id)
+            event.update_global_events()
 
-        # now update the users view of the events
+            # now update the users view of the events
+            self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
+            event.update_user_events(user)
+
+        # remove the users current attending
         self.db.delete(skey(user, 'current_attending'))
-        self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
-        event.update_user_events(user)
 
 
 class EventMessage(WigoPersistentModel):

@@ -221,8 +221,10 @@ class WigoModel(Model):
     def event(self):
         if self.event_id:
             from server.models.event import Event
-
-            return Event.find(self.event_id)
+            try:
+                return Event.find(self.event_id)
+            except DoesNotExist:
+                logger.warn('event {} not found'.format(self.event_id))
         return None
 
     @serializable(serialized_name='event', serialize_when_none=False)
