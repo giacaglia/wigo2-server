@@ -111,29 +111,26 @@ def setup_request():
         abort(403, message='Bad API key')
 
     # resolve by lat/long
-    if Configuration.ENVIRONMENT == 'production':
-        g.group = Group.find(code='boston')
-    else:
-        geolocation = request.headers.get('Geolocation')
-        if geolocation:
-            parsed_geo = urlparse(geolocation)
-            if parsed_geo.scheme == 'geo':
-                lat, lon = parsed_geo.path.split(',')
-                lat, lon = float(lat), float(lon)
-                if lat and lon:
-                    g.latitude, g.longitude = float(lat), float(lon)
-                    try:
-                        g.group = Group.find(lat=g.latitude, lon=g.longitude)
-                    except DoesNotExist:
-                        logger.info('could not resolve group from geo')
+    geolocation = request.headers.get('Geolocation')
+    if geolocation:
+        parsed_geo = urlparse(geolocation)
+        if parsed_geo.scheme == 'geo':
+            lat, lon = parsed_geo.path.split(',')
+            lat, lon = float(lat), float(lon)
+            if lat and lon:
+                g.latitude, g.longitude = float(lat), float(lon)
+                try:
+                    g.group = Group.find(lat=g.latitude, lon=g.longitude)
+                except DoesNotExist:
+                    logger.info('could not resolve group from geo')
 
-        city_id = request.headers.get('X-Wigo-City-ID')
-        if city_id:
-            g.group = Group.find(city_id=int(city_id))
+    city_id = request.headers.get('X-Wigo-City-ID')
+    if city_id:
+        g.group = Group.find(city_id=int(city_id))
 
-        group_id = request.headers.get('X-Wigo-Group-ID')
-        if group_id:
-            g.group = Group.find(int(group_id))
+    group_id = request.headers.get('X-Wigo-Group-ID')
+    if group_id:
+        g.group = Group.find(int(group_id))
 
     # setup the user after the geo lookup, since the user might need to update its group
     setup_user_by_token()
