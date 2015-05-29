@@ -96,7 +96,9 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
         if not should_suggest(suggest_id):
             wigo_db.sorted_set_remove(skey(user, 'friend', 'suggestions'), suggest_id, replicate=False)
         else:
-            add_friend(user, suggest_id)
+            # update the scores
+            score = user.get_num_friends_in_common(suggest_id)
+            wigo_db.sorted_set_add(skey(user, 'friend', 'suggestions'), suggest_id, score, replicate=False)
 
     ##################################
     # add friends of friends
@@ -122,7 +124,9 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     if last_pio_check:
         last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
 
-    if is_dev or (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(hours=1))):
+    if (len(suggested) < num_friends_to_recommend and
+            (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(hours=1)))):
+
         # flesh out the rest via prediction io
         engine_client = predictionio.EngineClient(
             url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
@@ -151,7 +155,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     if last_facebook_check:
         last_facebook_check = datetime.utcfromtimestamp(float(last_facebook_check))
 
-    if not last_facebook_check or last_facebook_check < (datetime.utcnow() - timedelta(days=1)):
+    if (len(suggested) < num_friends_to_recommend and
+            (not last_facebook_check or last_facebook_check < (datetime.utcnow() - timedelta(days=1)))):
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
         try:
