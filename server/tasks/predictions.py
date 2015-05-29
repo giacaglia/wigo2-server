@@ -162,6 +162,10 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
                     if should_suggest(friend.id):
                         add_friend(user, friend.id)
                         add_friend(friend, user.id)
+
+                        if len(suggested) >= num_friends_to_recommend:
+                            break
+
                 except DoesNotExist:
                     pass
 
