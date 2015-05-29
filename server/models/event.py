@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 from datetime import datetime, timedelta
+import logging
 from geodis.location import Location
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
@@ -13,6 +14,7 @@ from server.models import cache_maker
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException
 
 EVENT_LEADING_STOP_WORDS = {'a', 'the'}
+logger = logging.getLogger('wigo.model')
 
 
 class Event(WigoPersistentModel):
@@ -40,7 +42,11 @@ class Event(WigoPersistentModel):
         return self.tags and 'global' in self.tags
 
     def ttl(self):
-        return DEFAULT_EXPIRING_TTL
+        if self.expires:
+            # expire the event 10 days after self.expires
+            return (self.expires + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
+        else:
+            return (self.created + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
 
     def validate(self, partial=False, strict=False):
         if self.id is None and self.privacy == 'public':
@@ -186,7 +192,7 @@ class Event(WigoPersistentModel):
         # add to the users view of who is attending
         attendees_key = user_attendees_key(user, self)
         self.db.sorted_set_add(attendees_key, attendee.id, score)
-        self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
+        self.db.expire(attendees_key, self.ttl())
 
         # add to the users current events list
         self.update_user_events(user)
@@ -239,7 +245,7 @@ class EventAttendee(WigoModel):
         # first update the global state of the event
         attendees_key = skey(event, 'attendees')
         self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
-        self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
+        self.db.expire(attendees_key, event.ttl())
         event.update_global_events()
 
         # now update the users view of the events
@@ -249,7 +255,7 @@ class EventAttendee(WigoModel):
         # record current user as an attendee
         attendees_key = user_attendees_key(user, event)
         self.db.sorted_set_add(attendees_key, user.id, 'inf')
-        self.db.expire(attendees_key, DEFAULT_EXPIRING_TTL)
+        self.db.expire(attendees_key, event.ttl())
 
         # record the event into the events the user can see
         event.update_user_events(user)
@@ -300,7 +306,10 @@ class EventMessage(WigoPersistentModel):
     tags = ListType(StringType)
 
     def ttl(self):
-        return DEFAULT_EXPIRING_TTL
+        if self.event:
+            return self.event.ttl()
+        else:
+            return (self.created + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
 
     def validate(self, partial=False, strict=False):
         super(EventMessage, self).validate(partial, strict)
@@ -316,21 +325,17 @@ class EventMessage(WigoPersistentModel):
         by_votes_key = skey(event, 'messages', 'by_votes')
         sub_sort = epoch(self.created) / epoch(event.expires + timedelta(days=365))
         self.db.sorted_set_add(by_votes_key, self.id, sub_sort)
-        self.db.expire(by_votes_key, DEFAULT_EXPIRING_TTL)
+        self.db.expire(by_votes_key, self.ttl())
 
         self.record_for_user(self.user)
 
     def record_for_user(self, user):
         event = self.event
 
-        # check if the messase is valid
-        if event is None:
-            return
-
         # record into users list of messages by time
         user_emessages_key = user_eventmessages_key(user, event)
         self.db.sorted_set_add(user_emessages_key, self.id, epoch(self.created))
-        self.db.expire(user_emessages_key, DEFAULT_EXPIRING_TTL)
+        self.db.expire(user_emessages_key, self.ttl())
 
         # record into users list by vote count
         num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
@@ -363,12 +368,19 @@ class EventMessageVote(WigoModel):
     user_id = LongType(required=True)
 
     def ttl(self):
-        return DEFAULT_EXPIRING_TTL
+        if self.message:
+            return self.message.ttl()
+        else:
+            return (self.created + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
 
     @property
     @field_memoize('message_id')
     def message(self):
-        return EventMessage.find(self.message_id)
+        try:
+            return EventMessage.find(self.message_id)
+        except DoesNotExist:
+            logger.warn('event message {} not found'.format(self.message_id))
+        return None
 
     def index(self):
         super(EventMessageVote, self).index()
@@ -391,7 +403,6 @@ class EventMessageVote(WigoModel):
     def record_for_user(self, user):
         message = self.message
         event = message.event
-
         user_votes = user_votes_key(user, self.message)
         self.db.sorted_set_add(user_votes, self.user.id, epoch(self.created), replicate=False)
         self.db.expire(user_votes, self.ttl())

@@ -316,7 +316,7 @@ class WigoRedisDB(WigoDB):
         for redis in self.redis.connections.values():
             with redis.lock('locks:expire_keys', timeout=180):
                 while True:
-                    keys = redis.zrangebyscore(EXPIRE_KEY, 0, time(), 0, 100)
+                    keys = redis.zrangebyscore(EXPIRE_KEY, '-inf', time(), 0, 100)
                     if keys:
                         for key in keys:
                             redis.delete(key)

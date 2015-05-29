@@ -243,37 +243,28 @@ def tell_friends_about_vote(message_id, user_id):
 def new_friend(user_id, friend_id):
     user = User.find(user_id)
     friend = User.find(friend_id)
+    min = epoch(datetime.utcnow() - timedelta(days=8))
 
     # tells each friend about the event history of the other
     def capture_history(u, f):
         with user_lock(f.id):
             # capture photo votes first, so when adding the photos they can be sorted by vote
-            for message_id, score in wigo_db.sorted_set_iter(skey(u, 'votes')):
-                try:
+            for message in EventMessage.select().key(skey(u, 'votes')).min(min):
+                if message.user and message.event:
                     EventMessageVote({
                         'user_id': u.id,
-                        'message_id': message_id
+                        'message_id': message.id
                     }).record_for_user(f)
-                except DoesNotExist:
-                    pass
 
             # capture each of the users posted photos
-            for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
-                try:
-                    message = EventMessage.find(message_id)
-                    if message.event:
-                        message.record_for_user(f)
-                except DoesNotExist:
-                    pass
+            for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
+                if message.user and message.event:
+                    message.record_for_user(f)
 
             # capture the events being attended
-            min = epoch(datetime.utcnow() - timedelta(days=8))
             for event in Event.select().user(u).min(min):
-                try:
-                    if u.is_attending(event) and f.can_see_event(event):
-                        event.add_to_user_attending(f, u)
-                except DoesNotExist:
-                    pass
+                if u.is_attending(event) and f.can_see_event(event):
+                    event.add_to_user_attending(f, u)
 
     capture_history(user, friend)
     capture_history(friend, user)
@@ -286,20 +277,13 @@ def delete_friend(user_id, friend_id):
 
     def delete_history(u, f):
         with user_lock(f.id):
-            for message_id, score in wigo_db.sorted_set_iter(skey(u, 'event_messages')):
-                try:
-                    message = EventMessage.find(message_id)
+            for message in EventMessage.select().key(skey(u, 'event_messages')):
+                if message.user and message.event:
                     message.remove_for_user(f)
-                except DoesNotExist:
-                    pass
 
-            for event_id, score in wigo_db.sorted_set_iter(skey(f, 'events')):
-                try:
-                    event = Event.find(event_id)
-                    if wigo_db.sorted_set_is_member(user_attendees_key(f, event), u.id):
-                        event.remove_from_user_attending(f, u)
-                except DoesNotExist:
-                    pass
+            for event in Event.select().user(u):
+                if wigo_db.sorted_set_is_member(user_attendees_key(f, event), u.id):
+                    event.remove_from_user_attending(f, u)
 
     delete_history(user, friend)
     delete_history(friend, user)
