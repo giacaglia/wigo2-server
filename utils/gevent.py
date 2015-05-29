@@ -2,19 +2,16 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from gevent import get_hub
-from gevent.hub import LoopExit
-
 import signal
 import gevent
 import gevent.pool
+
+from gevent import get_hub
+from gevent.hub import LoopExit
+
 from newrelic import agent
 from rq import Worker
-
-try:  # for rq >= 0.5.0
-    from rq.job import JobStatus
-except ImportError:  # for rq <= 0.4.6
-    from rq.job import Status as JobStatus
+from rq.job import JobStatus
 from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.worker import StopRequested, green, blue, WorkerStatus
 from rq.exceptions import DequeueTimeout

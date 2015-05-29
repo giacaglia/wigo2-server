@@ -85,7 +85,7 @@ def initialize(create_tables=False, import_cities=False):
            CREATE INDEX data_strings_id ON data_strings(
               (value->>'$type'),
               CAST(value->>'id' AS BIGINT) DESC
-            )
+            );
 
            CREATE INDEX data_strings_events ON data_strings(
               (value->>'$type'),
