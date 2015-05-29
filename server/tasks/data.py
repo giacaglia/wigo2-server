@@ -500,8 +500,9 @@ def wire_data_listeners():
             event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
         elif isinstance(instance, EventAttendee):
-            event_related_change.delay(instance.event.group_id, instance.event_id)
-            tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
+            if instance.event is not None:
+                event_related_change.delay(instance.event.group_id, instance.event_id)
+                tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, Friend):
             delete_friend.delay(instance.user_id, instance.friend_id)
             instance.user.track_meta('last_friend_change')
