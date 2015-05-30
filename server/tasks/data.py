@@ -43,9 +43,9 @@ def new_user(user_id, score=None):
             if last_waiting_score > (time() + (60 * 60 * 11)):
                 score = last_waiting_score + 10
             else:
-                score = last_waiting_score + randint(60, 60 * 60)
+                score = last_waiting_score + randint(0, 60)
         else:
-            score = time() + randint(120, 60 * 60)
+            score = time() + randint(120, 60 * 10)
 
     wigo_db.sorted_set_add(user_queue_key, user_id, score, replicate=False)
 
