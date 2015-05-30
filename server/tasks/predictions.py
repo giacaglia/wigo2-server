@@ -6,7 +6,7 @@ import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
 from rq.decorators import job
-from server.db import wigo_db, redis
+from server.db import wigo_db, redis, rate_limit
 from server.services.facebook import Facebook, FacebookTokenExpiredException
 from server.tasks import predictions_queue, is_new_user
 from server.models import post_model_save, skey, DoesNotExist
@@ -56,15 +56,11 @@ def capture_interaction(user_id, with_user_id, t, action='view'):
 
 
 def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
-    with redis.lock('locks:gen_friend_recs:{}'.format(user.id), timeout=30):
-        if force:
-            _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
-        else:
-            last_friend_recs = user.get_meta('last_friend_recs')
-            if last_friend_recs:
-                last_friend_recs = datetime.utcfromtimestamp(float(last_friend_recs))
-            if not last_friend_recs or (last_friend_recs < (datetime.utcnow() - timedelta(minutes=15))):
-                user.track_meta('last_friend_recs')
+    if force:
+        _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
+    else:
+        with rate_limit('gen_f_recs:{}'.format(user.id), timedelta(minutes=10)) as limited:
+            if not limited:
                 _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
 
 
@@ -227,8 +223,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                     break
 
     wigo_db.redis.expire(skey(user, 'friend', 'suggestions'), timedelta(days=30))
-    user.track_meta('last_friend_recs')
-
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))
 
 
