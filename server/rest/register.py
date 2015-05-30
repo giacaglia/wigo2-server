@@ -89,10 +89,11 @@ class RegisterResource(WigoResource):
             if not birthdate:
                 birthdate = user_info.get('birthday')
 
-            try:
-                user.birthdate = parse(birthdate)
-            except:
-                logger.info('error parsing birthdate {}'.format(birthdate))
+            if birthdate:
+                try:
+                    user.birthdate = parse(birthdate)
+                except:
+                    logger.info('error parsing birthdate {}'.format(birthdate))
 
             if education:
                 user.education = education
