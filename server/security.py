@@ -60,7 +60,7 @@ def setup_user_by_token():
                     user.longitude = group.longitude
 
             if user.group_id and user.status == 'imported':
-                user.status = 'active'
+                user.status = 'waiting'
 
             if user.is_changed():
                 user.save()
