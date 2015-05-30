@@ -41,7 +41,7 @@ def new_user(user_id):
                             'type': 'friend.joined',
                             'navigate': '/find/users/user/{}'.format(user.id),
                             'badge': 1,
-                            'message': 'Your Facebook friend {} just joined Wigo'.format(user.full_name)
+                            'message': 'Your Facebook friend {} just joined Wigo'.format(user.full_name.encode('utf-8'))
                         })
 
                         __send_notification_push(notification)
@@ -301,7 +301,7 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
                     'navigate': '/users/me/events/{}'.format(event_id),
                     'badge': 1,
                     'message': '{}, {}, and {} others are going to {}'.format(
-                        friends[0].full_name, friends[1].full_name,
+                        friends[0].full_name.encode('utf-8'), friends[1].full_name.encode('utf-8'),
                         num_attending - 2, event.name.encode('utf-8'))
                 }).save()
 
