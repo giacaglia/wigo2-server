@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logging
+from playhouse.dataset import DataSet
 import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
@@ -125,7 +126,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
 
     if force or (len(suggested) < num_friends_to_recommend and
-            (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(hours=1)))):
+                     (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(hours=1)))):
 
         # flesh out the rest via prediction io
         engine_client = predictionio.EngineClient(
@@ -149,6 +150,32 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         user.track_meta('last_pio_check')
 
     ##################################
+    # add old friends
+
+    if len(suggested) < num_friends_to_recommend and user.id < 150000:
+        rdbms = DataSet(Configuration.OLD_DATABASE_URL)
+
+        results = rdbms.query("""
+            select t1.follow_id from follow t1, follow t2 where
+            t1.user_id = {} and t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
+            t1.accepted is True and t2.accepted is True limit 100
+        """.format(user.id))
+
+        for result in results:
+            suggest_id = result[0]
+
+            # make sure the user exists here
+            try:
+                User.find(suggest_id)
+            except DoesNotExist:
+                continue
+
+            if should_suggest(suggest_id):
+                add_friend(user, suggest_id)
+                if len(suggested) >= num_friends_to_recommend:
+                    break
+
+    ##################################
     # add facebook friends
 
     last_facebook_check = user.get_meta('last_facebook_check')
@@ -156,7 +183,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         last_facebook_check = datetime.utcfromtimestamp(float(last_facebook_check))
 
     if force or (len(suggested) < num_friends_to_recommend and
-            (not last_facebook_check or last_facebook_check < (datetime.utcnow() - timedelta(days=1)))):
+                     (not last_facebook_check or last_facebook_check < (datetime.utcnow() - timedelta(days=1)))):
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
         try:
