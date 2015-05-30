@@ -557,8 +557,6 @@ class NotificationsResource(WigoResource):
 
         query = self.select().user(user)
         query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
-        query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
-
         count, page, instances = query.execute()
 
         return self.serialize_list(self.model, instances, count, page), 200, headers
