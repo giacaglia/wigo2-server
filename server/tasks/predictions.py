@@ -6,7 +6,7 @@ import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
 from rq.decorators import job
-from server.db import wigo_db
+from server.db import wigo_db, redis
 from server.services.facebook import Facebook, FacebookTokenExpiredException
 from server.tasks import predictions_queue, is_new_user
 from server.models import post_model_save, skey, DoesNotExist
@@ -59,12 +59,13 @@ def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
     if force:
         _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
     else:
-        last_friend_recs = user.get_meta('last_friend_recs')
-        if last_friend_recs:
-            last_friend_recs = datetime.utcfromtimestamp(float(last_friend_recs))
-        if not last_friend_recs or last_friend_recs < (datetime.utcnow() - timedelta(minutes=15)):
-            _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
-            user.track_meta('last_friend_recs')
+        with redis.lock('locks:gen_friend_recs:{}'.format(user.id), timeout=30):
+            last_friend_recs = user.get_meta('last_friend_recs')
+            if last_friend_recs:
+                last_friend_recs = datetime.utcfromtimestamp(float(last_friend_recs))
+            if not last_friend_recs or last_friend_recs < (datetime.utcnow() - timedelta(minutes=15)):
+                _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
+                user.track_meta('last_friend_recs')
 
 
 @job(predictions_queue, timeout=600, result_ttl=0)
