@@ -270,7 +270,7 @@ def notify_on_friend(user_id, friend_id, accepted):
                                                      'her' if user.gender == 'female' else 'their'))
             })
 
-            # __send_notification_push(notification, api_version_num=1)
+            __send_notification_push(notification, api_version_num=1)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)

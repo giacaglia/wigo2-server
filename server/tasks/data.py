@@ -63,7 +63,7 @@ def process_waitlist():
                     for user_id in user_ids:
                         logger.info('unlocking user id {}'.format(user_id))
                         user = User.find(user_id)
-                        if user.status == 'waiting':
+                        if user.is_waiting():
                             user.status = 'active'
                             user.save()
 
