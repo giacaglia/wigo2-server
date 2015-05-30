@@ -21,7 +21,10 @@ from utils import dotget, epoch
 logger = logging.getLogger('wigo.model')
 
 INDEX_FIELD = re.compile('\{(.*?)\}', re.I)
-DEFAULT_EXPIRING_TTL = timedelta(days=10)
+
+# Must be enough days to cover 7 days of history, 7 days of future (padding a bit)
+DEFAULT_EXPIRING_TTL = timedelta(days=20)
+
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
 model_cache = ExpiringLRUCache(50000, 60 * 60)
 
@@ -417,11 +420,7 @@ class WigoModel(Model):
                     yield key, id_value, unique, expires
 
     def get_index_score(self):
-        ttl = self.ttl()
-        if ttl:
-            return epoch(datetime.utcnow() + ttl)
-        else:
-            return epoch(self.created)
+        return epoch(self.created)
 
     def check_indexes(self):
         for key, id_value, unique, expires in self.__each_index():

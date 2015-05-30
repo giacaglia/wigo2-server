@@ -195,7 +195,8 @@ class User(WigoPersistentModel):
     def get_tapped_ids(self):
         from server.db import wigo_db
 
-        return wigo_db.sorted_set_range_by_score(skey(self, 'tapped'), time(), 'inf', limit=5000)
+        return wigo_db.sorted_set_range_by_score(skey(self, 'tapped'),
+                                                 epoch(self.group.get_day_start()), 'inf', limit=5000)
 
     @memoize
     def get_blocked_ids(self):

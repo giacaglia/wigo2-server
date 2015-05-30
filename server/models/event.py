@@ -19,6 +19,7 @@ logger = logging.getLogger('wigo.model')
 
 
 class Event(WigoPersistentModel):
+    # Must be enough days to cover 7 days of history, 7 days of future (padding a bit)
     TTL = DEFAULT_EXPIRING_TTL
 
     indexes = (
