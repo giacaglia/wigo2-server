@@ -377,6 +377,7 @@ class Invite(WigoModel):
 
     indexes = (
         ('event:{event_id}:invited={invited_id}', False, True),
+        ('event:{event_id}:user:{user_id}:invited={invited_id}', False, True),
     )
 
     event_id = LongType(required=True)

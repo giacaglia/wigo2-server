@@ -1,8 +1,9 @@
 from __future__ import absolute_import
-from datetime import datetime, timedelta
 
 import re
+import logging
 
+from datetime import datetime, timedelta
 from time import time
 from flask import request, g
 from flask.ext.restful import abort
@@ -16,7 +17,9 @@ from server.models.user import User, Friend, Tap, Block, Invite, Message, Notifi
 from server.rdbms import db
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api, check_last_modified
 from server.security import user_token_required
-from utils import epoch
+from utils import epoch, ValidationException
+
+logger = logging.getLogger('wigo.web')
 
 
 @api.route('/users/<model_id>')
@@ -374,7 +377,7 @@ class InviteListResource(WigoResource):
 
         p = wigo_db.redis.pipeline()
         for user in users:
-            p.zscore(skey(event, 'invited'), user.id if user else -1)
+            p.zscore(skey(event, g.user, 'invited'), user.id if user else -1)
 
         scores = p.execute()
         for index, user in enumerate(users):
@@ -392,11 +395,14 @@ class InviteListResource(WigoResource):
     def post(self, event_id):
         if 'friends' in request.get_json():
             for friend_id, score in wigo_db.sorted_set_iter(skey(g.user, 'friends')):
-                invite = Invite()
-                invite.user_id = g.user.id
-                invite.invited_id = friend_id
-                invite.event_id = event_id
-                invite.save()
+                try:
+                    invite = Invite()
+                    invite.user_id = g.user.id
+                    invite.invited_id = friend_id
+                    invite.event_id = event_id
+                    invite.save()
+                except ValidationException, e:
+                    logger.warn('error creating invite, {}'.format(e.message))
         else:
             invite = Invite()
             invite.user_id = g.user.id

@@ -196,7 +196,6 @@ def notify_on_message(message_id):
 
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_tap(user_id, tapped_id):
-    tapped = User.find(tapped_id)
     with rate_limit('notify:tap:{}:{}'.format(user_id, tapped_id), timedelta(hours=2)) as limited:
         if not limited:
             user = User.find(user_id)
@@ -215,22 +214,25 @@ def notify_on_tap(user_id, tapped_id):
 
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_invite(inviter_id, invited_id, event_id):
-    inviter = User.find(inviter_id)
-    invited = User.find(invited_id)
-    event = Event.find(event_id) if event_id else None
+    rl_key = 'notify:invite:{}:{}:{}'.format(inviter_id, invited_id, event_id)
+    with rate_limit(rl_key, timedelta(hours=2)) as limited:
+        if not limited:
+            inviter = User.find(inviter_id)
+            invited = User.find(invited_id)
+            event = Event.find(event_id) if event_id else None
 
-    message_text = '{} invited you out to {}'.format(inviter.full_name.encode('utf-8'), event.name.encode('utf-8'))
+            message_text = '{} invited you out to {}'.format(inviter.full_name.encode('utf-8'), event.name.encode('utf-8'))
 
-    notification = Notification({
-        'user_id': invited_id,
-        'type': 'invite',
-        'from_user_id': inviter_id,
-        'navigate': '/users/me/events/{}'.format(event_id),
-        'badge': 1,
-        'message': message_text
-    }).save()
+            notification = Notification({
+                'user_id': invited_id,
+                'type': 'invite',
+                'from_user_id': inviter_id,
+                'navigate': '/users/me/events/{}'.format(event_id),
+                'badge': 1,
+                'message': message_text
+            }).save()
 
-    send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.id)
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
