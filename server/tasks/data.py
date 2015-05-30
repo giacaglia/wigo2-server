@@ -244,6 +244,10 @@ def tell_friends_about_vote(message_id, user_id):
 def new_friend(user_id, friend_id):
     user = User.find(user_id)
     friend = User.find(friend_id)
+
+    if not user.is_friend(friend):
+        return
+
     min = epoch(datetime.utcnow() - timedelta(days=8))
 
     # tells each friend about the event history of the other
@@ -275,6 +279,9 @@ def new_friend(user_id, friend_id):
 def delete_friend(user_id, friend_id):
     user = User.find(user_id)
     friend = User.find(friend_id)
+
+    if user.is_friend(friend):
+        return
 
     def delete_history(u, f):
         with user_lock(f.id, 300):
