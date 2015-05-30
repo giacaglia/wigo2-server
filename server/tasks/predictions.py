@@ -204,7 +204,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         results = rdbms.query("""
             select t1.follow_id from follow t1, follow t2 where
             t1.user_id = {} and t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-            t1.accepted is True and t2.accepted is True limit 100
+            t1.accepted is True and t2.accepted is True limit 50
         """.format(user.id))
 
         for result in results:
@@ -248,8 +248,8 @@ def wire_predictions_listeners():
             capture_interaction.delay(instance.user_id, instance.friend_id, instance.created, action='buy')
             capture_interaction.delay(instance.friend_id, instance.user_id, instance.created, action='buy')
 
-            generate_friend_recs(instance.user, force=True)
-            generate_friend_recs(instance.friend, force=True)
+            generate_friend_recs(instance.user)
+            generate_friend_recs(instance.friend)
 
             wigo_db.sorted_set_remove(skey('user', instance.user_id,
                                            'friend', 'suggestions'), instance.friend_id)

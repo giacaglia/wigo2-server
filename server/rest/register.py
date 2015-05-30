@@ -130,7 +130,7 @@ class RegisterResource(WigoResource):
         # if not user.email_validated and Configuration.PUSH_ENABLED:
         #     send_email_verification.delay(user.id)
 
-        logger.info('registered new account for user "%s"' % user.email)
+        logger.info('registered new account for user "%s"' % user.id)
 
         return self.serialize_list(User, [user])
 
