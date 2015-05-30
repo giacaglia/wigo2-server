@@ -64,7 +64,7 @@ def generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
 
 
 @job(predictions_queue, timeout=600, result_ttl=0)
-def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
+def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
     is_dev = Configuration.ENVIRONMENT == 'dev'
 
     user = User.find(user_id)
@@ -124,7 +124,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     if last_pio_check:
         last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
 
-    if (len(suggested) < num_friends_to_recommend and
+    if force or (len(suggested) < num_friends_to_recommend and
             (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(hours=1)))):
 
         # flesh out the rest via prediction io
@@ -155,7 +155,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100):
     if last_facebook_check:
         last_facebook_check = datetime.utcfromtimestamp(float(last_facebook_check))
 
-    if (len(suggested) < num_friends_to_recommend and
+    if force or (len(suggested) < num_friends_to_recommend and
             (not last_facebook_check or last_facebook_check < (datetime.utcnow() - timedelta(days=1)))):
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 

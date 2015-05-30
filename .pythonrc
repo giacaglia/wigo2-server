@@ -1,3 +1,4 @@
+import logconfig
 from server.db import wigo_db
 from server.db import redis
 from server.models import skey
@@ -6,3 +7,6 @@ from server.models.group import Group
 from server.models.event import Event, EventMessage
 from datetime import datetime, timedelta
 from utils import epoch
+from config import Configuration
+
+logconfig.configure('dev')
