@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import logging
 from itertools import islice
 from retry import retry
-from datetime import timedelta
+from datetime import timedelta, datetime
 from time import time
 from rq.decorators import job
 from config import Configuration
@@ -25,6 +25,9 @@ def new_user(user_id):
         return
 
     user = User.find(user_id)
+
+    if user.facebook_token_expires < datetime.utcnow():
+        return
 
     facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
@@ -54,6 +57,7 @@ def new_user(user_id):
     except FacebookTokenExpiredException:
         logger.warn('error finding facebook friends to alert for user {}, token expired'.format(user_id))
         user.track_meta('last_facebook_check')
+        user.facebook_token_expires = datetime.utcnow()
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)

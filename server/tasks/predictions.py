@@ -144,6 +144,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         except FacebookTokenExpiredException:
             logger.warn('error finding facebook friends to suggest for user {}, token expired'.format(user_id))
             user.track_meta('last_facebook_check')
+            user.facebook_token_expires = datetime.utcnow()
+            user.save()
         except Exception:
             logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
 
