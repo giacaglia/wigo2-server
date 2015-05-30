@@ -1,13 +1,14 @@
 from __future__ import absolute_import
 
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
+from decimal import Decimal
 from geodis.location import Location
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
-from server.models import WigoModel, WigoPersistentModel, get_score_key, skey, DoesNotExist, JsonType
+from server.models import WigoModel, WigoPersistentModel, skey, DoesNotExist, JsonType
 from server.models import AlreadyExistsException, user_attendees_key, user_eventmessages_key, \
     DEFAULT_EXPIRING_TTL, field_memoize, user_votes_key
 from server.models import cache_maker
@@ -18,8 +19,10 @@ logger = logging.getLogger('wigo.model')
 
 
 class Event(WigoPersistentModel):
+    TTL = DEFAULT_EXPIRING_TTL
+
     indexes = (
-        ('event', False, False),
+        ('event', False, True),
     )
 
     group_id = LongType(required=True)
@@ -44,9 +47,9 @@ class Event(WigoPersistentModel):
     def ttl(self):
         if self.expires:
             # expire the event 10 days after self.expires
-            return (self.expires + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
+            return (self.expires + self.TTL) - datetime.utcnow()
         else:
-            return (self.created + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
+            return super(Event, self).ttl()
 
     def validate(self, partial=False, strict=False):
         if self.id is None and self.privacy == 'public':
@@ -115,9 +118,9 @@ class Event(WigoPersistentModel):
         # TODO on privacy change iterate the attendees of event and update attending
         # TODO also the global event needs to be updated
 
-        self.clean_old(skey('group', self.group_id, 'events'))
+        self.db.clean_old(skey('group', self.group_id, 'events'), self.TTL)
         if self.is_global:
-            self.clean_old(skey('global', 'events'))
+            self.db.clean_old(skey('global', 'events'), self.TTL)
 
     def update_global_events(self, group=None):
         if group is None:
@@ -172,7 +175,7 @@ class Event(WigoPersistentModel):
         current_attending = user.get_attending_id(self)
         if current_attending and current_attending == self.id:
             self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, 100000))
-            self.clean_old(events_key)
+            self.db.clean_old(events_key, self.TTL)
         else:
             num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
             num_messages = get_cached_num_messages(self.id, user.id) if self.is_expired else 10
@@ -184,7 +187,7 @@ class Event(WigoPersistentModel):
                                                       (user.group.latitude, user.group.longitude))
 
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, distance, num_attending))
-                self.clean_old(events_key)
+                self.db.clean_old(events_key, self.TTL)
 
         user.track_meta('last_event_change')
 
@@ -280,9 +283,11 @@ class EventAttendee(WigoModel):
 
 
 class EventMessage(WigoPersistentModel):
+    TTL = DEFAULT_EXPIRING_TTL
+
     indexes = (
         ('event:{event_id}:messages', False, True),
-        ('user:{user_id}:event_messages', False, False),
+        ('user:{user_id}:event_messages', False, True),
     )
 
     class Options:
@@ -309,7 +314,7 @@ class EventMessage(WigoPersistentModel):
         if self.event:
             return self.event.ttl()
         else:
-            return (self.created + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
+            return super(EventMessage, self).ttl()
 
     def validate(self, partial=False, strict=False):
         super(EventMessage, self).validate(partial, strict)
@@ -359,9 +364,11 @@ class EventMessage(WigoPersistentModel):
 
 
 class EventMessageVote(WigoModel):
+    TTL = DEFAULT_EXPIRING_TTL
+
     indexes = (
         ('eventmessage:{message_id}:votes={user_id}', False, True),
-        ('user:{user_id}:votes={message_id}', False, False),
+        ('user:{user_id}:votes={message_id}', False, True)
     )
 
     message_id = LongType(required=True)
@@ -371,7 +378,7 @@ class EventMessageVote(WigoModel):
         if self.message:
             return self.message.ttl()
         else:
-            return (self.created + DEFAULT_EXPIRING_TTL) - datetime.utcnow()
+            return super(EventMessageVote, self).ttl()
 
     @property
     @field_memoize('message_id')
@@ -444,3 +451,12 @@ def get_num_attending(event_id, user_id=None):
            if user_id is not None else skey('event', event_id, 'attendees'))
 
     return wigo_db.get_sorted_set_size(key)
+
+
+def get_score_key(time, distance, num_attending):
+    if num_attending > 1000:
+        num_attending = 1000
+    if distance > 100:
+        distance = 100
+    adjustment = (1 - (distance / 1000.0)) + (num_attending / 10000.0)
+    return str(Decimal(epoch(time)) + Decimal(adjustment))

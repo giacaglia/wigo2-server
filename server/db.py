@@ -23,6 +23,7 @@ from utils import epoch
 logger = logging.getLogger('wigo.db')
 EXPIRE_KEY = 'expire'
 
+
 class WigoDB(object):
     def gen_id(self):
         raise NotImplementedError()
@@ -310,6 +311,12 @@ class WigoRedisDB(WigoDB):
 
     def sorted_set_remove_by_rank(self, key, start, stop):
         return self.redis.zremrangebyrank(key, start, stop)
+
+    def clean_old(self, key, ttl=None):
+        if ttl is None:
+            ttl = timedelta(days=10)
+        up_to = datetime.utcnow() - ttl
+        self.sorted_set_remove_by_score(key, '-inf', epoch(up_to))
 
     def process_expired(self):
         num_expired = 0

@@ -157,7 +157,7 @@ def event_related_change(group_id, event_id):
                     event.remove_index(group=group_to_add_to)
 
                 # clean out old events
-                event.clean_old(skey(group_to_add_to, 'events'))
+                wigo_db.clean_old(skey(group_to_add_to, 'events'), Event.TTL)
 
                 # track the change for the group
                 group_to_add_to.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)

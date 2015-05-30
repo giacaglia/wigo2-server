@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 
-import logging
-import ujson
 import re
+import ujson
+import logging
 
-from decimal import Decimal
 from collections import defaultdict
 from functools import wraps
 from blinker import signal
@@ -64,6 +63,8 @@ def field_memoize(field=None):
 
 
 class WigoModel(Model):
+    TTL = None
+
     indexes = ()
 
     created = DateTimeType(default=datetime.utcnow)
@@ -97,7 +98,7 @@ class WigoModel(Model):
         return SelectQuery(self)
 
     def ttl(self):
-        return None
+        return ((self.created + self.TTL) - datetime.utcnow()) if self.TTL else None
 
     @classmethod
     def memory_ttl(cls):
@@ -416,7 +417,11 @@ class WigoModel(Model):
                     yield key, id_value, unique, expires
 
     def get_index_score(self):
-        return epoch(self.created)
+        ttl = self.ttl()
+        if ttl:
+            return epoch(datetime.utcnow() + ttl)
+        else:
+            return epoch(self.created)
 
     def check_indexes(self):
         for key, id_value, unique, expires in self.__each_index():
@@ -428,11 +433,9 @@ class WigoModel(Model):
         for key, id_value, unique, expires in self.__each_index():
             self.db.sorted_set_add(key, id_value, self.get_index_score())
 
-            if expires:
-                ttl = self.ttl()
-                if ttl is not None:
-                    self.clean_old(key, ttl)
-                    self.db.expire(key, ttl)
+            if expires and self.TTL:
+                self.db.clean_old(key, self.TTL)
+                self.db.expire(key, self.TTL)
 
     def delete(self):
         pre_model_delete.send(self, instance=self)
@@ -445,10 +448,6 @@ class WigoModel(Model):
     def remove_index(self):
         for key, id_value, unique, expires in self.__each_index():
             self.db.sorted_set_remove(key, id_value)
-
-    def clean_old(self, key, ttl=None):
-        up_to = datetime.utcnow() - DEFAULT_EXPIRING_TTL
-        self.db.sorted_set_remove_by_score(key, '-inf', epoch(up_to))
 
     def to_json(self, role=None):
         return ujson.dumps(self.to_primitive(role=role))
@@ -563,15 +562,6 @@ class AlreadyExistsException(WigoModelException):
     def __init__(self, instance):
         super(AlreadyExistsException, self).__init__('Already exists')
         self.instance = instance
-
-
-def get_score_key(time, distance, num_attending):
-    if num_attending > 1000:
-        num_attending = 1000
-    if distance > 100:
-        distance = 100
-    adjustment = (1 - (distance / 1000.0)) + (num_attending / 10000.0)
-    return str(Decimal(epoch(time)) + Decimal(adjustment))
 
 
 def user_attendees_key(user, event):

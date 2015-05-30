@@ -21,7 +21,7 @@ logger = logging.getLogger('wigo.model')
 class User(WigoPersistentModel):
     indexes = (
         ('user:{facebook_id}:facebook_id', True, False),
-        ('user:{email}:email', True, False),
+        ('user:{email}:email', False, False),
         ('user:{username}:username', True, False),
         ('user:{key}:key', True, False),
         ('user', False, False),
@@ -279,9 +279,9 @@ class Friend(WigoModel):
             self.db.sorted_set_add(f_req_in_common_key, self.user_id, f_in_common)
 
             # clean out old friend requests
-            self.clean_old(f_reqed_key, timedelta(days=30))
-            self.clean_old(f_req_key, timedelta(days=30))
-            self.clean_old(f_req_in_common_key, timedelta(days=30))
+            self.db.clean_old(f_reqed_key, timedelta(days=30))
+            self.db.clean_old(f_req_key, timedelta(days=30))
+            self.db.clean_old(f_req_in_common_key, timedelta(days=30))
 
     def remove_index(self):
         super(Friend, self).remove_index()
@@ -304,18 +304,17 @@ class Friend(WigoModel):
 
 
 class Tap(WigoModel):
+    TTL = timedelta(days=2)
+
     indexes = (
-        ('user:{user_id}:tapped={tapped_id}', False, False),
+        ('user:{user_id}:tapped={tapped_id}', False, True),
     )
 
     user_id = LongType(required=True)
     tapped_id = LongType(required=True)
 
     def ttl(self):
-        return (self.created + timedelta(days=2)) - datetime.utcnow()
-
-    def get_index_score(self):
-        return epoch(self.tapped.group.get_day_end(self.created))
+        return self.tapped.group.get_day_end(self.created) - datetime.utcnow()
 
     @property
     @field_memoize('tapped_id')
@@ -371,6 +370,8 @@ class Block(WigoModel):
 
 
 class Invite(WigoModel):
+    TTL = timedelta(days=2)
+
     indexes = (
         ('event:{event_id}:invited={invited_id}', False, True),
     )
@@ -383,7 +384,7 @@ class Invite(WigoModel):
         if self.event and self.event.expires:
             return (self.event.expires + timedelta(days=2)) - datetime.utcnow()
         else:
-            return (self.created + timedelta(days=2)) - datetime.utcnow()
+            return super(Invite, self).ttl()
 
     @property
     @field_memoize('invited_id')
@@ -413,8 +414,10 @@ class Invite(WigoModel):
 
 
 class Notification(WigoPersistentModel):
+    TTL = timedelta(days=30)
+
     indexes = (
-        ('user:{user_id}:notifications', False, False),
+        ('user:{user_id}:notifications', False, True),
     )
 
     user_id = LongType(required=True)
@@ -425,9 +428,6 @@ class Notification(WigoPersistentModel):
     badge = StringType()
 
     properties = JsonType()
-
-    def ttl(self):
-        return (self.created + timedelta(days=30)) - datetime.utcnow()
 
     @property
     @field_memoize('from_user_id')
