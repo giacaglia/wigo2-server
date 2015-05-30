@@ -241,7 +241,7 @@ def notify_on_friend(user_id, friend_id, accepted):
     friend = User.find(friend_id)
 
     if not accepted:
-        message_text = '{} wants to be friends with you'.format(user.full_name.encode('utf-8'))
+        message_text = '{} wants to be your friend on Wigo'.format(user.full_name.encode('utf-8'))
     else:
         message_text = '{} accepted your friend request'.format(user.full_name.encode('utf-8'))
 
