@@ -55,13 +55,15 @@ def capture_interaction(user_id, with_user_id, t, action='view'):
         raise Exception('Error returned from prediction io')
 
 
-def generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
+def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
     if force:
-        _do_generate_friend_recs.delay(user_id, num_friends_to_recommend)
+        _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
     else:
-        with rate_limit('generate_friend_recs:{}'.format(user_id), timedelta(minutes=10)) as limited:
-            if not limited:
-                _do_generate_friend_recs.delay(user_id, num_friends_to_recommend)
+        last_friend_recs = user.get_meta('last_friend_recs')
+        if last_friend_recs:
+            last_friend_recs = datetime.utcfromtimestamp(float(last_friend_recs))
+        if not last_friend_recs or last_friend_recs < (datetime.utcnow() - timedelta(minutes=15)):
+            _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
 
 
 @job(predictions_queue, timeout=600, result_ttl=0)
@@ -167,26 +169,29 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     if force or (len(suggested) < num_friends_to_recommend
                  and not is_limited('last_pio_check')):
 
-        # flesh out the rest via prediction io
-        engine_client = predictionio.EngineClient(
-            url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
-                                      Configuration.PREDICTION_IO_PORT)
-        )
+        try:
+            # flesh out the rest via prediction io
+            engine_client = predictionio.EngineClient(
+                url='http://{}:{}'.format(Configuration.PREDICTION_IO_HOST,
+                                          Configuration.PREDICTION_IO_PORT)
+            )
 
-        predictions = engine_client.send_query({
-            'user': str(user_id),
-            'num': 50,
-            'blackList': [str(user_id)]
-        })
+            predictions = engine_client.send_query({
+                'user': str(user_id),
+                'num': 50,
+                'blackList': [str(user_id)]
+            })
 
-        for r in predictions.get('itemScores'):
-            suggest_id = int(r['item'])
-            if should_suggest(suggest_id):
-                add_friend(user, suggest_id)
-                if len(suggested) >= num_friends_to_recommend:
-                    break
+            for r in predictions.get('itemScores'):
+                suggest_id = int(r['item'])
+                if should_suggest(suggest_id):
+                    add_friend(user, suggest_id)
+                    if len(suggested) >= num_friends_to_recommend:
+                        break
 
-        user.track_meta('last_pio_check')
+            user.track_meta('last_pio_check')
+        except Exception, e:
+            logger.error('error connecting to prediction.io, {}'.format(e.message))
 
     ##################################
     # add old friends
@@ -217,6 +222,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                     break
 
     wigo_db.redis.expire(skey(user, 'friend', 'suggestions'), timedelta(days=30))
+    user.track_meta('last_friend_recs')
+
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))
 
 
@@ -227,7 +234,7 @@ def wire_predictions_listeners():
     def predictions_listener(sender, instance, created):
         if isinstance(instance, User):
             if is_new_user(instance, created):
-                generate_friend_recs(instance.id, force=True)
+                generate_friend_recs(instance, force=True)
         elif isinstance(instance, Tap):
             capture_interaction.delay(instance.user_id, instance.tapped_id, instance.created)
         elif isinstance(instance, Message):
@@ -241,8 +248,8 @@ def wire_predictions_listeners():
             capture_interaction.delay(instance.user_id, instance.friend_id, instance.created, action='buy')
             capture_interaction.delay(instance.friend_id, instance.user_id, instance.created, action='buy')
 
-            generate_friend_recs(instance.user_id, force=True)
-            generate_friend_recs(instance.friend_id, force=True)
+            generate_friend_recs(instance.user, force=True)
+            generate_friend_recs(instance.friend, force=True)
 
             wigo_db.sorted_set_remove(skey('user', instance.user_id,
                                            'friend', 'suggestions'), instance.friend_id)

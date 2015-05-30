@@ -20,7 +20,7 @@ class UserSuggestionsResource(WigoResource):
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self):
         user = g.user
-        generate_friend_recs(user_id=user.id)
+        generate_friend_recs(user)
         count, page, users = self.select().key(skey(user, 'friend', 'suggestions')).execute()
 
         if count == 0:
