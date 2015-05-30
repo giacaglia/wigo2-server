@@ -240,7 +240,7 @@ def tell_friends_about_vote(message_id, user_id):
         vote.record_for_user(friend)
 
 
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=600, result_ttl=0)
 def new_friend(user_id, friend_id):
     user = User.find(user_id)
     friend = User.find(friend_id)
@@ -248,7 +248,7 @@ def new_friend(user_id, friend_id):
 
     # tells each friend about the event history of the other
     def capture_history(u, f):
-        with user_lock(f.id):
+        with user_lock(f.id, 300):
             # capture photo votes first, so when adding the photos they can be sorted by vote
             for message in EventMessage.select().key(skey(u, 'votes')).min(min):
                 if message.user and message.event:
@@ -271,13 +271,13 @@ def new_friend(user_id, friend_id):
     capture_history(friend, user)
 
 
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=600, result_ttl=0)
 def delete_friend(user_id, friend_id):
     user = User.find(user_id)
     friend = User.find(friend_id)
 
     def delete_history(u, f):
-        with user_lock(f.id):
+        with user_lock(f.id, 300):
             for message in EventMessage.select().key(skey(u, 'event_messages')):
                 if message.user and message.event:
                     message.remove_for_user(f)
@@ -367,11 +367,11 @@ def delete_user(user_id, group_id):
 
 
 @contextmanager
-def user_lock(user_id):
+def user_lock(user_id, timeout=30):
     if Configuration.ENVIRONMENT != 'test':
         from server.db import redis
 
-        with redis.lock('locks:user:{}'.format(user_id), timeout=30):
+        with redis.lock('locks:user:{}'.format(user_id), timeout=timeout):
             yield
     else:
         yield
