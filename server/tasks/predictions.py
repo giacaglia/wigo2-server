@@ -56,16 +56,16 @@ def capture_interaction(user_id, with_user_id, t, action='view'):
 
 
 def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
-    if force:
-        _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
-    else:
-        with redis.lock('locks:gen_friend_recs:{}'.format(user.id), timeout=30):
+    with redis.lock('locks:gen_friend_recs:{}'.format(user.id), timeout=30):
+        if force:
+            _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
+        else:
             last_friend_recs = user.get_meta('last_friend_recs')
             if last_friend_recs:
                 last_friend_recs = datetime.utcfromtimestamp(float(last_friend_recs))
-            if not last_friend_recs or last_friend_recs < (datetime.utcnow() - timedelta(minutes=15)):
-                _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
+            if not last_friend_recs or (last_friend_recs < (datetime.utcnow() - timedelta(minutes=15))):
                 user.track_meta('last_friend_recs')
+                _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
 
 
 @job(predictions_queue, timeout=600, result_ttl=0)
