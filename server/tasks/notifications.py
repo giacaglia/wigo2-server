@@ -4,11 +4,12 @@ import logging
 from itertools import islice
 from retry import retry
 from datetime import timedelta
+from time import time
 from rq.decorators import job
 from config import Configuration
-from server.db import rate_limit
+from server.db import rate_limit, wigo_db
 from server.services import push
-from server.models import DoesNotExist, post_model_save, friend_attending
+from server.models import DoesNotExist, post_model_save, friend_attending, skey
 from server.models.event import EventMessage, EventMessageVote, Event, EventAttendee, get_num_attending
 from server.models.user import User, Notification, Message, Tap, Invite, Friend
 from server.services.facebook import FacebookTokenExpiredException, Facebook
@@ -370,6 +371,10 @@ def wire_notifications_listeners():
             notify_on_invite.delay(instance.user_id, instance.invited_id, instance.event_id)
         elif isinstance(instance, Notification) and created:
             instance.user.track_meta('last_notification', epoch(instance.created))
+
+            # TODO this can be removed later. This removes notifications scheduled way in the future
+            # which were the result of an indexing issue
+            wigo_db.sorted_set_remove_by_score(skey(instance.user, 'notifications'), time()+60, '+inf')
 
     post_model_save.connect(notifications_model_listener, weak=False)
 
