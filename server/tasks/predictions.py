@@ -6,7 +6,7 @@ import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
 from rq.decorators import job
-from server.db import wigo_db, rate_limit
+from server.db import wigo_db
 from server.services.facebook import Facebook, FacebookTokenExpiredException
 from server.tasks import predictions_queue, is_new_user
 from server.models import post_model_save, skey, DoesNotExist
@@ -121,7 +121,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     ##################################
     # add facebook friends
 
-    if force or (len(suggested) < num_friends_to_recommend and not is_limited('last_facebook_check')):
+    if force or (len(suggested) < num_friends_to_recommend and not is_limited('last_facebook_check')
+                 and user.facebook_token_expires < datetime.utcnow()):
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
         try:
