@@ -126,7 +126,7 @@ def event_related_change(group_id, event_id):
         })
         event.deleted = True
 
-    lock = redis.lock('locks:group_event_change:{}'.format(group_id), timeout=60)
+    lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=360)
     if lock.acquire(blocking=False):
         try:
             group = Group.find(group_id)
