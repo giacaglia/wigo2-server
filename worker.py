@@ -88,7 +88,7 @@ def check_queues():
             check_queue(Queue(q_name, connection=redis), 4000, 5)
 
         f_queue = get_failed_queue(redis)
-        check_queue(f_queue, 50, 10)
+        check_queue(f_queue, 20, 10)
 
     except:
         logger.exception('error checking queues')
