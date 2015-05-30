@@ -63,8 +63,9 @@ def process_waitlist():
                     for user_id in user_ids:
                         logger.info('unlocking user id {}'.format(user_id))
                         user = User.find(user_id)
-                        user.status = 'active'
-                        user.save()
+                        if user.status == 'waiting':
+                            user.status = 'active'
+                            user.save()
 
                         # remove from wait list
                         wigo_db.sorted_set_remove(skey('user_queue'), user.id, replicate=False)
