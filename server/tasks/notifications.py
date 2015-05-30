@@ -58,6 +58,7 @@ def new_user(user_id):
         logger.warn('error finding facebook friends to alert for user {}, token expired'.format(user_id))
         user.track_meta('last_facebook_check')
         user.facebook_token_expires = datetime.utcnow()
+        user.save()
 
 
 @job(notifications_queue, timeout=30, result_ttl=0)
