@@ -73,6 +73,14 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     suggested = set()
     blocked = user.get_blocked_ids()
 
+    def is_limited(field, ttl=1):
+        last_check = user.get_meta(field)
+        if last_check:
+            last_check = datetime.utcfromtimestamp(float(last_check))
+        if not last_check:
+            return False
+        return last_check >= (datetime.utcnow() - timedelta(hours=ttl))
+
     def should_suggest(suggest_id):
         if (suggest_id == user.id) or (suggest_id in suggested) or (suggest_id in blocked):
             return False
@@ -84,9 +92,15 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         except DoesNotExist:
             return False
 
-    def add_friend(user_to_add_to, suggest_id, score=None):
-        if score is None:
-            score = user_to_add_to.get_num_friends_in_common(suggest_id)
+    def add_friend(user_to_add_to, suggest_id, boost=0):
+        key = skey(user_to_add_to, 'friend', 'suggestions')
+
+        if boost == 0:
+            existing_score = wigo_db.sorted_set_get_score(key, suggest_id)
+            if existing_score and existing_score >= 10000:
+                boost = 10000
+
+        score = user_to_add_to.get_num_friends_in_common(suggest_id) + boost
         wigo_db.sorted_set_add(skey(user_to_add_to, 'friend', 'suggestions'), suggest_id, score, replicate=False)
         suggested.add(suggest_id)
 
@@ -98,8 +112,37 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
             wigo_db.sorted_set_remove(skey(user, 'friend', 'suggestions'), suggest_id, replicate=False)
         else:
             # update the scores
-            score = user.get_num_friends_in_common(suggest_id)
+            boost = 10000 if score >= 10000 else 0
+            score = user.get_num_friends_in_common(suggest_id) + boost
             wigo_db.sorted_set_add(skey(user, 'friend', 'suggestions'), suggest_id, score, replicate=False)
+
+    ##################################
+    # add facebook friends
+
+    if force or (len(suggested) < num_friends_to_recommend and not is_limited('last_facebook_check')):
+        facebook = Facebook(user.facebook_token, user.facebook_token_expires)
+
+        try:
+            for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
+                facebook_id = fb_friend.get('id')
+                try:
+                    friend = User.find(facebook_id=facebook_id)
+                    if should_suggest(friend.id):
+                        add_friend(user, friend.id, 10000)
+                        add_friend(friend, user.id, 10000)
+
+                        if len(suggested) >= num_friends_to_recommend:
+                            break
+
+                except DoesNotExist:
+                    pass
+
+            user.track_meta('last_facebook_check')
+        except FacebookTokenExpiredException:
+            logger.warn('error finding facebook friends to suggest for user {}, token expired'.format(user_id))
+            user.track_meta('last_facebook_check')
+        except Exception:
+            logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
 
     ##################################
     # add friends of friends
@@ -121,12 +164,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     ##################################
     # add via prediction io
 
-    last_pio_check = user.get_meta('last_pio_check')
-    if last_pio_check:
-        last_pio_check = datetime.utcfromtimestamp(float(last_pio_check))
-
-    if force or (len(suggested) < num_friends_to_recommend and
-                     (not last_pio_check or last_pio_check < (datetime.utcnow() - timedelta(hours=1)))):
+    if force or (len(suggested) < num_friends_to_recommend
+                 and not is_limited('last_pio_check')):
 
         # flesh out the rest via prediction io
         engine_client = predictionio.EngineClient(
@@ -152,7 +191,9 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     ##################################
     # add old friends
 
-    if len(suggested) < num_friends_to_recommend and user.id < 150000:
+    if force or (user.id < 150000 and len(suggested) < num_friends_to_recommend
+                 and not is_limited('last_legacy_check')):
+
         rdbms = DataSet(Configuration.OLD_DATABASE_URL)
 
         results = rdbms.query("""
@@ -174,39 +215,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                 add_friend(user, suggest_id)
                 if len(suggested) >= num_friends_to_recommend:
                     break
-
-    ##################################
-    # add facebook friends
-
-    last_facebook_check = user.get_meta('last_facebook_check')
-    if last_facebook_check:
-        last_facebook_check = datetime.utcfromtimestamp(float(last_facebook_check))
-
-    if force or (len(suggested) < num_friends_to_recommend and
-                     (not last_facebook_check or last_facebook_check < (datetime.utcnow() - timedelta(days=1)))):
-        facebook = Facebook(user.facebook_token, user.facebook_token_expires)
-
-        try:
-            for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
-                facebook_id = fb_friend.get('id')
-                try:
-                    friend = User.find(facebook_id=facebook_id)
-                    if should_suggest(friend.id):
-                        add_friend(user, friend.id)
-                        add_friend(friend, user.id)
-
-                        if len(suggested) >= num_friends_to_recommend:
-                            break
-
-                except DoesNotExist:
-                    pass
-
-            user.track_meta('last_facebook_check')
-        except FacebookTokenExpiredException:
-            logger.warn('error finding facebook friends to suggest for user {}, token expired'.format(user_id))
-            user.track_meta('last_facebook_check')
-        except Exception:
-            logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
 
     wigo_db.redis.expire(skey(user, 'friend', 'suggestions'), timedelta(days=30))
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))

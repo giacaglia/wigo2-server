@@ -110,7 +110,7 @@ def new_group(group_id):
     group.save()
 
 
-@job(data_queue, timeout=30, result_ttl=0)
+@job(data_queue, timeout=60, result_ttl=0)
 def event_related_change(group_id, event_id):
     from server.db import redis
 
