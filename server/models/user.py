@@ -99,6 +99,9 @@ class User(WigoPersistentModel):
     def is_active(self):
         return self.status == 'active'
 
+    def is_waiting(self):
+        return self.status == 'waiting'
+
     def get_attending_id(self, event=None):
         if event:
             date = event.date

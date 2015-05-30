@@ -30,7 +30,7 @@ class UserResource(WigoDbResource):
     def get_last_modified(self, user):
         # since people waiting to get in are checking their position
         # all the time, need to bust the caching
-        if user.status == 'waiting':
+        if user.is_waiting():
             # subtract 10 seconds to prevent someone getting last-modified
             # at the exact moment of unlock
             return datetime.utcnow() - timedelta(seconds=10)

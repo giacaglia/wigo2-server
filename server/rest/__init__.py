@@ -226,7 +226,7 @@ class WigoResource(Resource):
 
         if isinstance(obj, User):
             if obj == g.user:
-                if obj.status == 'waiting':
+                if obj.is_waiting():
                     score = wigo_db.sorted_set_get_score(skey('user_queue'), obj.id)
                     if not score:
                         score = time() + 600
