@@ -222,7 +222,10 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                 if len(suggested) >= num_friends_to_recommend:
                     break
 
-    wigo_db.sorted_set_remove_by_rank(suggestions_key, 100, '+inf')
+    num_suggestions = wigo_db.get_sorted_set_size(suggestions_key)
+    if num_suggestions > num_friends_to_recommend:
+        wigo_db.sorted_set_remove_by_rank(suggestions_key, 0, num_suggestions - num_friends_to_recommend)
+
     wigo_db.redis.expire(suggestions_key, timedelta(days=30))
     logger.info('generated {} friend suggestions for user {}'.format(len(suggested), user_id))
 
