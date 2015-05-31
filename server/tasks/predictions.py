@@ -88,11 +88,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         if ((suggest_id == user.id) or (suggest_id in suggested) or
                 (suggest_id in blocked) or (suggest_id in friend_ids)):
             return False
-        try:
-            suggest_user = User.find(suggest_id)
-            return suggest_user.status != 'hidden'
-        except DoesNotExist:
-            return False
+        return True
 
     def get_num_friends_in_common(suggest_id):
         with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', suggest_id, 'friends'), 0, -1))
