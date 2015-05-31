@@ -155,6 +155,7 @@ class UserListResource(WigoResource):
         text = request.args.get('text')
         if text:
             sql = "SELECT id FROM users WHERE status = 'active'"
+            text = text.encode('utf-8')
 
             params = []
             split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
