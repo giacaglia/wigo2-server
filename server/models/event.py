@@ -320,7 +320,7 @@ class EventMessage(WigoPersistentModel):
 
     def validate(self, partial=False, strict=False):
         super(EventMessage, self).validate(partial, strict)
-        if not self.user.is_attending(self.event):
+        if self.is_new and not self.user.is_attending(self.event):
             raise ValidationException('Not attending event')
 
     def index(self):
