@@ -72,7 +72,9 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
 
     suggestions_key = skey(user, 'friend', 'suggestions')
     suggested = {}
+
     blocked = user.get_blocked_ids()
+    friend_ids = user.get_friend_ids()
 
     def is_limited(field, ttl=1):
         last_check = user.get_meta(field)
@@ -83,9 +85,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         return last_check >= (datetime.utcnow() - timedelta(hours=ttl))
 
     def should_suggest(suggest_id):
-        if (suggest_id == user.id) or (suggest_id in suggested) or (suggest_id in blocked):
-            return False
-        if user.is_friend(suggest_id) or user.is_friend_request_sent(suggest_id):
+        if ((suggest_id == user.id) or (suggest_id in suggested) or
+                (suggest_id in blocked) or (suggest_id in friend_ids)):
             return False
         try:
             suggest_user = User.find(suggest_id)
