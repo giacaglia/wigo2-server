@@ -16,6 +16,10 @@ from config import Configuration
 
 logger = logging.getLogger('wigo.predictions')
 
+old_rdbms = DataSet(Configuration.OLD_DATABASE_URL)
+old_rdbms.close()
+
+
 if Configuration.ENVIRONMENT != 'test':
     client = predictionio.EventClient(
         access_key=Configuration.PREDICTION_IO_ACCESS_KEY,
@@ -203,27 +207,26 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     if force or (user.id < 150000 and len(suggested) < num_friends_to_recommend
                  and not is_limited('last_legacy_check')):
 
-        rdbms = DataSet(Configuration.OLD_DATABASE_URL)
+        with old_rdbms:
+            results = old_rdbms.query("""
+                select t1.follow_id from follow t1, follow t2 where
+                t1.user_id = {} and t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
+                t1.accepted is True and t2.accepted is True limit 50
+            """.format(user.id))
 
-        results = rdbms.query("""
-            select t1.follow_id from follow t1, follow t2 where
-            t1.user_id = {} and t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-            t1.accepted is True and t2.accepted is True limit 50
-        """.format(user.id))
+            for result in results:
+                suggest_id = result[0]
 
-        for result in results:
-            suggest_id = result[0]
+                # make sure the user exists here
+                try:
+                    User.find(suggest_id)
+                except DoesNotExist:
+                    continue
 
-            # make sure the user exists here
-            try:
-                User.find(suggest_id)
-            except DoesNotExist:
-                continue
-
-            if should_suggest(suggest_id):
-                add_friend(suggest_id)
-                if len(suggested) >= num_friends_to_recommend:
-                    break
+                if should_suggest(suggest_id):
+                    add_friend(suggest_id)
+                    if len(suggested) >= num_friends_to_recommend:
+                        break
 
     p.execute()
 
