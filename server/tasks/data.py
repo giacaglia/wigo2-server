@@ -253,8 +253,9 @@ def tell_friends_about_vote(message_id, user_id):
         'user_id': user_id
     })
 
-    for friend, score in user.friends_iter():
-        vote.record_for_user(friend)
+    if vote.message and vote.message.event:
+        for friend, score in user.friends_iter():
+            vote.record_for_user(friend)
 
 
 @agent.background_task()

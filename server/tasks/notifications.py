@@ -151,8 +151,12 @@ def notify_on_eventmessage(message_id):
 @agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_eventmessage_vote(voter_id, message_id):
-    voter = User.find(voter_id)
-    message = EventMessage.find(message_id)
+    try:
+        voter = User.find(voter_id)
+        message = EventMessage.find(message_id)
+    except DoesNotExist:
+        return
+
     user = message.user
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
