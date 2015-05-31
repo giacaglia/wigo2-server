@@ -230,7 +230,7 @@ class WigoResource(Resource):
                     score = wigo_db.sorted_set_get_score(skey('user_queue'), obj.id)
                     if not score:
                         score = time() + 600
-                    pos = int((datetime.utcfromtimestamp(score) - datetime.utcnow()).total_seconds())
+                    pos = int((datetime.utcfromtimestamp(score) - datetime.utcnow()).total_seconds() / 10)
                     prim['wait_list_position'] = max(pos, 1)
             else:
                 if User.key.name in prim:
