@@ -253,7 +253,7 @@ class WigoRedisDB(WigoDB):
         return self.sorted_set_get_score(key, value, dt) is not None
 
     def sorted_set_iter(self, key, count=20, dt=None):
-        for item, score in self.redis.zscan_iter(key):
+        for item, score in self.redis.zscan_iter(key, count=count):
             yield self.decode(item, dt), score
 
     def get_sorted_set_size(self, key, min=None, max=None, dt=None):

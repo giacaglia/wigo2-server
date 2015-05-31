@@ -106,7 +106,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     #################################################
     # first clean up all the old suggestions
 
-    for suggest_id, score in wigo_db.sorted_set_iter(suggestions_key):
+    for suggest_id, score in wigo_db.sorted_set_iter(suggestions_key, count=50):
         if not should_suggest(suggest_id):
             wigo_db.sorted_set_remove(suggestions_key, suggest_id, replicate=False)
         else:
@@ -151,8 +151,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     # add friends of friends
 
     def each_friends_friend():
-        for friend_id in wigo_db.sorted_set_range(skey(user, 'friends'), 0, 50):
-            friends_friends = wigo_db.sorted_set_range(skey('user', friend_id, 'friends'), 0, 50)
+        for friend_id in wigo_db.sorted_set_rrange(skey(user, 'friends'), 0, 50):
+            friends_friends = wigo_db.sorted_set_rrange(skey('user', friend_id, 'friends'), 0, 50)
             for friends_friend in friends_friends:
                 if should_suggest(friends_friend):
                     yield friends_friend
