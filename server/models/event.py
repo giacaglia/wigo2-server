@@ -329,9 +329,10 @@ class EventMessage(WigoPersistentModel):
         event = self.event
 
         # record to the global by_votes sort
-        by_votes_key = skey(event, 'messages', 'by_votes')
+        num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
         sub_sort = epoch(self.created) / epoch(event.expires + timedelta(days=365))
-        self.db.sorted_set_add(by_votes_key, self.id, sub_sort)
+        by_votes_key = skey(event, 'messages', 'by_votes')
+        self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort)
         self.db.expire(by_votes_key, self.ttl())
 
         self.record_for_user(self.user)
