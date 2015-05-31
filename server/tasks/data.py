@@ -121,6 +121,7 @@ def event_related_change(group_id, event_id):
     if lock.acquire(blocking=False):
         try:
             logger.info('recording event change in group {}'.format(group_id))
+            p = wigo_db.redis.pipeline()
 
             try:
                 event = Event.find(event_id)
@@ -136,7 +137,7 @@ def event_related_change(group_id, event_id):
 
             # add to the time in case other changes come in while this lock is taken,
             # or in case the job queues get backed up
-            group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
+            p.hset(skey(group, 'meta'), 'last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
 
             if event.is_global:
                 groups_to_add_to = get_all_groups()
@@ -164,7 +165,10 @@ def event_related_change(group_id, event_id):
                 wigo_db.clean_old(skey(group_to_add_to, 'events'), Event.TTL)
 
                 # track the change for the group
-                group_to_add_to.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER, expire=None)
+                p.hset(skey(group_to_add_to, 'meta'), 'last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
+
+            # execute pipeline
+            p.execute()
 
         finally:
             lock.release()
