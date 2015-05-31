@@ -78,7 +78,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     suggested = {}
 
     blocked = user.get_blocked_ids()
-    friend_ids = set(user.get_friend_ids())
+    friend_ids = set(user.get_friend_ids() + user.get_friend_request_ids() + user.get_friend_requested_ids())
 
     def is_limited(field, ttl=1):
         last_check = user.get_meta(field)
