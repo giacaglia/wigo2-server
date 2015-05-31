@@ -38,15 +38,18 @@ def new_user(user_id, score=None):
     user_queue_key = skey('user_queue')
 
     if score is None:
-        last_waiting = wigo_db.sorted_set_range(user_queue_key, -1, -1, True)
-        if last_waiting:
-            last_waiting_score = last_waiting[0][1]
-            if last_waiting_score > (time() + (60 * 60 * 11)):
-                score = last_waiting_score + 10
-            else:
-                score = last_waiting_score + randint(0, 120)
+        if user_id < 130000:
+            score = time() + randint(60, 60 * 30)
         else:
-            score = time() + randint(120, 60 * 20)
+            last_waiting = wigo_db.sorted_set_range(user_queue_key, -1, -1, True)
+            if last_waiting:
+                last_waiting_score = last_waiting[0][1]
+                if last_waiting_score > (time() + (60 * 60 * 6)):
+                    score = last_waiting_score + 10
+                else:
+                    score = last_waiting_score + randint(0, 60)
+            else:
+                score = time() + randint(120, 60 * 20)
 
     wigo_db.sorted_set_add(user_queue_key, user_id, score, replicate=False)
 
