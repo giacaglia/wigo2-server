@@ -94,13 +94,17 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         except DoesNotExist:
             return False
 
+    def get_num_friends_in_common(suggest_id):
+        with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', suggest_id, 'friends'), 0, -1))
+        return len(friend_ids & with_friend_ids)
+
     def add_friend(suggest_id, boost=0):
         if boost == 0:
             existing_score = suggested.get(suggest_id, -1)
             if existing_score >= 10000:
                 boost = 10000
 
-        score = user.get_num_friends_in_common(suggest_id) + boost
+        score = get_num_friends_in_common(suggest_id) + boost
         wigo_db.sorted_set_add(suggestions_key, suggest_id, score, replicate=False)
         suggested[suggest_id] = score
 
@@ -113,7 +117,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
         else:
             # update the scores
             boost = 10000 if score >= 10000 else 0
-            score = user.get_num_friends_in_common(suggest_id) + boost
+            score = get_num_friends_in_common(suggest_id) + boost
             if score != suggested.get(suggest_id, -1):
                 wigo_db.sorted_set_add(suggestions_key, suggest_id, score, replicate=False)
                 suggested[suggest_id] = score
@@ -159,7 +163,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                     yield friends_friend
 
     for friends_friend in each_friends_friend():
-        num_friends_in_common = user.get_num_friends_in_common(friends_friend)
+        num_friends_in_common = get_num_friends_in_common(friends_friend)
         if num_friends_in_common > 0:
             add_friend(friends_friend, num_friends_in_common)
             if len(suggested) >= num_friends_to_recommend:
