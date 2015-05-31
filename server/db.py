@@ -609,11 +609,14 @@ def rate_limit(key, expires, timeout=30):
         else:
             lock = redis.lock('locks:{}'.format(key), timeout=timeout)
             if lock.acquire(blocking=False):
-                try:
-                    yield False
-                    redis.setex(key, True, expires)
-                finally:
-                    lock.release()
+                if redis.exists(key):
+                    yield True
+                else:
+                    try:
+                        yield False
+                        redis.setex(key, True, expires)
+                    finally:
+                        lock.release()
             else:
                 yield True
 
