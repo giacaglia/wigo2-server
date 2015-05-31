@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import logging
+from newrelic import agent
 from rq.decorators import job
 
 from config import Configuration
@@ -17,6 +18,7 @@ def create_sendgrid():
     return SendGridClient(Configuration.MAIL_USERNAME, Configuration.MAIL_PASSWORD, raise_errors=True)
 
 
+@agent.background_task()
 @job(email_queue, timeout=30, result_ttl=0)
 def send_email_verification(user_id, resend=False):
     if not Configuration.PUSH_ENABLED:
@@ -71,6 +73,7 @@ def send_email_verification(user_id, resend=False):
     logger.info('sent verification email to "%s"' % user.email)
 
 
+@agent.background_task()
 @job(email_queue, timeout=30, result_ttl=0)
 def send_custom_email(user, subject, category, html, text, template_params=None):
     sendgrid = create_sendgrid()

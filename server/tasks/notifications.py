@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import logging
 from itertools import islice
+from newrelic import agent
 from retry import retry
 from datetime import timedelta, datetime
 from time import time
@@ -19,6 +20,7 @@ from utils import epoch
 logger = logging.getLogger('wigo.notifications')
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=600, result_ttl=0)
 def new_user(user_id):
     if Configuration.ENVIRONMENT == 'test':
@@ -61,6 +63,7 @@ def new_user(user_id):
         user.save()
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_unlocked(user_id):
     with rate_limit('notify:unlock:{}'.format(user_id), timedelta(hours=1)) as limited:
@@ -77,6 +80,7 @@ def notify_unlocked(user_id):
             __send_notification_push(notification)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_attendee(event_id, user_id):
     try:
@@ -108,6 +112,7 @@ def notify_on_attendee(event_id, user_id):
             send_notification_push.delay(notification.id)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_eventmessage(message_id):
     try:
@@ -143,6 +148,7 @@ def notify_on_eventmessage(message_id):
             send_notification_push.delay(notification.id)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_eventmessage_vote(voter_id, message_id):
     voter = User.find(voter_id)
@@ -173,6 +179,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
             send_notification_push.delay(notification.id)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_message(message_id):
     message = Message.find(message_id)
@@ -200,6 +207,7 @@ def notify_on_message(message_id):
     }, enterprise=user.enterprise)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_tap(user_id, tapped_id):
     with rate_limit('notify:tap:{}:{}'.format(user_id, tapped_id), timedelta(hours=2)) as limited:
@@ -218,6 +226,7 @@ def notify_on_tap(user_id, tapped_id):
             send_notification_push.delay(notification.id)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_invite(inviter_id, invited_id, event_id):
     rl_key = 'notify:invite:{}:{}:{}'.format(inviter_id, invited_id, event_id)
@@ -241,6 +250,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
             send_notification_push.delay(notification.id)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_friend(user_id, friend_id, accepted):
     user = User.find(user_id)
@@ -279,6 +289,7 @@ def notify_on_friend(user_id, friend_id, accepted):
             __send_notification_push(notification, api_version_num=1)
 
 
+@agent.background_task()
 @job(notifications_queue, timeout=30, result_ttl=0)
 def notify_on_friend_attending(event_id, user_id, friend_id):
     num_attending = get_num_attending(event_id, user_id)
@@ -315,6 +326,7 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
 
 
 
+@agent.background_task()
 @job(push_queue, timeout=30, result_ttl=0)
 @retry(tries=3, delay=2, backoff=2)
 def send_notification_push(notification_id):

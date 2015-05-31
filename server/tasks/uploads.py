@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import logging
 import os
 import ujson
+from newrelic import agent
 import requests
 from urlparse import urlparse
 from rq.decorators import job
@@ -14,6 +15,7 @@ from server.models.event import EventMessage
 logger = logging.getLogger('wigo.uploads')
 
 
+@agent.background_task()
 @job(images_queue, timeout=30, result_ttl=0)
 def process_eventmessage_image(message_id):
     if not Configuration.BLITLINE_APPLICATION_ID:

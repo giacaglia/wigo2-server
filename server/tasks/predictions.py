@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logging
+from newrelic import agent
 from playhouse.dataset import DataSet
 import predictionio
 from datetime import timedelta, datetime
@@ -26,6 +27,7 @@ else:
     client = None
 
 
+@agent.background_task()
 @job(predictions_queue, timeout=30, result_ttl=0)
 def capture_interaction(user_id, with_user_id, t, action='view'):
     if not client:
@@ -61,6 +63,7 @@ def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
             _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
 
 
+@agent.background_task()
 @job(predictions_queue, timeout=600, result_ttl=0)
 def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
     is_dev = Configuration.ENVIRONMENT == 'dev'

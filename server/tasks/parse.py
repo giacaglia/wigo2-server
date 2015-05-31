@@ -4,6 +4,7 @@ import logging
 import urllib
 import ujson
 from datetime import timedelta
+from newrelic import agent
 import requests
 
 from rq.decorators import job
@@ -17,6 +18,7 @@ from config import Configuration
 logger = logging.getLogger('wigo.parse')
 
 
+@agent.background_task()
 @job(parse_queue, timeout=30, result_ttl=0)
 def sync_parse(user_id):
     with rate_limit('parse:sync:{}'.format(user_id), timedelta(hours=1)) as limited:

@@ -131,10 +131,6 @@ class GeventWorker(Worker):
         child_greenlet = self.gevent_pool.spawn(self.perform_job, job)
         child_greenlet.link(job_done)
 
-    @agent.background_task()
-    def perform_job(self, job):
-        return super(GeventWorker, self).perform_job(job)
-
     def dequeue_job_and_maintain_ttl(self, timeout):
         if self._stopped:
             raise StopRequested()

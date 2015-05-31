@@ -5,6 +5,7 @@ import os
 import threading
 from urlparse import urlparse
 from boto.s3.connection import S3Connection
+from newrelic import agent
 
 import requests
 from StringIO import StringIO
@@ -19,6 +20,7 @@ from server.tasks import images_queue
 saving_images = threading.local()
 
 
+@agent.background_task()
 @job(images_queue, timeout=60, result_ttl=0)
 def save_images(user_id):
     cache = {}

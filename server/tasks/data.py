@@ -9,6 +9,7 @@ from time import time, sleep
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from urlparse import urlparse
+from newrelic import agent
 from redis import Redis
 from rq.decorators import job
 from config import Configuration
@@ -75,6 +76,7 @@ def process_waitlist():
                 lock.release()
 
 
+@agent.background_task()
 @job(data_queue, timeout=600, result_ttl=0)
 def new_group(group_id):
     group = Group.find(group_id)
@@ -110,25 +112,26 @@ def new_group(group_id):
     group.save()
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def event_related_change(group_id, event_id):
     from server.db import redis
 
-    logger.info('recording event change in group {}'.format(group_id))
-
-    try:
-        event = Event.find(event_id)
-        event.deleted = False
-    except DoesNotExist:
-        event = Event({
-            'id': event_id,
-            'group_id': group_id
-        })
-        event.deleted = True
-
     lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=360)
     if lock.acquire(blocking=False):
         try:
+            logger.info('recording event change in group {}'.format(group_id))
+
+            try:
+                event = Event.find(event_id)
+                event.deleted = False
+            except DoesNotExist:
+                event = Event({
+                    'id': event_id,
+                    'group_id': group_id
+                })
+                event.deleted = True
+
             group = Group.find(group_id)
 
             # add to the time in case other changes come in while this lock is taken,
@@ -167,6 +170,7 @@ def event_related_change(group_id, event_id):
             lock.release()
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def user_invited(event_id, inviter_id, invited_id):
     event = Event.find(event_id)
@@ -179,6 +183,7 @@ def user_invited(event_id, inviter_id, invited_id):
             event.add_to_user_attending(invited, friend, score)
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_user_attending(user_id, event_id):
     user = User.find(user_id)
@@ -191,6 +196,8 @@ def tell_friends_user_attending(user_id, event_id):
                     event.add_to_user_attending(friend, user, score)
                     friend_attending.send(None, event=event, user=friend, friend=user)
 
+
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_user_not_attending(user_id, event_id):
     user = User.find(user_id)
@@ -202,6 +209,7 @@ def tell_friends_user_not_attending(user_id, event_id):
                 event.remove_from_user_attending(friend, user)
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_event_message(message_id):
     message = EventMessage.find(message_id)
@@ -212,6 +220,7 @@ def tell_friends_event_message(message_id):
             message.record_for_user(friend)
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_delete_event_message(user_id, event_id, message_id):
     user = User.find(user_id)
@@ -227,6 +236,7 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
             message.remove_for_user(friend)
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_about_vote(message_id, user_id):
     user = User.find(user_id)
@@ -240,6 +250,7 @@ def tell_friends_about_vote(message_id, user_id):
         vote.record_for_user(friend)
 
 
+@agent.background_task()
 @job(data_queue, timeout=600, result_ttl=0)
 def new_friend(user_id, friend_id):
     user = User.find(user_id)
@@ -275,6 +286,7 @@ def new_friend(user_id, friend_id):
     capture_history(friend, user)
 
 
+@agent.background_task()
 @job(data_queue, timeout=600, result_ttl=0)
 def delete_friend(user_id, friend_id):
     user = User.find(user_id)
@@ -297,6 +309,7 @@ def delete_friend(user_id, friend_id):
     delete_history(friend, user)
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def privacy_changed(user_id):
     # tell all friends about the privacy change
@@ -310,6 +323,7 @@ def privacy_changed(user_id):
                 wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
 
 
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def delete_user(user_id, group_id):
     logger.info('deleting user {}'.format(user_id))
