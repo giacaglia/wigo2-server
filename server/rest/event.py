@@ -354,11 +354,15 @@ class EventMessageVoteResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success')
     def post(self, event_id, message_id):
-        EventMessageVote({
-            'message_id': message_id,
-            'user_id': g.user.id
-        }).save()
-        return {'success': True}
+        try:
+            message = EventMessage.find(message_id)
+            EventMessageVote({
+                'message_id': message_id,
+                'user_id': g.user.id
+            }).save()
+            return {'success': True}
+        except DoesNotExist:
+            abort(400, message='Event message missing, probably deleted')
 
 
 def get_city_events(group, min, max):

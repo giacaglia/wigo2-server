@@ -114,15 +114,15 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     # first clean up all the old suggestions
 
     for suggest_id, score in wigo_db.sorted_set_iter(suggestions_key, count=50):
-        if not should_suggest(suggest_id):
-            wigo_db.sorted_set_remove(suggestions_key, suggest_id, replicate=False)
-        else:
+        if should_suggest(suggest_id):
             # update the scores
             boost = 10000 if score >= 10000 else 0
             score = get_num_friends_in_common(suggest_id) + boost
             if score != suggested.get(suggest_id, -1):
                 p.zadd(suggestions_key, suggest_id, score)
                 suggested[suggest_id] = score
+        else:
+            wigo_db.sorted_set_remove(suggestions_key, suggest_id, replicate=False)
 
     ##################################
     # add facebook friends
