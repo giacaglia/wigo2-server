@@ -6,7 +6,7 @@ import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
 from rq.decorators import job
-from server.db import wigo_db, redis, rate_limit
+from server.db import wigo_db, rate_limit
 from server.services.facebook import Facebook, FacebookTokenExpiredException
 from server.tasks import predictions_queue, is_new_user
 from server.models import post_model_save, skey, DoesNotExist

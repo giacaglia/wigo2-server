@@ -103,23 +103,19 @@ class User(WigoPersistentModel):
         return self.status == 'waiting'
 
     def get_attending_id(self, event=None):
-        if event:
-            date = event.date
-        else:
-            date = self.group.get_day_start()
-
+        date = event.date if event else self.group.get_day_start()
         date = date.date().isoformat()
         event_id = self.db.get(skey(self, 'current_attending_{}'.format(date)))
-        if not event_id:
-            # TODO remove
-            event_id = self.db.get(skey(self, 'current_attending'))
-
         return int(event_id) if event_id else None
 
     def set_attending(self, event):
-        date = event.date
-        date = date.date().isoformat()
+        date = event.date.date().isoformat()
         self.db.set(skey(self, 'current_attending_{}'.format(date)), event.id, event.expires, event.expires)
+
+    def remove_attending(self, event=None):
+        date = event.date if event else self.group.get_day_start()
+        date = date.date().isoformat()
+        self.db.delete(skey(self, 'current_attending_{}'.format(date)))
 
     def is_attending(self, event):
         return self.db.sorted_set_is_member(user_attendees_key(self, event), self.id)

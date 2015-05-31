@@ -279,8 +279,9 @@ class EventAttendee(WigoModel):
             self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
             event.update_user_events(user)
 
-        # remove the users current attending
-        self.db.delete(skey(user, 'current_attending'))
+            user.remove_attending(event)
+        else:
+            user.remove_attending(event)
 
 
 class EventMessage(WigoPersistentModel):
