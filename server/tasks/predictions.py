@@ -128,7 +128,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     # add facebook friends
 
     if force or (len(suggested) < num_friends_to_recommend and not is_limited('last_facebook_check')
-                 and user.facebook_token_expires < datetime.utcnow()):
+                 and user.facebook_token_expires > datetime.utcnow()):
 
         num_fb_recs = 0
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
