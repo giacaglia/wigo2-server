@@ -113,7 +113,7 @@ class Facebook(object):
             self.handle_exception(e)
 
     def get_friend_ids(self):
-        for fb_friend in self.iter('/me/friends?fields=installed', timeout=600):
+        for fb_friend in self.iter('/me/friends?fields=installed&limit=100', timeout=600):
             facebook_id = fb_friend.get('id')
             yield facebook_id
 
