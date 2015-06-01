@@ -13,7 +13,6 @@ from server.db import wigo_db
 from server.models import DoesNotExist, skey
 from server.models.user import User
 from server.models.group import Group
-from server.tasks.data import user_lock
 
 logger = logging.getLogger('wigo.security')
 

@@ -80,13 +80,13 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     blocked = user.get_blocked_ids()
     friend_ids = set(user.get_friend_ids() + user.get_friend_request_ids() + user.get_friend_requested_ids())
 
-    def is_limited(field, ttl=1):
+    def is_limited(field, ttl=10):
         last_check = user.get_meta(field)
         if last_check:
             last_check = datetime.utcfromtimestamp(float(last_check))
         if not last_check:
             return False
-        return last_check >= (datetime.utcnow() - timedelta(hours=ttl))
+        return last_check >= (datetime.utcnow() - timedelta(minutes=ttl))
 
     def should_suggest(suggest_id):
         if ((suggest_id == user.id) or (suggest_id in suggested) or
@@ -177,7 +177,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     ##################################
     # add via prediction io
 
-    if force or (len(suggested) < 50 and not is_limited('last_pio_check')):
+    if len(suggested) < 50 and not is_limited('last_pio_check', ttl=60):
         try:
             # flesh out the rest via prediction io
             engine_client = predictionio.EngineClient(
@@ -205,7 +205,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     ##################################
     # add old friends
 
-    if force or (user.id < 150000 and len(suggested) < 50 and not is_limited('last_legacy_check')):
+    if user.id < 150000 and len(suggested) < 50 and not is_limited('last_legacy_check', ttl=60):
         with old_rdbms:
             results = old_rdbms.query("""
                 select t1.follow_id from follow t1, follow t2 where
