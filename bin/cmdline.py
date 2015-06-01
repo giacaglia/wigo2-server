@@ -155,6 +155,10 @@ def initialize(create_tables=False, import_cities=False):
                 timestamp_cast(value->>'date') "date",
                 FROM data_strings WHERE value->>'$type' = 'Event';
 
+            CREATE OR REPLACE VIEW friends AS
+                select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+                user_id, value as friend_id from data_int_sorted_sets where key ~ '\{user:\d+\}:friends'
+
             CREATE OR REPLACE VIEW eventmessages AS
                 SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'user_id' AS BIGINT) user_id,
                 CAST(value->>'event_id' AS BIGINT) event_id,
