@@ -37,8 +37,7 @@ def new_user(user_id):
     facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
     try:
-        for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
-            facebook_id = fb_friend.get('id')
+        for facebook_id in facebook.get_friend_ids():
             with rate_limit('notify:friend_joined:{}:{}'.format(user_id, facebook_id),
                             timedelta(hours=1)) as limited:
                 if not limited:
@@ -243,7 +242,8 @@ def notify_on_invite(inviter_id, invited_id, event_id):
             invited = User.find(invited_id)
             event = Event.find(event_id) if event_id else None
 
-            message_text = '{} invited you out to {}'.format(inviter.full_name.encode('utf-8'), event.name.encode('utf-8'))
+            message_text = '{} invited you out to {}'.format(inviter.full_name.encode('utf-8'),
+                                                             event.name.encode('utf-8'))
 
             notification = Notification({
                 'user_id': invited_id,

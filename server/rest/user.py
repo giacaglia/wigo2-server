@@ -209,8 +209,8 @@ class FriendsListResource(WigoResource):
 
             sql += "ORDER BY first_name, last_name"
 
-            with db.execution_context(False) as ctx:
-                results = list(db.execute_sql(sql, params))
+            with slave.execution_context(False) as ctx:
+                results = list(slave.execute_sql(sql, params))
 
             users = User.find([id[0] for id in results])
 

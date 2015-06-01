@@ -112,6 +112,11 @@ class Facebook(object):
         except Exception, e:
             self.handle_exception(e)
 
+    def get_friend_ids(self):
+        for fb_friend in self.iter('/me/friends?fields=installed', timeout=600):
+            facebook_id = fb_friend.get('id')
+            yield facebook_id
+
     def iter(self, path, timeout=10):
         """ Iterator over facebook list results. """
 
