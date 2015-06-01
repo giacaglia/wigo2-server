@@ -122,7 +122,7 @@ def setup_request():
                 try:
                     g.group = Group.find(lat=g.latitude, lon=g.longitude)
                 except DoesNotExist:
-                    logger.info('could not resolve group from geo')
+                    logger.info('could not resolve group from geo, lat={}, lon={}'.format(g.latitude, g.longitude))
 
     city_id = request.headers.get('X-Wigo-City-ID')
     if city_id:

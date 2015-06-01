@@ -83,11 +83,13 @@ class Group(WigoPersistentModel):
         if 'lat' in kwargs and 'lon' in kwargs:
             from server.db import redis
 
-            close_cities = WigoCity.get_by_radius(kwargs['lat'], kwargs['lon'], 10)
+            close_cities = WigoCity.get_by_radius(kwargs['lat'], kwargs['lon'], 30)
             if close_cities:
                 city = close_cities[0]
             else:
-                raise DoesNotExist()
+                city = WigoCity.getByLatLon(kwargs['lat'], kwargs['lon'], redis)
+                if city is None:
+                    raise DoesNotExist()
 
             try:
                 return get_group_by_city_id(city.city_id)
