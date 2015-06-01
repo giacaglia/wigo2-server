@@ -4,13 +4,16 @@ import logging
 from functools import wraps
 from flask import request, g, Response
 from flask.ext.restful import abort
+from time import time
 from datetime import datetime, timedelta
 from newrelic import agent
 
 from config import Configuration
-from server.models import DoesNotExist
+from server.db import wigo_db
+from server.models import DoesNotExist, skey
 from server.models.user import User
 from server.models.group import Group
+from server.tasks.data import user_lock
 
 logger = logging.getLogger('wigo.security')
 
@@ -62,12 +65,11 @@ def setup_user_by_token():
                 if not user.longitude:
                     user.longitude = group.longitude
 
-            if user.id < 130000 and user.status in ('active', 'waiting'):
-                if user.facebook_token_expires and user.facebook_token_expires < datetime.utcnow():
-                    if user.get_custom_property('relogin') != 'never':
-                        logger.info('triggering a relogin for user {}'.format(user.id))
-                        user.set_custom_property('relogin', user.status)
-                        user.status = 'imported'
+            if should_relogin(user):
+                wigo_db.redis.setex(skey(user, 'relogin'), time(), timedelta(days=2))
+                logger.info('triggering a relogin for user {}'.format(user.id))
+                user.set_custom_property('relogin', user.status)
+                user.status = 'imported'
 
             if user.is_changed():
                 user.save()
@@ -78,6 +80,23 @@ def setup_user_by_token():
 
         except DoesNotExist:
             pass
+
+
+def should_relogin(user):
+    if user.id > 130000:
+        return False
+
+    if user.get_custom_property('relogin') is not None:
+        return False
+
+    if wigo_db.redis.get(skey(user, 'relogin')) is not None:
+        return False
+
+    if user.status in ('active', 'waiting'):
+        if user.facebook_token_expires and user.facebook_token_expires < datetime.utcnow():
+            return True
+
+    return False
 
 
 def check_auth(username, password):
