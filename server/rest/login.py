@@ -57,7 +57,7 @@ class LoginResource(WigoResource):
                 raise
             except FacebookTokenExpiredException, e:
                 logger.warning('access token expired for user "%s"' % user.email)
-                raise
+                abort(400, message='Facebook token expired')
             except Exception, e:
                 logger.error('error validating facebook token for user "%s", %s' % (user.email, e.message))
                 raise
@@ -78,7 +78,12 @@ class LoginResource(WigoResource):
             user.work = work
 
         if user.status == 'imported':
-            user.status = 'waiting'
+            relogin = user.get_custom_property('relogin')
+            if relogin:
+                user.status = relogin
+                user.set_custom_property('relogin', None)
+            else:
+                user.status = 'waiting'
 
         if properties:
             for key, value in properties.items():
