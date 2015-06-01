@@ -147,7 +147,7 @@ def event_related_change(group_id, event_id):
             else:
                 radius = 100
                 population = group.population or 50000
-                if population < 50000:
+                if population < 60000:
                     radius = 40
                 elif population < 100000:
                     radius = 60
