@@ -157,8 +157,9 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
             user.track_meta('last_facebook_check')
             user.facebook_token_expires = datetime.utcnow()
             user.save()
-        except Exception:
-            logger.exception('error finding facebook friends to suggest for user {}'.format(user_id))
+        except Exception, e:
+            logger.error('error finding facebook friends to suggest '
+                         'for user {}, {}'.format(user_id, e.message))
 
     ##################################
     # add friends of friends
