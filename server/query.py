@@ -427,7 +427,7 @@ class SelectQuery(object):
                     num_messages = get_cached_num_messages(e.id, self._user.id if self._user else None)
                     num_attending = get_cached_num_attending(e.id, self._user.id if self._user else None)
                     if num_messages == 0 or num_attending == 0:
-                        logger.info('cleaning event {}'.format(e.id))
+                        logger.debug('cleaning event {}'.format(e.id))
                         if self._user:
                             wigo_db.sorted_set_remove(skey(self._user, 'events'), e.id)
                         elif self._group:

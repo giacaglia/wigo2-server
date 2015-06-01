@@ -157,7 +157,7 @@ def initialize(create_tables=False, import_cities=False):
 
             CREATE OR REPLACE VIEW friends AS
                 select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
-                user_id, value as friend_id from data_int_sorted_sets where key ~ '\{user:\d+\}:friends'
+                user_id, value as friend_id from data_int_sorted_sets where key ~ '\{user:\d+\}:friends';
 
             CREATE OR REPLACE VIEW eventmessages AS
                 SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'user_id' AS BIGINT) user_id,
@@ -168,11 +168,11 @@ def initialize(create_tables=False, import_cities=False):
 
             CREATE OR REPLACE VIEW attendees AS
                 select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
-                event_id, value as user_id from data_int_sorted_sets where key ~ '\{event:\d+\}:attendees'
+                event_id, value as user_id from data_int_sorted_sets where key ~ '\{event:\d+\}:attendees';
 
             CREATE OR REPLACE VIEW votes AS
                 select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
-                message_id, value as user_id from data_int_sorted_sets where key ~ '\{eventmessage:\d+\}:votes'
+                message_id, value as user_id from data_int_sorted_sets where key ~ '\{eventmessage:\d+\}:votes';
           """)
 
     if import_cities:
