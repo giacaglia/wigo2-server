@@ -338,6 +338,9 @@ class UserEventMessagesMetaListResource(WigoResource):
 class EventMessageVoteResource(WigoResource):
     model = EventMessageVote
 
+    def get_limit(self, default=30):
+        return super(EventMessageVoteResource, self).get_limit(default)
+
     @user_token_required
     @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success')
@@ -348,8 +351,7 @@ class EventMessageVoteResource(WigoResource):
         if not g.user.can_see_event(event):
             abort(403, message='Can not see event')
         message = EventMessage.find(message_id)
-        limit = self.get_limit(30)
-        count, page, votes = self.select().eventmessage(message).limit(limit).execute()
+        count, page, votes = self.select().eventmessage(message).execute()
         return self.serialize_list(User, votes, count, page), 200, headers
 
     @user_token_required
