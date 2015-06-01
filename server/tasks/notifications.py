@@ -50,7 +50,7 @@ def new_user(user_id):
                             'type': 'friend.joined',
                             'navigate': '/find/users/user/{}'.format(user.id),
                             'badge': 1,
-                            'message': 'Your Facebook friend {} just joined Wigo'.format(user.full_name.encode('utf-8'))
+                            'message': 'Your Facebook friend {} just joined Wigo Summer'.format(user.full_name.encode('utf-8'))
                         })
 
                         __send_notification_push(notification)
