@@ -244,7 +244,7 @@ class UserModelView(WigoModelView):
     column_filters = ('username', 'email', 'facebook_id', 'first_name', 'last_name', 'group_code')
 
     def scaffold_list_columns(self):
-        return ['id', 'group', 'username', 'created']
+        return ['id', 'group', 'first_name', 'last_name', 'role', 'created']
 
     def update_model(self, form, model):
         existing_password = model.password
