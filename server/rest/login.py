@@ -81,13 +81,7 @@ class LoginResource(WigoResource):
             user.work = work
 
         if user.status == 'imported':
-            relogin = user.get_custom_property('relogin')
-            if relogin:
-                user.status = relogin
-                user.set_custom_property('relogin', 'never')
-                wigo_db.redis.delete(skey(user, 'relogin'))
-            else:
-                user.status = 'waiting'
+            user.status = 'waiting'
 
         if properties:
             for key, value in properties.items():

@@ -64,12 +64,6 @@ def setup_user_by_token():
                 if not user.longitude:
                     user.longitude = group.longitude
 
-            if should_relogin(user):
-                wigo_db.redis.setex(skey(user, 'relogin'), time(), timedelta(days=2))
-                logger.info('triggering a relogin for user {}'.format(user.id))
-                user.set_custom_property('relogin', user.status)
-                user.status = 'imported'
-
             if user.is_changed():
                 user.save()
 
@@ -79,23 +73,6 @@ def setup_user_by_token():
 
         except DoesNotExist:
             pass
-
-
-def should_relogin(user):
-    if user.id > 130000:
-        return False
-
-    if user.get_custom_property('relogin') is not None:
-        return False
-
-    if wigo_db.redis.get(skey(user, 'relogin')) is not None:
-        return False
-
-    if user.status in ('active', 'waiting'):
-        if user.facebook_token_expires and user.facebook_token_expires < datetime.utcnow():
-            return True
-
-    return False
 
 
 def check_auth(username, password):

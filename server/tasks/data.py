@@ -439,7 +439,7 @@ def wire_event_bus():
             while pubsub.subscribed:
                 message = pubsub.get_message(ignore_subscribe_messages=True)
                 if message is None:
-                    sleep(2)
+                    sleep(.5)
 
     thread = WorkerThread()
     thread.start()
