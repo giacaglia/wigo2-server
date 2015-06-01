@@ -133,6 +133,11 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
         try:
+            token_expires = facebook.get_token_expiration()
+            if token_expires != user.facebook_token_expires:
+                user.facebook_token_expires = token_expires
+                user.save()
+
             for fb_friend in facebook.iter('/me/friends?fields=installed', timeout=600):
                 facebook_id = fb_friend.get('id')
                 try:

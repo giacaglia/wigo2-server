@@ -64,7 +64,12 @@ class RegisterResource(WigoResource):
             except DoesNotExist:
                 pass
 
-            user_info = self.get_me(facebook_id, facebook_token, facebook_token_expires)
+            if not facebook_id.startswith('xxx'):
+                facebook = Facebook(facebook_token, facebook_token_expires)
+                user_info = self.get_me(facebook, facebook_id, facebook_token, facebook_token_expires)
+                facebook_token_expires = facebook.get_token_expiration()
+            else:
+                user_info = {}
 
             logger.info('creating new user account for facebook_id {}'.format(facebook_id))
 
@@ -134,30 +139,25 @@ class RegisterResource(WigoResource):
 
         return self.serialize_list(User, [user])
 
-    def get_me(self, facebook_id, facebook_token, facebook_token_expires):
+    def get_me(self, facebook, facebook_id, facebook_token, facebook_token_expires):
         # fetch user information from facebook
-        if not facebook_id.startswith('xxx'):
-            facebook = Facebook(facebook_token, facebook_token_expires)
+        def get_me():
+            fb_user_info = facebook.get('me')
+            if fb_user_info.get('id') != facebook_id:
+                abort(403, message='Facebook token user id does not match passed in user id')
+            return fb_user_info
 
-            def get_me():
-                fb_user_info = facebook.get('me')
-                if fb_user_info.get('id') != facebook_id:
-                    abort(403, message='Facebook token user id does not match passed in user id')
-                return fb_user_info
-
+        try:
+            return get_me()
+        except FacebookTimeoutException:
+            logger.warn('register timed out waiting for facebook response, '
+                        'trying one more time, facebook_id {}'.format(facebook_id))
             try:
                 return get_me()
             except FacebookTimeoutException:
-                logger.warn('register timed out waiting for facebook response, '
-                            'trying one more time, facebook_id {}'.format(facebook_id))
-                try:
-                    return get_me()
-                except FacebookTimeoutException:
-                    logger.error('AGAIN register timed out waiting for facebook response, '
-                                 'aborting, facebook_id {}'.format(facebook_id))
-                    raise
-        else:
-            return {}
+                logger.error('AGAIN register timed out waiting for facebook response, '
+                             'aborting, facebook_id {}'.format(facebook_id))
+                raise
 
 
 def get_username(str_value):

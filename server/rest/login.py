@@ -54,6 +54,7 @@ class LoginResource(WigoResource):
                 fb_user_info = facebook.get('me')
                 if fb_user_info.get('id') != facebook_id:
                     abort(403, message='Facebook token user id does not match passed in user id')
+                facebook_token_expires = facebook.get_token_expiration()
             except FacebookTimeoutException, e:
                 logger.error('timeout validating facebook token for user "%s"' % user.email)
                 raise

@@ -67,8 +67,6 @@ class User(WigoPersistentModel):
     facebook_id = StringType()
     facebook_token = StringType()
     facebook_token_expires = DateTimeType()
-    exchange_token = StringType()
-    exchange_token_expires = DateTimeType()
 
     latitude = FloatType()
     longitude = FloatType()

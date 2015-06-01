@@ -27,6 +27,7 @@ from __future__ import absolute_import
 
 import logging
 import socket
+import urllib
 from urlparse import urljoin, parse_qs
 from datetime import datetime
 from oauthlib.oauth2 import TokenExpiredError
@@ -57,6 +58,10 @@ class Facebook(object):
 
         self.session = facebook_compliance_fix(self.session)
 
+    def get_token_expiration(self):
+        token_info = self.get('/debug_token', {'input_token': self.token})
+        return datetime.utcfromtimestamp(token_info['expires_at'])
+
     def exchange_token(self):
         try:
             resp = self.session.get('https://graph.facebook.com/oauth/access_token', params={
@@ -81,8 +86,11 @@ class Facebook(object):
 
         return None, None
 
-    def get(self, path):
+    def get(self, path, params=None):
         """ Fetches the data from facebook, and returns the nested 'data' attribute from it. """
+
+        if params:
+            path = '{}?{}'.format(path, urllib.urlencode(params))
 
         try:
             results = self.session.get(urljoin('https://graph.facebook.com', path))
