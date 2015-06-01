@@ -233,7 +233,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     p.execute()
 
     num_suggestions = wigo_db.get_sorted_set_size(suggestions_key)
-    if num_suggestions > num_friends_to_recommend:
+    if num_suggestions > 200:
         wigo_db.sorted_set_remove_by_rank(suggestions_key, 0, num_suggestions - num_friends_to_recommend)
 
     wigo_db.redis.expire(suggestions_key, timedelta(days=30))
