@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import logging
 from functools import wraps
 from flask import request, g, Response
 from flask.ext.restful import abort
@@ -10,6 +11,8 @@ from config import Configuration
 from server.models import DoesNotExist
 from server.models.user import User
 from server.models.group import Group
+
+logger = logging.getLogger('wigo.security')
 
 
 def user_token_required(fn):
@@ -62,6 +65,7 @@ def setup_user_by_token():
             if user.id < 130000 and user.status in ('active', 'waiting'):
                 if user.facebook_token_expires and user.facebook_token_expires < datetime.utcnow():
                     if user.get_custom_property('relogin') != 'never':
+                        logger.info('triggering a relogin for user {}'.format(user.id))
                         user.set_custom_property('relogin', user.status)
                         user.status = 'imported'
 
