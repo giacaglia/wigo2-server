@@ -61,6 +61,7 @@ class Configuration(object):
 
     FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID', None)
     FACEBOOK_APP_SECRET = os.environ.get('FACEBOOK_APP_SECRET', None)
+    FACEBOOK_APP_TOKEN = os.environ.get('FACEBOOK_APP_TOKEN', None)
     FACEBOOK_APP_NAMESPACE = os.environ.get('FACEBOOK_APP_NAMESPACE', 'wigo')
 
     IMAGE_CDN = os.environ.get('IMAGE_CDN', 'dh72np710c78e.cloudfront.net')

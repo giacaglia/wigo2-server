@@ -31,6 +31,7 @@ import urllib
 from urlparse import urljoin, parse_qs
 from datetime import datetime
 from oauthlib.oauth2 import TokenExpiredError
+import requests
 from requests_oauthlib import OAuth2Session
 from requests_oauthlib.compliance_fixes import facebook_compliance_fix
 from config import Configuration
@@ -59,8 +60,15 @@ class Facebook(object):
         self.session = facebook_compliance_fix(self.session)
 
     def get_token_expiration(self):
-        token_info = self.get('/debug_token', {'input_token': self.token})
-        return datetime.utcfromtimestamp(token_info['expires_at'])
+        resp = requests.get('https://graph.facebook.com/debug_token', {
+            'input_token': self.token,
+            'access_token': Configuration.FACEBOOK_APP_TOKEN
+        })
+        if resp.status_code == 200:
+            data = resp.json().get('data')
+            return datetime.utcfromtimestamp(data.get('expires_at'))
+        else:
+            self.raise_fb_error(resp)
 
     def exchange_token(self):
         try:
