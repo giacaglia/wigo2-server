@@ -81,7 +81,7 @@ class LoginResource(WigoResource):
             relogin = user.get_custom_property('relogin')
             if relogin:
                 user.status = relogin
-                user.set_custom_property('relogin', None)
+                user.set_custom_property('relogin', 'never')
             else:
                 user.status = 'waiting'
 

@@ -61,8 +61,9 @@ def setup_user_by_token():
 
             if user.id < 130000 and user.status in ('active', 'waiting'):
                 if user.facebook_token_expires and user.facebook_token_expires < datetime.utcnow():
-                    user.set_custom_property('relogin', user.status)
-                    user.status = 'imported'
+                    if user.get_custom_property('relogin') != 'never':
+                        user.set_custom_property('relogin', user.status)
+                        user.status = 'imported'
 
             if user.is_changed():
                 user.save()
