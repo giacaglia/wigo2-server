@@ -61,7 +61,7 @@ def capture_interaction(user_id, with_user_id, t, action='view'):
         raise Exception('Error returned from prediction io')
 
 
-def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
+def generate_friend_recs(user, num_friends_to_recommend=200, force=False):
     with rate_limit('gen_f_recs:{}'.format(user.id), timedelta(minutes=10)) as limited:
         if force or not limited:
             _do_generate_friend_recs.delay(user.id, num_friends_to_recommend)
@@ -69,7 +69,7 @@ def generate_friend_recs(user, num_friends_to_recommend=100, force=False):
 
 @agent.background_task()
 @job(predictions_queue, timeout=600, result_ttl=0)
-def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False):
+def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False):
     is_dev = Configuration.ENVIRONMENT == 'dev'
 
     user = User.find(user_id)
@@ -127,8 +127,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     ##################################
     # add facebook friends
 
-    if force or (len(suggested) < num_friends_to_recommend and not is_limited('last_facebook_check')
-                 and user.facebook_token_expires > datetime.utcnow()):
+    if force or (not is_limited('last_facebook_check') and user.facebook_token_expires > datetime.utcnow()):
 
         num_fb_recs = 0
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
@@ -141,7 +140,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                     if should_suggest(friend.id):
                         add_friend(friend.id, 10000)
                         num_fb_recs += 1
-                        if num_fb_recs >= num_friends_to_recommend:
+                        if num_fb_recs >= 100:
                             break
 
                 except DoesNotExist:
@@ -166,19 +165,19 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
                 if should_suggest(friends_friend):
                     yield friends_friend
 
+    num_ff_recs = 0
     for friends_friend in each_friends_friend():
         num_friends_in_common = get_num_friends_in_common(friends_friend)
         if num_friends_in_common > 0:
             add_friend(friends_friend, num_friends_in_common)
-            if len(suggested) >= num_friends_to_recommend:
+            num_ff_recs += 1
+            if num_ff_recs >= 50:
                 break
 
     ##################################
     # add via prediction io
 
-    if force or (len(suggested) < num_friends_to_recommend
-                 and not is_limited('last_pio_check')):
-
+    if force or (len(suggested) < 50 and not is_limited('last_pio_check')):
         try:
             # flesh out the rest via prediction io
             engine_client = predictionio.EngineClient(
@@ -206,9 +205,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     ##################################
     # add old friends
 
-    if force or (user.id < 150000 and len(suggested) < num_friends_to_recommend
-                 and not is_limited('last_legacy_check')):
-
+    if force or (user.id < 150000 and len(suggested) < 50 and not is_limited('last_legacy_check')):
         with old_rdbms:
             results = old_rdbms.query("""
                 select t1.follow_id from follow t1, follow t2 where
@@ -233,7 +230,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=100, force=False)
     p.execute()
 
     num_suggestions = wigo_db.get_sorted_set_size(suggestions_key)
-    if num_suggestions > 200:
+    if num_suggestions > num_friends_to_recommend:
         wigo_db.sorted_set_remove_by_rank(suggestions_key, 0, num_suggestions - num_friends_to_recommend)
 
     wigo_db.redis.expire(suggestions_key, timedelta(days=30))
