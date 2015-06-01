@@ -123,7 +123,7 @@ def event_related_change(group_id, event_id):
     lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=360)
     if lock.acquire(blocking=False):
         try:
-            logger.info('recording event change in group {}'.format(group_id))
+            logger.debug('recording event change in group {}'.format(group_id))
             p = wigo_db.redis.pipeline()
 
             try:

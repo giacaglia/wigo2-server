@@ -8,6 +8,7 @@ from config import Configuration
 
 
 db = connect(Configuration.DATABASE_URL.replace('postgres://', 'postgresqlext://'))
+slave = connect(Configuration.SLAVE_DATABASE_URL.replace('postgres://', 'postgresqlext://'))
 
 
 class DataItem(Model):

@@ -14,7 +14,7 @@ from server.models import skey
 from server.models.event import Event
 
 from server.models.user import User, Friend, Tap, Block, Invite, Message, Notification
-from server.rdbms import db
+from server.rdbms import slave
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api, check_last_modified
 from server.security import user_token_required
 from utils import epoch, ValidationException
@@ -171,8 +171,8 @@ class UserListResource(WigoResource):
                 ), first_name, last_name LIMIT 50
             """.format(g.user.group.latitude, g.user.group.longitude)
 
-            with db.execution_context(False) as ctx:
-                results = list(db.execute_sql(sql, params))
+            with slave.execution_context(False) as ctx:
+                results = list(slave.execute_sql(sql, params))
 
             users = User.find([id[0] for id in results])
             return self.serialize_list(self.model, users)

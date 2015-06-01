@@ -73,7 +73,7 @@ def __do_sync_parse(user_id):
                 continue
 
             installation_id = installation.get('objectId')
-            logger.info('syncing parse installation {} for user {}'.format(installation_id, user_id))
+            logger.debug('syncing parse installation {} for user {}'.format(installation_id, user_id))
             resp = requests.put('https://api.parse.com/1/installations/%s' % installation_id,
                                 ujson.dumps(data), headers=headers)
 
