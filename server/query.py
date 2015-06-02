@@ -452,17 +452,19 @@ class SelectQuery(object):
         def can_see_user(u):
             if u is None:
                 return False
-            if u.status == 'hidden':
-                return False
             if secure_user:
                 if u == secure_user:
                     return True
+                if u.status == 'hidden':
+                    return False
                 if u.id in blocked:
                     return False
                 if u.privacy == 'public' or u.id in private_friends:
                     return True
                 return False
             else:
+                if u.status == 'hidden':
+                    return False
                 return True
 
         if self._model_class in (User, EventAttendee):
