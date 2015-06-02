@@ -217,6 +217,13 @@ class FriendsListResource(WigoResource):
             if g.user == user:
                 for friend in users:
                     friend.friend = True
+            else:
+                p = wigo_db.redis.pipeline()
+                for friend in users:
+                    p.sorted_set_is_member(skey(g.user, 'friends'), friend.id)
+                results = p.execute()
+                for index, friend in enumerate(users):
+                    friend.friend = results[index]
 
             return self.serialize_list(self.model, users), 200, headers
         else:
