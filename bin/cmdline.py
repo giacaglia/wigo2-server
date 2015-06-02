@@ -183,6 +183,12 @@ def initialize(create_tables=False, import_cities=False):
                 user_id, value as friend_id, cast(null as timestamp) as created, modified
                 FROM data_int_sorted_sets WHERE key ~ '\{user:\d+\}:friends';
 
+           CREATE OR REPLACE VIEW invites AS
+                SELECT key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+                event_id, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 4) as BIGINT)
+                user_id, value as invited_id, to_timestamp(score) as created, modified
+                FROM data_int_sorted_sets WHERE key ~ '\{event:\d+\}:user:\d+:invited';
+
             CREATE OR REPLACE VIEW eventmessages AS
                 SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'user_id' AS BIGINT) user_id,
                 CAST(value->>'event_id' AS BIGINT) event_id,
