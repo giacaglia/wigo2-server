@@ -122,6 +122,18 @@ class User(WigoPersistentModel):
         friend_id = friend.id if isinstance(friend, User) else friend
         return self.db.sorted_set_is_member(skey(self, 'friends'), friend_id)
 
+    def are_friends(self, users):
+        from server.db import wigo_db
+
+        mapping = {}
+        p = wigo_db.redis.pipeline()
+        for user in users:
+            p.zscore(skey(self, 'friends'), user.id)
+        results = p.execute()
+        for index, user in enumerate(users):
+            mapping[user] = results[index] is not None
+        return mapping
+
     def friends_iter(self):
         from server.db import wigo_db
 

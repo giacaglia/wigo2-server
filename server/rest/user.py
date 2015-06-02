@@ -218,22 +218,21 @@ class FriendsListResource(WigoResource):
                 for friend in users:
                     friend.friend = True
             else:
-                p = wigo_db.redis.pipeline()
-                for friend in users:
-                    p.sorted_set_is_member(skey(g.user, 'friends'), friend.id)
-                results = p.execute()
-                for index, friend in enumerate(users):
-                    friend.friend = results[index]
+                for friend, is_friend in g.user.are_friends(users).items():
+                    friend.friend = is_friend
 
             return self.serialize_list(self.model, users), 200, headers
         else:
-            count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
+            count, page, users = self.setup_query(self.select(User).user(user).friends()).execute()
 
             if g.user == user:
-                for friend in friends:
+                for friend in users:
                     friend.friend = True
+            else:
+                for friend, is_friend in g.user.are_friends(users).items():
+                    friend.friend = is_friend
 
-            return self.serialize_list(User, friends, count, page), 200, headers
+            return self.serialize_list(User, users, count, page), 200, headers
 
     @user_token_required
     @api.expect(api.model('NewFriend', {
