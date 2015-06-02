@@ -140,6 +140,18 @@ def initialize(create_tables=False, import_cities=False):
               value
             ) WHERE key ~ '\{user:\d+\}:tapped';
 
+            CREATE INDEX data_int_sorted_sets_invites_user_id ON data_int_sorted_sets(
+              cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 4) as BIGINT)
+            ) WHERE key ~ '\{event:\d+\}:user:\d+:invited';
+
+            CREATE INDEX data_int_sorted_sets_invites_event_id ON data_int_sorted_sets(
+              cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+            ) WHERE key ~ '\{event:\d+\}:user:\d+:invited';
+
+           CREATE INDEX data_int_sorted_sets_invites_invited_id ON data_int_sorted_sets(
+              value
+            ) WHERE key ~ '\{event:\d+\}:user:\d+:invited';
+
            CREATE INDEX data_int_sorted_sets_friends_user_id ON data_int_sorted_sets(
               cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
             ) WHERE key ~ '\{user:\d+\}:friends';
