@@ -132,32 +132,56 @@ def initialize(create_tables=False, import_cities=False):
               value
             ) WHERE key ~ '\{eventmessage:\d+\}:votes';
 
-            CREATE OR REPLACE VIEW users AS
+           CREATE INDEX data_int_sorted_sets_taps_user_id ON data_int_sorted_sets(
+              cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+            ) WHERE key ~ '\{user:\d+\}:tapped';
+
+           CREATE INDEX data_int_sorted_sets_taps_tapped_id ON data_int_sorted_sets(
+              value
+            ) WHERE key ~ '\{user:\d+\}:tapped';
+
+           CREATE INDEX data_int_sorted_sets_friends_user_id ON data_int_sorted_sets(
+              cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+            ) WHERE key ~ '\{user:\d+\}:friends';
+
+           CREATE INDEX data_int_sorted_sets_friends_friend_id ON data_int_sorted_sets(
+              value
+            ) WHERE key ~ '\{user:\d+\}:friends';
+
+           CREATE OR REPLACE VIEW users AS
               SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'group_id' AS BIGINT) group_id,
               value->>'first_name' first_name, value->>'last_name' last_name, value->>'gender' gender,
-              value->>'status' status, CAST(value->>'latitude' as float) latitude,
+              data_strings.value ->> 'role'::text AS roles, value->>'status' status,
+              CAST(value->>'latitude' as float) latitude,
               CAST(value->>'longitude' as float) longitude
               FROM data_strings WHERE value->>'$type' = 'User';
 
-            CREATE OR REPLACE VIEW groups AS
+           CREATE OR REPLACE VIEW groups AS
               SELECT key, CAST(value->>'id' AS BIGINT) id,
               value->>'name' "name", value->>'code' code, value->>'city_id' city_id,
               value->>'state' state, value->>'country' country,
               CAST(value->>'latitude' as float) latitude, CAST(value->>'longitude' as float) longitude
               FROM data_strings WHERE value->>'$type' = 'Group';
 
-            CREATE OR REPLACE VIEW events AS
+           CREATE OR REPLACE VIEW events AS
                 SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'owner_id' AS BIGINT) owner_id,
                 CAST(value->>'group_id' AS BIGINT) group_id, value->>'name' "name",
                 timestamp_cast(value->>'expires') "expires",
                 (SELECT COUNT(key) FROM data_int_sorted_sets WHERE
                   key = format('{event:%s}:attendees', (data_strings.value->>'id'))) num_attendees,
                 timestamp_cast(value->>'date') "date",
+                value->>'privacy' "privacy"
                 FROM data_strings WHERE value->>'$type' = 'Event';
 
-            CREATE OR REPLACE VIEW friends AS
-                select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
-                user_id, value as friend_id from data_int_sorted_sets where key ~ '\{user:\d+\}:friends';
+           CREATE OR REPLACE VIEW taps AS
+               SELECT key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+                user_id, value as tapped_id, to_timestamp(score) as created, modified
+                FROM data_int_sorted_sets WHERE key ~ '\{user:\d+\}:tapped';
+
+           CREATE OR REPLACE VIEW friends AS
+                SELECT key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
+                user_id, value as friend_id, modified
+                FROM data_int_sorted_sets WHERE key ~ '\{user:\d+\}:friends';
 
             CREATE OR REPLACE VIEW eventmessages AS
                 SELECT key, CAST(value->>'id' AS BIGINT) id, CAST(value->>'user_id' AS BIGINT) user_id,
