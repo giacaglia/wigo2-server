@@ -180,7 +180,7 @@ def initialize(create_tables=False, import_cities=False):
 
            CREATE OR REPLACE VIEW friends AS
                 SELECT key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
-                user_id, value as friend_id, modified
+                user_id, value as friend_id, cast(null as timestamp) as created, modified
                 FROM data_int_sorted_sets WHERE key ~ '\{user:\d+\}:friends';
 
             CREATE OR REPLACE VIEW eventmessages AS
@@ -197,6 +197,22 @@ def initialize(create_tables=False, import_cities=False):
             CREATE OR REPLACE VIEW votes AS
                 select key, cast(split_part(replace(replace(key, '{', ''), '}', ''), ':', 2) as BIGINT)
                 message_id, value as user_id from data_int_sorted_sets where key ~ '\{eventmessage:\d+\}:votes';
+
+            CREATE OR REPLACE VIEW current_week AS
+                select  xdate.*, xdate.start_ts at time zone 'US/Hawaii'
+                at time zone 'UTC' as start_ts_utc,
+                xdate.end_ts at time zone 'US/Hawaii'
+                at time zone 'UTC' as end_ts_utc
+                from (  select  xdate.xdate + make_interval(days := (case
+                        when xdate.dow <= 3 then 3-xdate.dow-7
+                        else 3-xdate.dow end)) as start_ts,
+                xdate.xdate - interval '1 microseconds' as end_ts
+                from (  select  xdate.xdate,
+                        cast(extract(dow from xdate) as int) as dow
+                from (  select date(current_timestamp
+                                at time zone 'US/Eastern') as xdate)
+                                xdate) xdate) xdate;
+
           """)
 
     if import_cities:
