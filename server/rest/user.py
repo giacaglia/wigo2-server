@@ -214,15 +214,17 @@ class FriendsListResource(WigoResource):
 
             users = User.find([id[0] for id in results])
 
-            for friend in users:
-                friend.friend = True
+            if g.user == user:
+                for friend in users:
+                    friend.friend = True
 
             return self.serialize_list(self.model, users), 200, headers
         else:
             count, page, friends = self.setup_query(self.select(User).user(user).friends()).execute()
 
-            for friend in friends:
-                friend.friend = True
+            if g.user == user:
+                for friend in friends:
+                    friend.friend = True
 
             return self.serialize_list(User, friends, count, page), 200, headers
 

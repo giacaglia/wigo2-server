@@ -8,8 +8,6 @@ from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
 from dateutil.parser import parse
-from server.db import wigo_db
-from server.models import skey
 
 from server.models.user import User
 from server.rest import WigoResource, api
@@ -81,7 +79,7 @@ class LoginResource(WigoResource):
             user.work = work
 
         if user.status == 'imported':
-            user.status = 'waiting'
+            user.status = 'active'
 
         if properties:
             for key, value in properties.items():

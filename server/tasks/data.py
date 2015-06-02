@@ -406,6 +406,7 @@ def user_lock(user_id, timeout=30):
         yield
 
 
+@agent.background_task()
 def on_model_change_broadcast(message):
     from server.models import model_cache
     from server.models.group import cache_maker as group_cache_maker

@@ -61,7 +61,7 @@ class User(WigoPersistentModel):
 
     key = StringType(required=True, default=lambda: uuid4().hex)
     role = StringType(required=True, default='user')
-    status = StringType(required=True, default='waiting')
+    status = StringType(required=True, default='active')
     privacy = StringType(choices=('public', 'private'), required=True, default='public')
 
     facebook_id = StringType()
