@@ -1,0 +1,3 @@
+jason = User.find(19855)
+ben = User.find(598917750666542208)
+giu = User.find(68112)
