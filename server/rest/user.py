@@ -369,11 +369,12 @@ class InviteListResource(WigoResource):
         limit = self.get_limit()
         start = (page - 1) * limit
 
-        friends_key = skey(g.user, 'friends')
-        num_friends = wigo_db.get_sorted_set_size(friends_key)
+        num_friends = wigo_db.get_sorted_set_size(skey(g.user, 'friends'))
 
         # find the users top 5 friends. this is users with > 3 interactions
-        top_5 = wigo_db.sorted_set_rrange_by_score(friends_key, 'inf', 3, limit=5)
+        top_5 = wigo_db.sorted_set_rrange_by_score(skey(g.user, 'friends', 'top'), 'inf', 3, limit=5)
+        if not top_5:
+            top_5 = wigo_db.sorted_set_rrange_by_score(skey(g.user, 'friends'), 'inf', 3, limit=5)
 
         friend_ids = wigo_db.sorted_set_range(skey(g.user, 'friends', 'alpha'), start, start + (limit - 1))
         for top_friend_id in top_5:

@@ -222,8 +222,11 @@ class User(WigoPersistentModel):
 
     def track_friend_interaction(self, user):
         from server.db import wigo_db
+
         # increment the score for the user in the friends table
-        wigo_db.sorted_set_incr_score(skey(self, 'friends'), user.id)
+        top_friends_key = skey(self, 'friends', 'top')
+        wigo_db.sorted_set_incr_score(top_friends_key, user.id)
+
 
     def save(self):
         privacy_changed = self.is_changed(User.privacy.name)
@@ -266,7 +269,7 @@ class Friend(WigoModel):
 
         if self.accepted:
             def setup(u1, u2):
-                self.db.sorted_set_add(skey(u1, 'friends'), u2.id, 1)
+                self.db.sorted_set_add(skey(u1, 'friends'), u2.id, epoch(self.created))
                 self.db.sorted_set_add(skey(u1, 'friends', 'alpha'), u2.id,
                                        prefix_score(u2.full_name.lower()), replicate=False)
                 if u2.privacy == 'private':
@@ -282,6 +285,7 @@ class Friend(WigoModel):
         else:
             def teardown(u1, u2):
                 self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
+                self.db.sorted_set_remove(skey(u1, 'friends', 'top'), u2.id)
                 self.db.sorted_set_remove(skey(u1, 'friends', 'alpha'), u2.id, replicate=False)
                 self.db.set_remove(skey(u1, 'friends', 'private'), u2.id, replicate=False)
 
@@ -306,10 +310,9 @@ class Friend(WigoModel):
     def remove_index(self):
         super(Friend, self).remove_index()
 
-        from server.models.event import Event
-
         def cleanup(u1, u2):
             self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
+            self.db.sorted_set_remove(skey(u1, 'friends', 'top'), u2.id)
             self.db.sorted_set_remove(skey(u1, 'friends', 'alpha'), u2.id, replicate=False)
             self.db.set_remove(skey(u1, 'friends', 'private'), u2.id, replicate=False)
 

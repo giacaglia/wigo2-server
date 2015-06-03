@@ -170,6 +170,9 @@ app.register_blueprint(apidoc.apidoc)
 
 @app.route('/api/app/startup')
 def app_startup():
+    if request.args.get('source') == 'newrelic':
+        agent.ignore_transaction()
+
     startup = {
         'analytics': {
             'bigquery': True

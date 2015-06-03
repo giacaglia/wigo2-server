@@ -250,7 +250,7 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
 
 
 @agent.background_task()
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=120, result_ttl=0)
 def tell_friends_about_vote(message_id, user_id):
     user = User.find(user_id)
 
@@ -374,6 +374,7 @@ def delete_user(user_id, group_id):
 
         # remove friends
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friends'), user_id)
+        wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'top'), user_id)
         wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'alpha'), user_id)
         wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
 
@@ -388,6 +389,7 @@ def delete_user(user_id, group_id):
 
     wigo_db.delete(skey('user', user_id, 'events'))
     wigo_db.delete(skey('user', user_id, 'friends'))
+    wigo_db.delete(skey('user', user_id, 'friends', 'top'))
     wigo_db.delete(skey('user', user_id, 'friends', 'private'))
     wigo_db.delete(skey('user', user_id, 'friends', 'alpha'))
     wigo_db.delete(skey('user', user_id, 'friends', 'friend_requested'))
