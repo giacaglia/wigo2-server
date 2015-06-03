@@ -109,6 +109,25 @@ class EventListResource(WigoDbListResource):
             }).save()
         return super(EventListResource, self).handle_already_exists_exception(e)
 
+@api.route('/events/future/')
+class FutureEventListResource(WigoDbListResource):
+    model = Event
+
+    def get_limit(self, default=10):
+        return super(FutureEventListResource, self).get_limit(default)
+
+    @user_token_required
+    @check_last_modified('group', 'last_event_change')
+    @api.response(200, 'Success', model=Event.to_doc_list_model(api))
+    def get(self, headers):
+        user = g.user
+        group = g.group
+        query = self.select().group(group).order('asc')
+        query = query.min(epoch(group.get_day_start()))
+        query = query.max(epoch(group.get_day_end() + timedelta(days=10)))
+        count, page, events = query.execute()
+        return self.serialize_list(self.model, events, count, page), 200, headers
+
 
 @api.route('/events/<int:model_id>')
 @api.response(403, 'If not invited')
@@ -151,6 +170,25 @@ class UserEventListResource(WigoResource):
         query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
         query = query.max(epoch(group.get_day_end() + timedelta(minutes=10)))
 
+        count, page, instances = query.execute()
+
+        return self.serialize_list(self.model, instances, count, page), 200, headers
+
+
+@api.route('/users/<user_id>/events/future/')
+class FutureUserEventListResource(WigoResource):
+    model = Event
+
+    @user_token_required
+    @check_last_modified('user', 'last_event_change')
+    @api.response(200, 'Success', model=Event.to_doc_list_model(api))
+    def get(self, user_id, headers):
+        user = g.user
+        group = g.group
+
+        query = self.select().user(user).order('asc')
+        query = query.min(epoch(group.get_day_start()))
+        query = query.max(epoch(group.get_day_end() + timedelta(days=10)))
         count, page, instances = query.execute()
 
         return self.serialize_list(self.model, instances, count, page), 200, headers
