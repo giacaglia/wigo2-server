@@ -8,6 +8,7 @@ from server.models.user import User
 from server.rest import WigoResource, api
 from server.security import user_token_required
 from server.tasks.predictions import generate_friend_recs
+from utils import partition
 
 logger = logging.getLogger('wigo.suggestions')
 
@@ -15,6 +16,9 @@ logger = logging.getLogger('wigo.suggestions')
 @api.route('/users/suggestions')
 class UserSuggestionsResource(WigoResource):
     model = User
+
+    def get_limit(self, default=20):
+        return super(UserSuggestionsResource, self).get_limit(default)
 
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
@@ -28,7 +32,12 @@ class UserSuggestionsResource(WigoResource):
         if count == 0:
             count, page, users = self.select().execute()
 
-        shuffle(users)
+        fb, other = partition(users, lambda u: True if hasattr(u, 'score') and u.score >= 10000 else False)
+
+        shuffle(fb)
+        shuffle(other)
+
+        users = fb + other
 
         for u in users:
             if hasattr(u, 'score'):
