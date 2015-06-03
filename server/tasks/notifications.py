@@ -196,7 +196,7 @@ def notify_on_message(message_id):
     if message_text and len(message_text) > 1000:
         message_text = message_text[0:1000]
 
-    push.alert(data={
+    data = {
         'message_id': message_id,
         'navigate': '/messages/{}'.format(from_user.id),
         'sound': 'chord',
@@ -204,13 +204,27 @@ def notify_on_message(message_id):
         'alert': {
             'body': '{}: {}'.format(from_user.full_name.encode('utf-8'), message_text.encode('utf-8')),
         }
-    }, where={
+    }
+
+    where = {
         'wigo_id': user.id,
         'deviceType': 'ios',
         'api_version_num': {
             '$gte': 2
         }
-    }, enterprise=user.enterprise)
+    }
+
+    if message.user.is_ios_push_enabled():
+        push.alert(data=data, where=dict(where, **{
+            'deviceType': 'ios'
+        }), enterprise=user.enterprise)
+
+    if message.user.is_android_push_enabled():
+        push.alert(data=dict(data, **{
+            'action': 'com.whoisgoingout.wigo.ACTION_MESSAGE'
+        }), where=dict(where, **{
+            'deviceType': 'android'
+        }), enterprise=user.enterprise)
 
 
 @agent.background_task()
@@ -360,15 +374,24 @@ def __send_notification_push(notification, api_version_num=2):
     if notification.badge:
         data['badge'] = notification.badge
 
-    where = {'wigo_id': notification.user_id,
-             'deviceType': 'ios'}
+    where = {'wigo_id': notification.user_id}
 
     if api_version_num >= 2:
         where['api_version_num'] = {'$gte': api_version_num}
     else:
         where['api_version'] = '1.0.7'
 
-    push.alert(data=data, where=where, enterprise=notification.user.enterprise)
+    if notification.user.is_ios_push_enabled():
+        push.alert(data=data, where=dict(where, **{
+            'deviceType': 'ios'
+        }), enterprise=notification.user.enterprise)
+
+    if notification.user.is_android_push_enabled():
+        push.alert(data=dict(data, **{
+            'action': 'com.whoisgoingout.wigo.ACTION_NOTIFICATION'
+        }), where=dict(where, **{
+            'deviceType': 'android'
+        }), enterprise=notification.user.enterprise)
 
 
 def wire_notifications_listeners():

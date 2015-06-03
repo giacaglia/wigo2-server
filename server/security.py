@@ -64,6 +64,15 @@ def setup_user_by_token():
                 if not user.longitude:
                     user.longitude = group.longitude
 
+            platform = request.headers.get('X-Wigo-Device')
+            if not platform:
+                platform = request.user_agent.platform
+            if platform:
+                platform = platform.lower()
+
+            if platform in ('android', 'iphone', 'ipad'):
+                user.set_custom_property('platforms', [platform])
+
             if user.is_changed():
                 user.save()
 

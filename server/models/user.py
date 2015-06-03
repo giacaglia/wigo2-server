@@ -100,6 +100,20 @@ class User(WigoPersistentModel):
     def is_waiting(self):
         return self.status == 'waiting'
 
+    def get_platforms(self):
+        platforms = self.get_custom_property('platforms')
+        if not platforms:
+            platforms = ['iphone']
+        return platforms
+
+    def is_ios_push_enabled(self):
+        platforms = self.get_platforms()
+        return 'iphone' in platforms or 'ipad' in platforms
+
+    def is_android_push_enabled(self):
+        platforms = self.get_platforms()
+        return 'android' in platforms
+
     def get_attending_id(self, event=None):
         date = event.date if event else self.group.get_day_start()
         date = date.date().isoformat()
@@ -226,7 +240,6 @@ class User(WigoPersistentModel):
         # increment the score for the user in the friends table
         top_friends_key = skey(self, 'friends', 'top')
         wigo_db.sorted_set_incr_score(top_friends_key, user.id)
-
 
     def save(self):
         privacy_changed = self.is_changed(User.privacy.name)
