@@ -83,8 +83,7 @@ class LoginResource(WigoResource):
 
         if properties:
             for key, value in properties.items():
-                if user.get_custom_property(key) != value:
-                    user.set_custom_property(key, value)
+                user.set_custom_property(key, value)
 
         if user.is_changed():
             user.save()
