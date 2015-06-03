@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import math
 import logging
 from datetime import datetime, timedelta
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from newrelic import agent
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
 from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages, EventMessageVote, \
@@ -373,14 +373,14 @@ class SelectQuery(object):
     def __get_by_events(self):
         from server.db import wigo_db
 
-        keys = self.__get_events_keys()
+        event_keys = self.__get_events_keys()
         query_class = EventMessage if self._model_class == EventMessage else User
 
         ####################################################
         # In a single pipeline get all the counts
 
         p = self.db.redis.pipeline()
-        for key in keys:
+        for key in event_keys:
             p.zcard(key)
         counts = p.execute()
 
@@ -391,12 +391,12 @@ class SelectQuery(object):
             p = self.db.redis.pipeline()
 
             # run the queries
-            for key in keys:
-                p.zrevrange(key, starts[key], starts[key] + (self._limit + 5))
+            for key, start in starts.items():
+                p.zrevrange(key, start, start + (self._limit + 5))
             ids_by_key = p.execute()
 
             all_ids = []
-            for index, key in enumerate(keys):
+            for index, key in enumerate(starts.keys()):
                 count = counts[index]
                 decoded_ids = wigo_db.decode(ids_by_key[index], dt=int)
                 ids_by_key[index] = decoded_ids
@@ -408,7 +408,7 @@ class SelectQuery(object):
 
             # get the instances for all of the queries
             instances_by_key = {}
-            for index, key in enumerate(keys):
+            for index, key in enumerate(starts.keys()):
                 count = counts[index]
                 instances = [instances_by_id.get(instance_id) for instance_id in ids_by_key[index]]
                 secured = self.__clean_results(instances)
@@ -431,7 +431,7 @@ class SelectQuery(object):
         # keep running the queries until starts is empty
 
         all_instances_by_key = defaultdict(list)
-        starts = {k: 0 for k in keys}
+        starts = OrderedDict([(k, 0) for k in event_keys])
         while starts:
             instances_by_key = run_queries(starts)
             for key, instances in instances_by_key.items():
@@ -441,7 +441,7 @@ class SelectQuery(object):
         # gather results in the expected return format
 
         results = []
-        for index, key in enumerate(keys):
+        for index, key in enumerate(event_keys):
             results.append((counts[index], all_instances_by_key[key][0:self._limit]))
 
         return len(results), 1, results
