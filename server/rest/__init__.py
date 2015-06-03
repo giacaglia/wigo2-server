@@ -142,8 +142,8 @@ class WigoResource(Resource):
 
         # can't change created/modified
         data = self.clean_data(data, 'edit', instance)
-        for key, value in data.items():
-            setattr(instance, key, value)
+
+        self.apply_data(instance, data)
 
         instance.save()
         return instance
@@ -151,7 +151,9 @@ class WigoResource(Resource):
     def create(self, data):
         self.check_create(data)
         data = self.clean_data(data, 'create')
-        instance = self.model(data)
+        instance = self.model()
+
+        self.apply_data(instance, data)
 
         if 'group_id' in self.model.fields and g.group:
             instance.group_id = g.group.id
@@ -162,6 +164,16 @@ class WigoResource(Resource):
 
         instance.save()
         return instance
+
+    def apply_data(self, instance, data):
+        for key, value in data.items():
+            if key == 'properties':
+                properties = data.get('properties')
+                if isinstance(properties, dict):
+                    for prop_key, prop_value in properties.items():
+                        instance.set_custom_property(prop_key, prop_value)
+            else:
+                setattr(instance, key, value)
 
     def annotate_object(self, object):
         return object
