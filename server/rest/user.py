@@ -8,6 +8,7 @@ from time import time
 from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
+from geodis.location import Location
 from config import Configuration
 from server.db import wigo_db
 from server.models import skey
@@ -402,19 +403,27 @@ class InviteListResource(WigoResource):
     @api.response(200, 'Success')
     @api.response(403, 'Not friends or not attending')
     def post(self, event_id):
+        user = g.user
+
         if 'friends' in request.get_json():
-            for friend_id, score in wigo_db.sorted_set_iter(skey(g.user, 'friends')):
-                try:
-                    invite = Invite()
-                    invite.user_id = g.user.id
-                    invite.invited_id = friend_id
-                    invite.event_id = event_id
-                    invite.save()
-                except ValidationException, e:
-                    logger.warn('error creating invite, {}'.format(e.message))
+            for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+                friend = User.find(friend_id)
+                if friend.group:
+                    distance = Location.getLatLonDistance((user.group.latitude, user.group.longitude),
+                                                          (friend.group.latitude, friend.group.longitude))
+
+                    if distance < 160:  # < 160km, 100 miles
+                        try:
+                            invite = Invite()
+                            invite.user_id = user.id
+                            invite.invited_id = friend_id
+                            invite.event_id = event_id
+                            invite.save()
+                        except ValidationException, e:
+                            logger.warn('error creating invite, {}'.format(e.message))
         else:
             invite = Invite()
-            invite.user_id = g.user.id
+            invite.user_id = user.id
             invite.invited_id = self.get_id_field('invited_id')
             invite.event_id = event_id
             invite.save()
