@@ -68,7 +68,7 @@ class WigoCity(WigoLocation):
         self.country_id = kwargs.get('country_id', 0)
         self.state_id = kwargs.get('state_id', 0)
 
-        self.population = kwargs.get('population', 0)
+        self.population = int(kwargs.get('population', 0))
 
     @classmethod
     def get_by_population(cls, lat, lon, radius=50):

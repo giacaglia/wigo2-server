@@ -5,7 +5,7 @@ from server.db import wigo_db
 from server.db import redis
 from server.models import skey
 from server.models.user import User
-from server.models.group import Group
+from server.models.group import Group, get_close_cities, get_close_groups
 from server.models.event import Event, EventMessage, EventAttendee
 from server.tasks.predictions import _do_generate_friend_recs
 

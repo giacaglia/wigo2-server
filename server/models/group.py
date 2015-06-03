@@ -83,8 +83,10 @@ class Group(WigoPersistentModel):
         if 'lat' in kwargs and 'lon' in kwargs:
             from server.db import redis
 
-            close_cities = WigoCity.get_by_radius(kwargs['lat'], kwargs['lon'], 30)
+            close_cities = WigoCity.get_by_radius(kwargs['lat'], kwargs['lon'], 15)
             if close_cities:
+                close_cities = close_cities[0:5]
+                close_cities.sort(lambda x, y: cmp(y.population, x.population))
                 city = close_cities[0]
             else:
                 city = WigoCity.getByLatLon(kwargs['lat'], kwargs['lon'], redis)
