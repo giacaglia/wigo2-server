@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import math
 import logging
 from datetime import datetime, timedelta
+from collections import defaultdict
 from newrelic import agent
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
 from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages, EventMessageVote, \
@@ -273,8 +274,8 @@ class SelectQuery(object):
 
         collected = []
         page = start_page
-        for page in range(start_page, pages+1):
-            start = (page-1) * self._limit
+        for page in range(start_page, pages + 1):
+            start = (page - 1) * self._limit
             model_ids = range_f(key, min, max, start, self._limit, withscores=True)
             instances = self._model_class.find([m[0] for m in model_ids])
             for index, instance in enumerate(instances):
@@ -322,7 +323,8 @@ class SelectQuery(object):
 
         try:
             for kwarg in self._where:
-                applicable_indexes = [key_tmpl for key_tmpl, unique, expires in self._model_class.indexes if kwarg in key_tmpl]
+                applicable_indexes = [key_tmpl for key_tmpl, unique, expires in self._model_class.indexes if
+                                      kwarg in key_tmpl]
                 if applicable_indexes:
                     for key_tmpl in applicable_indexes:
                         key = index_key(key_tmpl, {kwarg: self._where.get(kwarg)})
@@ -369,53 +371,103 @@ class SelectQuery(object):
 
     @agent.function_trace()
     def __get_by_events(self):
-        keys = []
+        from server.db import wigo_db
 
-        if self._model_class == EventMessage:
-            query_class = EventMessage
-            if self._user:
-                keys = [user_eventmessages_key(self._user, event, self._by_votes) for event in self._events]
-            else:
-                keys = [skey(event, 'messages', 'by_votes') if self._by_votes else
-                        skey(event, 'messages') for event in self._events]
-        elif self._model_class == EventAttendee:
-            query_class = User
-            if self._user:
-                keys = [user_attendees_key(self._user, event) for event in self._events]
-            else:
-                keys = [skey(event, 'attendees') for event in self._events]
-        else:
-            raise ValueError('Invalid query')
+        keys = self.__get_events_keys()
+        query_class = EventMessage if self._model_class == EventMessage else User
+
+        ####################################################
+        # In a single pipeline get all the counts
 
         p = self.db.redis.pipeline()
         for key in keys:
             p.zcard(key)
         counts = p.execute()
 
+        #########################################################
+        # run_queries pipelines the queries for the event data
+
+        def run_queries(starts):
+            p = self.db.redis.pipeline()
+
+            # run the queries
+            for key in keys:
+                p.zrevrange(key, starts[key], starts[key] + (self._limit + 5))
+            ids_by_key = p.execute()
+
+            all_ids = []
+            for index, key in enumerate(keys):
+                count = counts[index]
+                decoded_ids = wigo_db.decode(ids_by_key[index], dt=int)
+                ids_by_key[index] = decoded_ids
+                all_ids.extend(decoded_ids)
+
+            # find all of the objects
+            instances = query_class.find(all_ids)
+            instances_by_id = {i.id: i for i in instances if i}
+
+            # get the instances for all of the queries
+            instances_by_key = {}
+            for index, key in enumerate(keys):
+                count = counts[index]
+                instances = [instances_by_id.get(instance_id) for instance_id in ids_by_key[index]]
+                secured = self.__clean_results(instances)
+                instances_by_key[key] = secured
+
+                # if nothing was secured, remove from starts
+                if len(secured) >= self._limit or len(secured) >= count:
+                    del starts[key]
+                else:
+                    # move starts to the next position to get more results
+                    next_start = starts[key] + (self._limit - 1)
+                    if next_start <= count:
+                        starts[key] = next_start
+                    else:
+                        del starts[key]
+
+            return instances_by_key
+
+        ####################################################
+        # keep running the queries until starts is empty
+
+        all_instances_by_key = defaultdict(list)
+        starts = {k: 0 for k in keys}
+        while starts:
+            instances_by_key = run_queries(starts)
+            for key, instances in instances_by_key.items():
+                all_instances_by_key[key].extend(instances)
+
+        ####################################################
+        # gather results in the expected return format
+
         results = []
         for index, key in enumerate(keys):
-            count = counts[index]
-            pages = int(math.ceil(float(count) / self._limit))
-
-            collected = []
-            for page in range(1, pages+1):
-                start = (page-1) * self._limit
-                ids = self.db.sorted_set_rrange(key, start, start + (self._limit - 1))
-                instances = query_class.find(list(ids))
-
-                secured = self.__clean_results(instances)
-                collected.extend(secured)
-
-                # if nothing was filtered, break
-                if len(secured) == len(instances):
-                    break
-
-            results.append((count, collected))
+            results.append((counts[index], all_instances_by_key[key][0:self._limit]))
 
         return len(results), 1, results
 
+    def __get_events_keys(self):
+        if self._model_class == EventMessage:
+            query_class = EventMessage
+            if self._user:
+                return [user_eventmessages_key(self._user, event, self._by_votes) for event in self._events]
+            else:
+                return [skey(event, 'messages', 'by_votes') if self._by_votes else
+                        skey(event, 'messages') for event in self._events]
+        elif self._model_class == EventAttendee:
+            query_class = User
+            if self._user:
+                return [user_attendees_key(self._user, event) for event in self._events]
+            else:
+                return [skey(event, 'attendees') for event in self._events]
+        else:
+            raise ValueError('Invalid query')
+
     def __clean_results(self, objects):
         from server.db import wigo_db
+
+        if not objects:
+            return []
 
         objects = [o for o in objects if o is not None]
         objects = self.__secure_results(objects)

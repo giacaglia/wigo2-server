@@ -25,6 +25,9 @@ logger = logging.getLogger('wigo.web')
 class EventListResource(WigoDbListResource):
     model = Event
 
+    def get_limit(self, default=10):
+        return super(EventListResource, self).get_limit(default)
+
     @user_token_required
     @check_last_modified('group', 'last_event_change')
     @api.response(200, 'Success', model=Event.to_doc_list_model(api))
