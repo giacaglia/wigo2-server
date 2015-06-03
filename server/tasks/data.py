@@ -120,7 +120,7 @@ def new_group(group_id):
 def event_related_change(group_id, event_id):
     from server.db import redis
 
-    lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=360)
+    lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=120)
     if lock.acquire(blocking=False):
         try:
             logger.debug('recording event change in group {}'.format(group_id))
@@ -170,6 +170,8 @@ def event_related_change(group_id, event_id):
                 # track the change for the group
                 p.hset(skey(group_to_add_to, 'meta'), 'last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
 
+                lock.extend(30)
+
             # execute pipeline
             p.execute()
 
@@ -197,11 +199,12 @@ def tell_friends_user_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if user.is_attending(event):
-        with user_lock(user.id):
+        with user_lock(user.id) as lock:
             for friend, score in user.friends_iter():
                 if friend.can_see_event(event):
                     event.add_to_user_attending(friend, user, score)
                     friend_attending.send(None, event=event, user=friend, friend=user)
+                    lock.extend(10)
 
 
 @agent.background_task()
@@ -211,9 +214,10 @@ def tell_friends_user_not_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if not user.is_attending(event):
-        with user_lock(user.id):
+        with user_lock(user.id) as lock:
             for friend, score in user.friends_iter():
                 event.remove_from_user_attending(friend, user)
+                lock.extend(10)
 
 
 @agent.background_task()
@@ -222,9 +226,10 @@ def tell_friends_event_message(message_id):
     message = EventMessage.find(message_id)
     user = message.user
 
-    with user_lock(user.id):
+    with user_lock(user.id) as lock:
         for friend, score in user.friends_iter():
             message.record_for_user(friend)
+            lock.extend(10)
 
 
 @agent.background_task()
@@ -238,9 +243,10 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
         'event_id': event_id
     })
 
-    with user_lock(user_id):
+    with user_lock(user_id) as lock:
         for friend, score in user.friends_iter():
             message.remove_for_user(friend)
+            lock.extend(10)
 
 
 @agent.background_task()
@@ -400,8 +406,12 @@ def user_lock(user_id, timeout=30):
     if Configuration.ENVIRONMENT != 'test':
         from server.db import redis
 
-        with redis.lock('locks:user:{}'.format(user_id), timeout=timeout):
-            yield
+        lock = redis.lock('locks:user:{}'.format(user_id), timeout=timeout)
+        if lock.acquire():
+            try:
+                yield lock
+            finally:
+                lock.release()
     else:
         yield
 
