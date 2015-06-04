@@ -194,13 +194,17 @@ class Event(WigoPersistentModel):
             num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
             num_messages = get_cached_num_messages(self.id, user.id) if self.is_expired else 10
 
+            expires = self.expires
+            if user.group_id and self.group != user.group:
+                expires = user.group.get_day_end(expires)
+
             if self.is_new is False and (num_attending == 0 or num_messages == 0):
                 self.db.sorted_set_remove(events_key, self.id)
             else:
                 distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
                                                       (user.group.latitude, user.group.longitude))
 
-                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, distance, num_attending))
+                self.db.sorted_set_add(events_key, self.id, get_score_key(expires, distance, num_attending))
                 self.db.clean_old(events_key, self.TTL)
 
         user.track_meta('last_event_change')
