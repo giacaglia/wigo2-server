@@ -190,7 +190,7 @@ def user_invited(event_id, inviter_id, invited_id):
     # make sure i am seeing all my friends attending now
     for friend, score in invited.friends_iter():
         if friend.is_attending(event):
-            event.add_to_user_attending(invited, friend, score)
+            event.add_to_user_attending(invited, friend)
 
 
 @agent.background_task()
@@ -238,7 +238,7 @@ def tell_friends_user_attending(user_id, event_id):
         with user_lock(user.id) as lock:
             for friend, score in user.friends_iter():
                 if friend.can_see_event(event):
-                    event.add_to_user_attending(friend, user, score)
+                    event.add_to_user_attending(friend, user)
                     friend_attending.send(None, event=event, user=friend, friend=user)
                     lock.extend(10)
 

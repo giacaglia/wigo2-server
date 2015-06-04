@@ -63,7 +63,6 @@ class UserResource(WigoDbResource):
 
         return super(UserResource, self).clean_data(data, mode)
 
-
     @api.response(501, 'Not implemented')
     def delete(self, model_id):
         abort(501, message='Not implemented')
@@ -413,7 +412,8 @@ class InviteListResource(WigoResource):
 
         if 'friends' in request.get_json():
             from server.tasks.data import send_friend_invites
-            num_friends = wigo_db.get_sorted_set_size(skey(g.user, 'friends'))
+
+            num_friends = wigo_db.get_sorted_set_size(skey(user, 'friends'))
             if num_friends < 25:
                 send_friend_invites(user.id, event_id)
             else:
@@ -576,4 +576,3 @@ class NotificationsResource(WigoResource):
         count, page, instances = query.execute()
 
         return self.serialize_list(self.model, instances, count, page), 200, headers
-

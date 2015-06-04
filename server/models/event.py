@@ -1,8 +1,9 @@
 from __future__ import absolute_import
 
 import logging
-from datetime import datetime, timedelta
 from decimal import Decimal
+from time import time
+from datetime import datetime, timedelta
 from geodis.location import Location
 from schematics.transforms import blacklist
 from schematics.types import LongType, StringType, IntType, DateTimeType
@@ -192,10 +193,11 @@ class Event(WigoPersistentModel):
 
         user.track_meta('last_event_change')
 
-    def add_to_user_attending(self, user, attendee, score=1):
+    def add_to_user_attending(self, user, attendee):
         # add to the users view of who is attending
+
         attendees_key = user_attendees_key(user, self)
-        self.db.sorted_set_add(attendees_key, attendee.id, score)
+        self.db.sorted_set_add(attendees_key, attendee.id, time())
         self.db.expire(attendees_key, self.ttl())
 
         # add to the users current events list
