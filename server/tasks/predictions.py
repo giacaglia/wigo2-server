@@ -137,21 +137,38 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
                 user.facebook_token_expires = token_expires
                 user.save()
 
-            next = user.get_meta('next_fb_friends_path')
             friends_to_add = []
-            for facebook_id in facebook.get_friend_ids(next):
-                try:
-                    friend = User.find(facebook_id=facebook_id)
-                    if should_suggest(friend.id):
-                        friends_to_add.append(friend.id)
-                        num_fb_recs += 1
-                        if num_fb_recs >= 100:
-                            break
 
-                except DoesNotExist:
-                    pass
+            def iterate_facebook(next=None):
+                for facebook_id in facebook.get_friend_ids(next):
+                    try:
+                        friend = User.find(facebook_id=facebook_id)
+                        if should_suggest(friend.id):
+                            yield friend.id
+                    except DoesNotExist:
+                        pass
 
-            wigo_db.sorted_set_remove_by_score(suggestions_key, 10000, '+inf')
+            # iterate fb friends, starting at last stored next token
+            next_fb_path = user.get_meta('next_fb_friends_path')
+            for friend_id in iterate_facebook(next_fb_path):
+                friends_to_add.append(friend_id)
+                num_fb_recs += 1
+                if num_fb_recs >= 100:
+                    break
+
+            # possibly rewrap the search
+            if num_fb_recs < 100 and next_fb_path:
+                # iterate again, without next, so starting at beginning
+                for friend_id in iterate_facebook():
+                    friends_to_add.append(friend_id)
+                    num_fb_recs += 1
+                    if num_fb_recs >= 100:
+                        break
+
+            # remove all the existing fb recommendations
+            p.zremrangebyscore(suggestions_key, 10000, '+inf')
+
+            # add these fb recommendations
             for friend_id in friends_to_add:
                 add_friend(friend_id, 10000)
 
