@@ -459,7 +459,8 @@ def get_num_attending(event_id, user_id=None):
 def get_score_key(time, distance, num_attending):
     if num_attending > 1000:
         num_attending = 1000
-    if distance > 100:
-        distance = 100
-    adjustment = (1 - (distance / 1000.0)) + (num_attending / 10000.0)
+
+    targets = [10, 20, 50, 100]
+    distance_bucket = next(reversed([t for t in targets if t <= distance]), None)
+    adjustment = (1 - (distance_bucket / 1000.0)) + (num_attending / 10000.0)
     return str(Decimal(epoch(time)) + Decimal(adjustment))
