@@ -15,6 +15,7 @@ import ujson
 import click
 import geodis
 
+from datetime import datetime
 from server.db import wigo_db
 from server.models.location import WigoCity
 from playhouse.dataset import DataSet
@@ -476,6 +477,25 @@ def import_predictions():
 
         if (rows % 100) == 0:
             logger.info('wrote {} records'.format(rows))
+
+
+@cli.command()
+def update_facebook_token_expirations():
+    from server.services.facebook import Facebook, FacebookTokenExpiredException
+
+    logconfig.configure('dev')
+
+    for u in User.select():
+        if u.facebook_token_expires < datetime.utcnow():
+            facebook = Facebook(u.facebook_token, u.facebook_token_expires)
+            try:
+                token_expires = facebook.get_token_expiration()
+                if token_expires and token_expires != u.facebook_token_expires:
+                    u.facebook_token_expires = token_expires
+                    u.save()
+                    print 'updated user {}'.format(u.id)
+            except FacebookTokenExpiredException:
+                pass
 
 
 if __name__ == '__main__':

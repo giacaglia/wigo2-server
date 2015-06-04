@@ -260,8 +260,11 @@ def tell_friends_about_vote(message_id, user_id):
     })
 
     if vote.message and vote.message.event:
+        message = vote.message
+        event = message.event
         for friend, score in user.friends_iter():
-            vote.record_for_user(friend)
+            if wigo_db.sorted_set_is_member(skey(friend, event, 'messages'), message.id):
+                vote.record_for_user(friend)
 
 
 @agent.background_task()
@@ -511,8 +514,8 @@ def wire_data_listeners():
             event_related_change.delay(instance.event.group_id, instance.event_id)
             tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
-            tell_friends_about_vote.delay(instance.message_id, instance.user_id)
             event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
+            # tell_friends_about_vote.delay(instance.message_id, instance.user_id)
         elif isinstance(instance, Message):
             instance.user.track_meta('last_message_change')
             instance.to_user.track_meta('last_message_change')
