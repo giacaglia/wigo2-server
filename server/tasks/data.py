@@ -117,7 +117,7 @@ def new_group(group_id):
 
 
 @agent.background_task()
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=360, result_ttl=0)
 def event_related_change(group_id, event_id):
     from server.db import redis
 
@@ -202,7 +202,7 @@ def send_friend_invites(user_id, event_id):
         return
 
     groups = {}
-    for friend in user.friends_iter():
+    for friend, score in user.friends_iter():
         if wigo_db.sorted_set_is_member(skey('event', event_id, user, 'invited'), friend.id):
             continue
 
