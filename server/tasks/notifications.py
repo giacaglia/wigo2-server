@@ -28,10 +28,7 @@ def new_user(user_id):
 
     user = User.find(user_id)
 
-    if user.facebook_token_expires < datetime.utcnow():
-        return
-
-    if user.get_custom_property('relogin') != None:
+    if user.get_custom_property('relogin') is not None:
         return
 
     facebook = Facebook(user.facebook_token, user.facebook_token_expires)

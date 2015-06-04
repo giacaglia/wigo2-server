@@ -155,6 +155,9 @@ class UserListResource(WigoResource):
     def get(self):
         text = request.args.get('text')
         if text:
+            text = text.strip()
+
+        if text and len(text) > 1:
             sql = "SELECT id FROM users WHERE "
             text = text.encode('utf-8')
 

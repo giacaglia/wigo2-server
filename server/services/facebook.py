@@ -44,6 +44,7 @@ FB_STATE_TOKEN = '34s90ifjksdd'
 class Facebook(object):
     def __init__(self, token, token_expires_in):
         self.set_token(token, token_expires_in)
+        self.next = None
 
     def set_token(self, token, token_expires_in):
         if isinstance(token_expires_in, datetime):
@@ -112,8 +113,8 @@ class Facebook(object):
         except Exception, e:
             self.handle_exception(e)
 
-    def get_friend_ids(self):
-        for fb_friend in self.iter('/me/friends?fields=installed&limit=100', timeout=600):
+    def get_friend_ids(self, start='/me/friends?fields=installed&limit=100'):
+        for fb_friend in self.iter(start, timeout=600):
             facebook_id = fb_friend.get('id')
             yield facebook_id
 
@@ -125,16 +126,19 @@ class Facebook(object):
                 results = self.session.get(urljoin('https://graph.facebook.com', path))
                 if results.status_code == 200:
                     data = results.json()
-                    if 'data' in data:
-                        data = data.get('data')
                     if data:
+                        if 'paging' in data and 'next' in data.get('paging'):
+                            next_url = data.get('paging').get('next')
+                            path = next_url[next_url.find('facebook.com/') + len('facebook.com/'):]
+                            self.next = path
+                        else:
+                            path = None
+                            self.next = None
+
+                        if 'data' in data:
+                            data = data.get('data')
                         for item in data:
                             yield item
-                    if 'paging' in data and 'next' in data.get('paging'):
-                        next_url = data.get('paging').get('next')
-                        path = next_url[next_url.find('facebook.com/') + len('facebook.com/'):]
-                    else:
-                        path = None
                 else:
                     self.raise_fb_error(results)
         except Exception, e:

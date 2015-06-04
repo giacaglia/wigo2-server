@@ -127,8 +127,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     ##################################
     # add facebook friends
 
-    if force or (not is_limited('last_facebook_check', 30) and user.facebook_token_expires > datetime.utcnow()):
-
+    if force or not is_limited('last_facebook_check', 30):
         num_fb_recs = 0
         facebook = Facebook(user.facebook_token, user.facebook_token_expires)
 
@@ -138,17 +137,28 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
                 user.facebook_token_expires = token_expires
                 user.save()
 
-            for facebook_id in facebook.get_friend_ids():
+            next = user.get_meta('next_fb_friends_path')
+            friends_to_add = []
+            for facebook_id in facebook.get_friend_ids(next):
                 try:
                     friend = User.find(facebook_id=facebook_id)
                     if should_suggest(friend.id):
-                        add_friend(friend.id, 10000)
+                        friends_to_add.append(friend.id)
                         num_fb_recs += 1
                         if num_fb_recs >= 100:
                             break
 
                 except DoesNotExist:
                     pass
+
+            wigo_db.sorted_set_remove_by_score(suggestions_key, 10000, '+inf')
+            for friend_id in friends_to_add:
+                add_friend(friend_id, 10000)
+
+            if facebook.next:
+                user.track_meta('next_fb_friends_path', facebook.next)
+            else:
+                user.remove_meta('next_fb_friends_path')
 
             user.track_meta('last_facebook_check')
         except FacebookTokenExpiredException:
