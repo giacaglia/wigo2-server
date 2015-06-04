@@ -78,6 +78,12 @@ def save_images(user_id):
                         top = crop.get('y')
                         right = left + crop.get('width')
                         bottom = top + crop.get('height')
+
+                        if width:
+                            right = min(right, width)
+                        if height:
+                            bottom = min(bottom, height)
+
                         if (left + top + right + bottom) > 0:
                             small_img_obj = small_img_obj.crop((left, top, right, bottom))
                             img['small_crop'] = crop
