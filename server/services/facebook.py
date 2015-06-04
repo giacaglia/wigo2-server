@@ -113,7 +113,9 @@ class Facebook(object):
         except Exception, e:
             self.handle_exception(e)
 
-    def get_friend_ids(self, start='/me/friends?fields=installed&limit=100'):
+    def get_friend_ids(self, start=None):
+        if not start:
+            start = '/me/friends?fields=installed&limit=100'
         for fb_friend in self.iter(start, timeout=600):
             facebook_id = fb_friend.get('id')
             yield facebook_id

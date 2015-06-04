@@ -137,7 +137,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
                 user.facebook_token_expires = token_expires
                 user.save()
 
-            friends_to_add = []
+            friends_to_add = set()
 
             def iterate_facebook(next=None):
                 for facebook_id in facebook.get_friend_ids(next):
@@ -151,7 +151,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
             # iterate fb friends, starting at last stored next token
             next_fb_path = user.get_meta('next_fb_friends_path')
             for friend_id in iterate_facebook(next_fb_path):
-                friends_to_add.append(friend_id)
+                friends_to_add.add(friend_id)
                 num_fb_recs += 1
                 if num_fb_recs >= 100:
                     break
@@ -160,7 +160,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
             if num_fb_recs < 100 and next_fb_path:
                 # iterate again, without next, so starting at beginning
                 for friend_id in iterate_facebook():
-                    friends_to_add.append(friend_id)
+                    friends_to_add.add(friend_id)
                     num_fb_recs += 1
                     if num_fb_recs >= 100:
                         break
@@ -177,6 +177,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
             else:
                 user.remove_meta('next_fb_friends_path')
 
+            logger.info('generated {} facebook friend suggestions for user {}'.format(num_fb_recs, user_id))
             user.track_meta('last_facebook_check')
         except FacebookTokenExpiredException:
             logger.warn('error finding facebook friends to suggest for user {}, token expired'.format(user_id))
