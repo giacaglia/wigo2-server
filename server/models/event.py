@@ -138,14 +138,18 @@ class Event(WigoPersistentModel):
         if group.id == self.group_id:
             distance = 0
             event_name_key = skey(group, Event, Event.event_key(self.name, group))
+            expires = self.expires
         else:
             event_name_key = None
+            # normalize the expiration of the event to the groups timezone
+            expires = group.get_day_end(self.expires)
+            # get the distance to this event
             distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
                                                   (group.latitude, group.longitude))
 
         if self.privacy == 'public':
             if event_name_key:
-                self.db.set(event_name_key, self.id, self.expires, self.expires)
+                self.db.set(event_name_key, self.id, expires, expires)
 
             num_attending = self.db.get_sorted_set_size(attendees_key)
             num_messages = get_cached_num_messages(self.id) if self.is_expired else 10
@@ -159,9 +163,9 @@ class Event(WigoPersistentModel):
             else:
                 # special scoring of verified, and verified global events
                 if self.is_verified:
-                    score = get_score_key(self.expires, 0 if self.is_global else distance, 500 + num_attending)
+                    score = get_score_key(expires, 0 if self.is_global else distance, 500 + num_attending)
                 else:
-                    score = get_score_key(self.expires, distance, num_attending)
+                    score = get_score_key(expires, distance, num_attending)
 
                 self.db.sorted_set_add(events_key, self.id, score)
                 if group.id == self.group_id and self.is_global:
