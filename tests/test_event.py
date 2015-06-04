@@ -193,14 +193,7 @@ def test_event_message_votes():
         assert wigo_db.get_sorted_set_size(skey(message_1, 'votes')) == 1
         assert wigo_db.get_sorted_set_size(skey(message_2, 'votes')) == 2
 
-        assert wigo_db.get_sorted_set_size(user_votes_key(user1, message_1)) == 1
-        assert wigo_db.get_sorted_set_size(user_votes_key(user2, message_1)) == 0
-        assert wigo_db.get_sorted_set_size(user_votes_key(user1, message_2)) == 0
-        assert wigo_db.get_sorted_set_size(user_votes_key(user2, message_2)) == 2
-
         assert EventMessage.select().event(event).by_votes().get() == message_2
-        assert EventMessage.select().event(event).user(user1).by_votes().get() == message_1
-        assert EventMessage.select().event(event).user(user2).by_votes().get() == message_2
 
         resp = api_get(c, user1, '/api/events/{}/messages/meta'.format(event_id))
         data = ujson.loads(resp.data)
@@ -208,19 +201,9 @@ def test_event_message_votes():
 
         make_friends(c, user1, user2)
 
-        assert wigo_db.get_sorted_set_size(user_votes_key(user1, message_1)) == 1
-        assert wigo_db.get_sorted_set_size(user_votes_key(user2, message_1)) == 1
-
-        assert wigo_db.get_sorted_set_size(user_votes_key(user1, message_2)) == 1
-        assert wigo_db.get_sorted_set_size(user_votes_key(user2, message_2)) == 2
-
-        assert EventMessage.select().event(event).user(user1).by_votes().get() == message_2
-        assert EventMessage.select().event(event).user(user2).by_votes().get() == message_2
-
         make_friends(c, user1, user3)
 
         resp = create_event_message_vote(c, user2, event, message_1)
         resp = create_event_message_vote(c, user3, event, message_1)
 
         assert EventMessage.select().event(event).by_votes().get() == message_1
-        assert EventMessage.select().event(event).user(user1).by_votes().get() == message_1

@@ -8,7 +8,6 @@ from time import time
 from flask import request, g
 from flask.ext.restful import abort
 from flask.ext.restplus import fields
-from geodis.location import Location
 from config import Configuration
 from server.db import wigo_db
 from server.models import skey
@@ -18,7 +17,7 @@ from server.models.user import User, Friend, Tap, Block, Invite, Message, Notifi
 from server.rdbms import slave
 from server.rest import WigoResource, WigoDbResource, WigoDbListResource, api, check_last_modified
 from server.security import user_token_required
-from utils import epoch, ValidationException
+from utils import epoch
 
 logger = logging.getLogger('wigo.web')
 
