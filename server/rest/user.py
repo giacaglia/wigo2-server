@@ -412,21 +412,12 @@ class InviteListResource(WigoResource):
         user = g.user
 
         if 'friends' in request.get_json():
-            for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
-                friend = User.find(friend_id)
-                if friend.group:
-                    distance = Location.getLatLonDistance((user.group.latitude, user.group.longitude),
-                                                          (friend.group.latitude, friend.group.longitude))
-
-                    if distance < 160:  # < 160km, 100 miles
-                        try:
-                            invite = Invite()
-                            invite.user_id = user.id
-                            invite.invited_id = friend_id
-                            invite.event_id = event_id
-                            invite.save()
-                        except ValidationException, e:
-                            logger.warn('error creating invite, {}'.format(e.message))
+            from server.tasks.data import send_friend_invites
+            num_friends = wigo_db.get_sorted_set_size(skey(g.user, 'friends'))
+            if num_friends < 25:
+                send_friend_invites(user.id, event_id)
+            else:
+                send_friend_invites.delay(user.id, event_id)
         else:
             invite = Invite()
             invite.user_id = user.id

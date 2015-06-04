@@ -9,6 +9,7 @@ from time import time, sleep
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from urlparse import urlparse
+from geodis.location import Location
 from newrelic import agent
 from redis import Redis
 from rq.decorators import job
@@ -22,7 +23,7 @@ from server.tasks import data_queue, is_new_user
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
     user_attendees_key, user_votes_key, friend_attending
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
-from utils import epoch
+from utils import epoch, ValidationException
 
 EVENT_CHANGE_TIME_BUFFER = 60
 
@@ -190,6 +191,41 @@ def user_invited(event_id, inviter_id, invited_id):
     for friend, score in invited.friends_iter():
         if friend.is_attending(event):
             event.add_to_user_attending(invited, friend, score)
+
+
+@agent.background_task()
+@job(data_queue, timeout=60, result_ttl=0)
+def send_friend_invites(user_id, event_id):
+    try:
+        user = User.find(user_id)
+    except DoesNotExist:
+        return
+
+    groups = {}
+    for friend in user.friends_iter():
+        if wigo_db.sorted_set_is_member(skey('event', event_id, user, 'invited'), friend.id):
+            continue
+
+        if friend.group_id:
+            friend_group = groups.get(friend.group_id)
+            if friend_group is None:
+                friend_group = Group.find(friend.group_id)
+                groups[friend.group_id] = friend_group
+
+            distance = Location.getLatLonDistance((user.group.latitude, user.group.longitude),
+                                                  (friend_group.latitude, friend_group.longitude))
+
+            if distance > 160:  # > 160km, 100 miles
+                continue
+
+        try:
+            invite = Invite()
+            invite.user_id = user.id
+            invite.invited_id = friend.id
+            invite.event_id = event_id
+            invite.save()
+        except ValidationException, e:
+            logger.warn('error creating invite, {}'.format(e.message))
 
 
 @agent.background_task()
