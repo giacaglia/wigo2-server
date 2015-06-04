@@ -46,6 +46,10 @@ class Event(WigoPersistentModel):
     def is_global(self):
         return self.tags and 'global' in self.tags
 
+    @property
+    def is_verified(self):
+        return self.tags and 'verified' in self.tags
+
     def ttl(self):
         if self.expires:
             # expire the event 10 days after self.expires
@@ -153,9 +157,15 @@ class Event(WigoPersistentModel):
                     self.db.sorted_set_remove(skey('global', 'events'), self.id)
 
             else:
-                score = get_score_key(self.expires, distance, num_attending)
-                self.db.sorted_set_add(events_key, self.id, score)
+                # special scoring of verified, and verified global events
+                if self.is_verified:
+                    score = get_score_key(self.expires, 0 if self.is_global else distance, 50000 + num_attending)
+                    if group.id == self.group_id and self.is_global:
+                        self.db.sorted_set_add(skey('global', 'events'), self.id, score)
+                else:
+                    score = get_score_key(self.expires, distance, num_attending)
 
+                self.db.sorted_set_add(events_key, self.id, score)
                 if group.id == self.group_id and self.is_global:
                     self.db.sorted_set_add(skey('global', 'events'), self.id, score)
 
