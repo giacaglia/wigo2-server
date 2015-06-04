@@ -252,20 +252,21 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
 @agent.background_task()
 @job(data_queue, timeout=120, result_ttl=0)
 def tell_friends_about_vote(message_id, user_id):
-    user = User.find(user_id)
-
-    vote = EventMessageVote({
-        'message_id': message_id,
-        'user_id': user_id
-    })
-
-    if vote.message and vote.message.event:
-        message = vote.message
-        event = message.event
-        for friend, score in user.friends_iter():
-            if wigo_db.sorted_set_is_member(skey(friend, event, 'messages'), message.id):
-                vote.record_for_user(friend)
-
+    pass
+    # user = User.find(user_id)
+    #
+    # vote = EventMessageVote({
+    #     'message_id': message_id,
+    #     'user_id': user_id
+    # })
+    #
+    # if vote.message and vote.message.event:
+    #     message = vote.message
+    #     event = message.event
+    #     for friend, score in user.friends_iter():
+    #         if wigo_db.sorted_set_is_member(skey(friend, event, 'messages'), message.id):
+    #             vote.record_for_user(friend)
+    #
 
 @agent.background_task()
 @job(data_queue, timeout=600, result_ttl=0)
@@ -281,14 +282,6 @@ def new_friend(user_id, friend_id):
     # tells each friend about the event history of the other
     def capture_history(u, f):
         with user_lock(f.id, 300):
-            # capture photo votes first, so when adding the photos they can be sorted by vote
-            for message in EventMessage.select().key(skey(u, 'votes')).min(min):
-                if message.user and message.event:
-                    EventMessageVote({
-                        'user_id': u.id,
-                        'message_id': message.id
-                    }).record_for_user(f)
-
             # capture each of the users posted photos
             for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
                 if message.user and message.event:

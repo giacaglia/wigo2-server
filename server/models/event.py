@@ -408,7 +408,7 @@ class EventMessageVote(WigoModel):
 
         # record the vote into the users view of votes
         # a job will take care of recording the vote for friends
-        self.record_for_user(user)
+        # self.record_for_user(user)
 
     def record_for_user(self, user):
         message = self.message
