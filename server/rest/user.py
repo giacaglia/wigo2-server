@@ -155,13 +155,15 @@ class UserListResource(WigoResource):
     def get(self):
         text = request.args.get('text')
         if text:
-            sql = "SELECT id FROM users WHERE status = 'active'"
+            sql = "SELECT id FROM users WHERE "
             text = text.encode('utf-8')
 
             params = []
             split = [('{}%%'.format(part)) for part in re.split(r'\s+', text.strip().lower())]
             for index, s in enumerate(split):
-                sql += " AND ((LOWER(first_name) LIKE %s) or (LOWER(last_name) LIKE %s))"
+                if index != 0:
+                    sql += ' AND '
+                sql += "((LOWER(first_name) LIKE %s) or (LOWER(last_name) LIKE %s))"
                 params.append(s)
                 params.append(s)
 
