@@ -87,8 +87,8 @@ def wire_parse_listeners():
     if Configuration.ENVIRONMENT != 'production':
         return
 
-    def sync_parse_listener(sender, instance, created):
-        if isinstance(instance, User):
-            sync_parse.delay(instance.id)
-
-    post_model_save.connect(sync_parse_listener, weak=False)
+    # def sync_parse_listener(sender, instance, created):
+    #     if isinstance(instance, User):
+    #         sync_parse.delay(instance.id)
+    #
+    # post_model_save.connect(sync_parse_listener, weak=False)
