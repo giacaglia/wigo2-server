@@ -84,9 +84,13 @@ def notify_unlocked(user_id):
 def notify_on_attendee(event_id, user_id):
     try:
         event = Event.find(event_id)
+        user = User.find(user_id)
         if event.owner is None:
             return
     except DoesNotExist:
+        return
+
+    if event.is_expired or not user.is_attending(event):
         return
 
     targets = [5, 10, 20, 30, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500]
@@ -120,6 +124,10 @@ def notify_on_eventmessage(message_id):
         return
 
     user = message.user
+
+    if message.event.is_expired:
+        return
+
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
     with rate_limit('notify:eventmessage:{}:{}'.format(user.id, message.event.id),
