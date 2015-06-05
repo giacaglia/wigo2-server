@@ -166,7 +166,8 @@ def initialize(create_tables=False, import_cities=False):
               value->>'first_name' first_name, value->>'last_name' last_name, value->>'gender' gender,
               data_strings.value ->> 'role'::text AS "role", value->>'status' status,
               CAST(value->>'latitude' as float) latitude,
-              CAST(value->>'longitude' as float) longitude
+              CAST(value->>'longitude' as float) longitude,
+              timestamp_cast(value->>'created') "created"
               FROM data_strings WHERE value->>'$type' = 'User';
 
            CREATE OR REPLACE VIEW groups AS
