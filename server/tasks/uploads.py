@@ -9,7 +9,7 @@ from urlparse import urlparse
 from rq.decorators import job
 from config import Configuration
 from server.tasks import images_queue
-from server.models import post_model_save
+from server.models import post_model_save, DoesNotExist
 from server.models.event import EventMessage
 
 logger = logging.getLogger('wigo.uploads')
@@ -22,7 +22,11 @@ def process_eventmessage_image(message_id):
         logger.warning('blitline not configured, ignoring thumbnail request')
         return
 
-    message = EventMessage.find(message_id)
+    try:
+        message = EventMessage.find(message_id)
+    except DoesNotExist:
+        return
+
     media = message.image if message.media_mime_type == 'video/mp4' else message.media
 
     if not media:
