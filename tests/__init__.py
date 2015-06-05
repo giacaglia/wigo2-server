@@ -40,7 +40,9 @@ def setup():
         job.perform()
 
     server.tasks.data_queue.connection = mock_redis_queue
+    server.tasks.data_priority_queue.connection = mock_redis_queue
     server.tasks.data_queue.enqueue_job = run_job
+    server.tasks.data_priority_queue.enqueue_job = run_job
     server.tasks.predictions_queue.connection = mock_redis_queue
     server.tasks.predictions_queue.enqueue_job = run_job
     server.tasks.parse_queue.connection = mock_redis_queue

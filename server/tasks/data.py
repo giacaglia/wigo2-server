@@ -19,7 +19,7 @@ from server.db import wigo_db, scheduler
 from server.models.group import Group, get_close_groups, get_all_groups
 
 from server.models.user import User, Friend, Invite, Tap, Block, Message
-from server.tasks import data_queue, is_new_user
+from server.tasks import data_queue, is_new_user, data_priority_queue
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
     user_attendees_key, user_votes_key, friend_attending
 from server.models.event import Event, EventMessage, EventMessageVote, EventAttendee
@@ -83,7 +83,7 @@ def process_waitlist():
 
 
 @agent.background_task()
-@job(data_queue, timeout=600, result_ttl=0)
+@job(data_priority_queue, timeout=600, result_ttl=0)
 def new_group(group_id):
     group = Group.find(group_id)
     logger.info('new group {} created, importing events'.format(group.name.encode('utf-8')))

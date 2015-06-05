@@ -15,6 +15,7 @@ push_queue = Queue(name='push', connection=redis, async=is_not_tests)
 parse_queue = Queue(name='parse', connection=redis, async=is_not_tests)
 predictions_queue = Queue(name='predictions', connection=redis, async=is_not_tests)
 data_queue = Queue(name='data', connection=redis, async=is_not_tests)
+data_priority_queue = Queue(name='data-priority', connection=redis, async=is_not_tests)
 
 
 def is_new_user(user, created):
