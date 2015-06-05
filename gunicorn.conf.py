@@ -3,7 +3,7 @@ import os
 bind = 'unix:/tmp/nginx.socket'
 timeout = 15
 graceful_timeout = 10
-backlog = 100
+backlog = 50
 max_requests = 0
 workers = int(os.environ.get('WEB_NUM_PROCS', 2))
 worker_class = 'gevent'

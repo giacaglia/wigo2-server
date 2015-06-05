@@ -28,6 +28,9 @@ requests.packages.urllib3.disable_warnings()
 Configuration.IS_WORKER = True
 REDIS_URL = Configuration.REDIS_URL
 
+ALL_QUEUES = ['email', 'images', 'notifications', 'push',
+              'parse', 'predictions', 'data', 'data-priority', 'scheduled']
+
 logger.info('wiring listeners')
 
 wire_notifications_listeners()
@@ -81,7 +84,7 @@ def check_queues():
             possible_issues[q.name] = 0
 
     try:
-        for q_name in QUEUES:
+        for q_name in ALL_QUEUES:
             check_queue(Queue(q_name, connection=redis), 4000, 5)
 
         f_queue = get_failed_queue(redis)
