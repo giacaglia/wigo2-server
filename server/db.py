@@ -222,10 +222,10 @@ class WigoRedisDB(WigoDB):
             return self.redis
 
     def get_expire_key(self, key):
-        expire_key = EXPIRE_KEY
         if isinstance(self.redis, RedisShardAPI):
-            expire_key = EXPIRE_KEY + '_' + self.redis.get_server_name(key)
-        return expire_key
+            return EXPIRE_KEY + '_' + self.redis.get_server_name(key)
+        else:
+            return EXPIRE_KEY
 
     def set(self, key, value, expires=None, long_term_expires=None):
         redis = self.get_redis(True)
@@ -379,27 +379,18 @@ class WigoRedisDB(WigoDB):
 
     def process_expired(self):
         num_expired = 0
-        for server_name in self.redis.connections.keys():
-            with redis.lock('locks:expire_keys_{}'.format(server_name), timeout=180):
+
+        expire_keys = ['expire', 'expire_redis_0', 'expire_redis_1',
+                       'expire_redis_2', 'expire_redis_3', 'expire_redis_4']
+
+        for expire_key in expire_keys:
+            with redis.lock('locks:{}'.format(expire_key), timeout=180):
                 while True:
-                    expire_key = EXPIRE_KEY + '_' + server_name
                     keys = self.redis.zrangebyscore(expire_key, '-inf', time(), 0, 100)
                     if keys:
                         for key in keys:
                             self.redis.delete(key)
                             self.redis.zrem(expire_key, key)
-                            num_expired += 1
-                    else:
-                        break
-
-                # TODO this can be removed once the old expire keys are cleaned
-                redis_shard = self.redis.connections.get(server_name)
-                while True:
-                    keys = redis_shard.zrangebyscore(EXPIRE_KEY, '-inf', time(), 0, 100)
-                    if keys:
-                        for key in keys:
-                            self.redis.delete(key)
-                            redis_shard.zrem(EXPIRE_KEY, key)
                             num_expired += 1
                     else:
                         break
