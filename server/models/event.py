@@ -161,13 +161,9 @@ class Event(WigoPersistentModel):
                     self.db.sorted_set_remove(skey('global', 'events'), self.id)
 
             else:
-                # special scoring of verified, and verified global events
-                if self.is_verified:
-                    score = get_score_key(expires, 0 if self.is_global else distance, 500 + num_attending)
-                else:
-                    score = get_score_key(expires, distance, num_attending)
-
+                score = get_score_key(self.expires, distance, num_attending)
                 self.db.sorted_set_add(events_key, self.id, score)
+
                 if group.id == self.group_id and self.is_global:
                     self.db.sorted_set_add(skey('global', 'events'), self.id, score)
 
