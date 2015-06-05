@@ -328,6 +328,9 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
     except DoesNotExist:
         return
 
+    if event.is_expired:
+        return
+
     rl_key = 'notify:nofa:{}:{}'.format(event_id, user_id)
     with rate_limit(rl_key, event.expires) as limited:
         if not limited:

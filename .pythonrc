@@ -12,4 +12,5 @@ from server.tasks.predictions import _do_generate_friend_recs
 from utils import epoch
 from config import Configuration
 
+Configuration.PUSH_ENABLED = False
 logconfig.configure('dev')
