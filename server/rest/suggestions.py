@@ -45,7 +45,10 @@ class UserSuggestionsResource(WigoResource):
                 delattr(u, 'score')
                 if score >= 10000:
                     score -= 10000
-                u.num_friends_in_common = int(score)
+                if score < 100000:
+                    u.num_friends_in_common = int(score)
+                else:
+                    u.num_friends_in_common = 0
             else:
                 u.num_friends_in_common = 0
 
