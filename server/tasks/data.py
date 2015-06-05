@@ -15,7 +15,7 @@ from redis import Redis
 from rq.decorators import job
 from config import Configuration
 
-from server.db import wigo_db, scheduler, redis
+from server.db import wigo_db, scheduler
 from server.models.group import Group, get_close_groups, get_all_groups
 
 from server.models.user import User, Friend, Invite, Tap, Block, Message
@@ -59,6 +59,8 @@ def new_user(user_id, score=None):
 
 
 def process_waitlist():
+    from server.db import redis
+
     while True:
         lock = redis.lock('locks:process_waitlist', timeout=600)
         if lock.acquire(blocking=False):
@@ -90,25 +92,26 @@ def new_group(group_id):
 
     min = epoch(group.get_day_end() - timedelta(days=7))
 
-    for close_group in get_close_groups(group.latitude, group.longitude, 100):
-        if close_group.id == group.id:
-            continue
-
-        for event in Event.select().group(close_group).min(min):
-            # only import the events the group actually owns
-            if event.group_id != close_group.id:
+    with wigo_db.pipeline(commit_on_select=False):
+        for close_group in get_close_groups(group.latitude, group.longitude, 100):
+            if close_group.id == group.id:
                 continue
-            # no double imports
+
+            for event in Event.select().group(close_group).min(min):
+                # only import the events the group actually owns
+                if event.group_id != close_group.id:
+                    continue
+                # no double imports
+                if event.id not in imported:
+                    event.update_global_events(group=group)
+                    imported.add(event.id)
+                    num_imported += 1
+
+        for event in Event.select().key(skey('global', 'events')).min(min):
             if event.id not in imported:
                 event.update_global_events(group=group)
                 imported.add(event.id)
                 num_imported += 1
-
-    for event in Event.select().key(skey('global', 'events')).min(min):
-        if event.id not in imported:
-            event.update_global_events(group=group)
-            imported.add(event.id)
-            num_imported += 1
 
     logger.info('imported {} events into group {}'.format(num_imported, group.name.encode('utf-8')))
     group.track_meta('last_event_change', expire=None)
@@ -125,7 +128,6 @@ def event_related_change(group_id, event_id):
     if lock.acquire(blocking=False):
         try:
             logger.debug('recording event change in group {}'.format(group_id))
-            p = wigo_db.redis.pipeline()
 
             try:
                 event = Event.find(event_id)
@@ -139,42 +141,40 @@ def event_related_change(group_id, event_id):
 
             group = Group.find(group_id)
 
-            # add to the time in case other changes come in while this lock is taken,
-            # or in case the job queues get backed up
-            p.hset(skey(group, 'meta'), 'last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
+            with wigo_db.pipeline(commit_on_select=False):
+                # add to the time in case other changes come in while this lock is taken,
+                # or in case the job queues get backed up
+                group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
 
-            if event.is_global:
-                groups_to_add_to = get_all_groups()
-            else:
-                radius = 100
-                population = group.population or 50000
-                if population < 60000:
-                    radius = 40
-                elif population < 100000:
-                    radius = 60
-
-                groups_to_add_to = get_close_groups(group.latitude, group.longitude, radius)
-
-            for group_to_add_to in groups_to_add_to:
-                if group_to_add_to.id == group.id:
-                    continue
-
-                # index this event into the close group
-                if event.deleted is False:
-                    event.update_global_events(group=group_to_add_to)
+                if event.is_global:
+                    groups_to_add_to = get_all_groups()
                 else:
-                    event.remove_index(group=group_to_add_to)
+                    radius = 100
+                    population = group.population or 50000
+                    if population < 60000:
+                        radius = 40
+                    elif population < 100000:
+                        radius = 60
 
-                # clean out old events
-                wigo_db.clean_old(skey(group_to_add_to, 'events'), Event.TTL)
+                    groups_to_add_to = get_close_groups(group.latitude, group.longitude, radius)
 
-                # track the change for the group
-                p.hset(skey(group_to_add_to, 'meta'), 'last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
+                for group_to_add_to in groups_to_add_to:
+                    if group_to_add_to.id == group.id:
+                        continue
 
-                lock.extend(30)
+                    # index this event into the close group
+                    if event.deleted is False:
+                        event.update_global_events(group=group_to_add_to)
+                    else:
+                        event.remove_index(group=group_to_add_to)
 
-            # execute pipeline
-            p.execute()
+                    # clean out old events
+                    wigo_db.clean_old(skey(group_to_add_to, 'events'), Event.TTL)
+
+                    # track the change for the group
+                    group_to_add_to.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
+
+                    lock.extend(30)
 
         finally:
             lock.release()
@@ -263,9 +263,10 @@ def tell_friends_event_message(message_id):
     user = message.user
 
     with user_lock(user.id) as lock:
-        for friend, score in user.friends_iter():
-            message.record_for_user(friend)
-            lock.extend(10)
+        with wigo_db.pipeline(commit_on_select=False):
+            for friend, score in user.friends_iter():
+                message.record_for_user(friend)
+                lock.extend(10)
 
 
 @agent.background_task()
@@ -280,9 +281,10 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
     })
 
     with user_lock(user_id) as lock:
-        for friend, score in user.friends_iter():
-            message.remove_for_user(friend)
-            lock.extend(10)
+        with wigo_db.pipeline(commit_on_select=False):
+            for friend, score in user.friends_iter():
+                message.remove_for_user(friend)
+                lock.extend(10)
 
 
 @agent.background_task()
@@ -319,9 +321,10 @@ def new_friend(user_id, friend_id):
     def capture_history(u, f):
         with user_lock(f.id, 300):
             # capture each of the users posted photos
-            for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
-                if message.user and message.event:
-                    message.record_for_user(f)
+            with wigo_db.pipeline(commit_on_select=False):
+                for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
+                    if message.user and message.event:
+                        message.record_for_user(f)
 
             # capture the events being attended
             for event in Event.select().user(u).min(min):
@@ -343,9 +346,10 @@ def delete_friend(user_id, friend_id):
 
     def delete_history(u, f):
         with user_lock(f.id, 300):
-            for message in EventMessage.select().key(skey(u, 'event_messages')):
-                if message.user and message.event:
-                    message.remove_for_user(f)
+            with wigo_db.pipeline(commit_on_select=False):
+                for message in EventMessage.select().key(skey(u, 'event_messages')):
+                    if message.user and message.event:
+                        message.remove_for_user(f)
 
             for event in Event.select().user(u):
                 if wigo_db.sorted_set_is_member(user_attendees_key(f, event), u.id):
@@ -362,11 +366,12 @@ def privacy_changed(user_id):
     with user_lock(user_id):
         user = User.find(user_id)
 
-        for friend, score in user.friends_iter():
-            if user.privacy == 'public':
-                wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
-            else:
-                wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
+        with wigo_db.pipeline(commit_on_select=False):
+            for friend, score in user.friends_iter():
+                if user.privacy == 'public':
+                    wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
+                else:
+                    wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
 
 
 @agent.background_task()
@@ -376,63 +381,64 @@ def delete_user(user_id, group_id):
 
     friend_ids = wigo_db.sorted_set_range(skey('user', user_id, 'friends'))
 
-    # remove from attendees
-    for event_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'events')):
-        wigo_db.sorted_set_remove(skey('event', event_id, 'attendees'), user_id)
+    with wigo_db.pipeline(commit_on_select=False):
+        # remove from attendees
+        for event_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'events')):
+            wigo_db.sorted_set_remove(skey('event', event_id, 'attendees'), user_id)
+            for friend_id in friend_ids:
+                wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'attendees'), user_id)
+
+        # remove event message votes
+        for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'votes')):
+            wigo_db.sorted_set_remove(skey('eventmessage', message_id, 'votes'), user_id)
+            for friend_id in friend_ids:
+                wigo_db.sorted_set_remove(user_votes_key(friend_id, message_id), user_id)
+
+        # remove event messages
+        for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'event_messages')):
+            message = EventMessage.find(message_id)
+            event_id = message.event_id
+            wigo_db.sorted_set_remove(skey('event', event_id, 'messages'), message_id)
+            wigo_db.sorted_set_remove(skey('event', event_id, 'messages', 'by_votes'), message_id)
+            for friend_id in friend_ids:
+                wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages'), message_id)
+                wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'), message_id)
+
         for friend_id in friend_ids:
-            wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'attendees'), user_id)
+            # remove conversations
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'conversations'), user_id)
+            wigo_db.delete(skey('user', friend_id, 'conversation', user_id))
+            wigo_db.delete(skey('user', user_id, 'conversation', friend_id))
 
-    # remove event message votes
-    for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'votes')):
-        wigo_db.sorted_set_remove(skey('eventmessage', message_id, 'votes'), user_id)
-        for friend_id in friend_ids:
-            wigo_db.sorted_set_remove(user_votes_key(friend_id, message_id), user_id)
+            # remove friends
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'friends'), user_id)
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'top'), user_id)
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'alpha'), user_id)
+            wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
 
-    # remove event messages
-    for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'event_messages')):
-        message = EventMessage.find(message_id)
-        event_id = message.event_id
-        wigo_db.sorted_set_remove(skey('event', event_id, 'messages'), message_id)
-        wigo_db.sorted_set_remove(skey('event', event_id, 'messages', 'by_votes'), message_id)
-        for friend_id in friend_ids:
-            wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages'), message_id)
-            wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'), message_id)
+        # remove friend requests
+        for friend_id in wigo_db.sorted_set_range(skey('user', user_id, 'friend_requested')):
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests'), user_id)
+            wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests', 'common'), user_id)
 
-    for friend_id in friend_ids:
-        # remove conversations
-        wigo_db.sorted_set_remove(skey('user', friend_id, 'conversations'), user_id)
-        wigo_db.delete(skey('user', friend_id, 'conversation', user_id))
-        wigo_db.delete(skey('user', user_id, 'conversation', friend_id))
+        # remove messages
+        for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'messages')):
+            wigo_db.delete(skey('message', message_id))
 
-        # remove friends
-        wigo_db.sorted_set_remove(skey('user', friend_id, 'friends'), user_id)
-        wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'top'), user_id)
-        wigo_db.sorted_set_remove(skey('user', friend_id, 'friends', 'alpha'), user_id)
-        wigo_db.set_remove(skey('user', friend_id, 'friends', 'private'), user_id)
-
-    # remove friend requests
-    for friend_id in wigo_db.sorted_set_range(skey('user', user_id, 'friend_requested')):
-        wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests'), user_id)
-        wigo_db.sorted_set_remove(skey('user', friend_id, 'friend_requests', 'common'), user_id)
-
-    # remove messages
-    for message_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'messages')):
-        wigo_db.delete(skey('message', message_id))
-
-    wigo_db.delete(skey('user', user_id, 'events'))
-    wigo_db.delete(skey('user', user_id, 'friends'))
-    wigo_db.delete(skey('user', user_id, 'friends', 'top'))
-    wigo_db.delete(skey('user', user_id, 'friends', 'private'))
-    wigo_db.delete(skey('user', user_id, 'friends', 'alpha'))
-    wigo_db.delete(skey('user', user_id, 'friends', 'friend_requested'))
-    wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests'))
-    wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests', 'common'))
-    wigo_db.delete(skey('user', user_id, 'blocked'))
-    wigo_db.delete(skey('user', user_id, 'notifications'))
-    wigo_db.delete(skey('user', user_id, 'conversations'))
-    wigo_db.delete(skey('user', user_id, 'tapped'))
-    wigo_db.delete(skey('user', user_id, 'votes'))
-    wigo_db.delete(skey('user', user_id, 'messages'))
+        wigo_db.delete(skey('user', user_id, 'events'))
+        wigo_db.delete(skey('user', user_id, 'friends'))
+        wigo_db.delete(skey('user', user_id, 'friends', 'top'))
+        wigo_db.delete(skey('user', user_id, 'friends', 'private'))
+        wigo_db.delete(skey('user', user_id, 'friends', 'alpha'))
+        wigo_db.delete(skey('user', user_id, 'friends', 'friend_requested'))
+        wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests'))
+        wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests', 'common'))
+        wigo_db.delete(skey('user', user_id, 'blocked'))
+        wigo_db.delete(skey('user', user_id, 'notifications'))
+        wigo_db.delete(skey('user', user_id, 'conversations'))
+        wigo_db.delete(skey('user', user_id, 'tapped'))
+        wigo_db.delete(skey('user', user_id, 'votes'))
+        wigo_db.delete(skey('user', user_id, 'messages'))
 
 
 @contextmanager

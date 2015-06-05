@@ -429,12 +429,13 @@ class WigoModel(Model):
                 raise IntegrityException('Unique contraint violation, key={}'.format(key))
 
     def index(self):
-        for key, id_value, unique, expires in self.__each_index():
-            self.db.sorted_set_add(key, id_value, self.get_index_score())
+        with self.db.pipeline(commit_on_select=False):
+            for key, id_value, unique, expires in self.__each_index():
+                self.db.sorted_set_add(key, id_value, self.get_index_score())
 
-            if expires and self.TTL:
-                self.db.clean_old(key, self.TTL)
-                self.db.expire(key, self.TTL)
+                if expires and self.TTL:
+                    self.db.clean_old(key, self.TTL)
+                    self.db.expire(key, self.TTL)
 
     def delete(self):
         pre_model_delete.send(self, instance=self)
@@ -445,8 +446,9 @@ class WigoModel(Model):
         return self
 
     def remove_index(self):
-        for key, id_value, unique, expires in self.__each_index():
-            self.db.sorted_set_remove(key, id_value)
+        with self.db.pipeline(commit_on_select=False):
+            for key, id_value, unique, expires in self.__each_index():
+                self.db.sorted_set_remove(key, id_value)
 
     def to_json(self, role=None):
         return ujson.dumps(self.to_primitive(role=role))

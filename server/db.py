@@ -183,7 +183,7 @@ class WigoRedisDB(WigoDB):
                 return msgpack.unpackb(value)
 
     @contextmanager
-    def transaction(self, commit_on_select=True):
+    def pipeline(self, commit_on_select=True):
         transaction.depth += 1
 
         old_commit_on_select = transaction.commit_on_select
