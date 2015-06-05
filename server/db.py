@@ -388,10 +388,12 @@ class WigoRedisDB(WigoDB):
                 while True:
                     keys = self.redis.zrangebyscore(expire_key, '-inf', time(), 0, 100)
                     if keys:
+                        p = self.redis.pipeline()
                         for key in keys:
-                            self.redis.delete(key)
-                            self.redis.zrem(expire_key, key)
+                            p.delete(key)
+                            p.zrem(expire_key, key)
                             num_expired += 1
+                        p.execute()
                     else:
                         break
 
