@@ -234,26 +234,27 @@ def send_friend_invites(user_id, event_id):
 
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
-def tell_friends_user_attending(user_id, event_id):
+def tell_friends_user_attending(user_id, event_id, notify=True):
     user = User.find(user_id)
     event = Event.find(event_id)
 
     if user.is_attending(event):
         for friend in user.friends_iter():
             if friend.can_see_event(event):
-                tell_friend_user_attending.delay(user_id, event_id, friend.id)
+                tell_friend_user_attending.delay(user_id, event_id, friend.id, notify)
 
 
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
-def tell_friend_user_attending(user_id, event_id, friend_id):
+def tell_friend_user_attending(user_id, event_id, friend_id, notify=True):
     user = User.find(user_id)
     event = Event.find(event_id)
     friend = User.find(friend_id)
 
     if user.is_attending(event):
         event.add_to_user_attending(friend, user)
-        friend_attending.send(None, event=event, user=friend, friend=user)
+        if notify:
+            friend_attending.send(None, event=event, user=friend, friend=user)
 
 
 @agent.background_task()
