@@ -214,10 +214,13 @@ class WigoResource(Resource):
                 for event, messages in zip(events, messages_by_event):
                     event.messages = messages
 
-        expired, current = partition(events, lambda e: e.is_expired)
         base_query = EventMessage.select().user(user_context).secure(g.user)
-        capture_messages(current, base_query.events(current))
-        capture_messages(expired, base_query.events(expired).by_votes())
+        capture_messages(events, base_query.events(events))
+
+        # expired, current = partition(events, lambda e: e.is_expired)
+        # base_query = EventMessage.select().user(user_context).secure(g.user)
+        # capture_messages(current, base_query.events(current))
+        # capture_messages(expired, base_query.events(expired).by_votes())
 
         filtered = []
         for event in events:
