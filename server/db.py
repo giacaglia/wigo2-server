@@ -223,7 +223,7 @@ class WigoRedisDB(WigoDB):
 
     def get_expire_key(self, key):
         expire_key = EXPIRE_KEY
-        if isinstance(redis, RedisShardAPI):
+        if isinstance(self.redis, RedisShardAPI):
             expire_key = EXPIRE_KEY + '_' + self.redis.get_server_name(key)
         return expire_key
 
