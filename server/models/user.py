@@ -246,7 +246,8 @@ class User(WigoPersistentModel):
     def save(self):
         privacy_changed = self.is_changed(User.privacy.name)
         saved = super(User, self).save()
-        user_privacy_change.send(self, instance=self)
+        if privacy_changed:
+            user_privacy_change.send(self, instance=self)
         return saved
 
 
