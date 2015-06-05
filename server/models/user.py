@@ -244,9 +244,10 @@ class User(WigoPersistentModel):
         wigo_db.sorted_set_incr_score(top_friends_key, user.id)
 
     def save(self):
+        is_new = self.is_new
         privacy_changed = self.is_changed(User.privacy.name)
         saved = super(User, self).save()
-        if privacy_changed:
+        if not is_new and privacy_changed:
             user_privacy_change.send(self, instance=self)
         return saved
 
