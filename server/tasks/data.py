@@ -198,7 +198,11 @@ def user_invited(event_id, inviter_id, invited_id):
 def send_friend_invites(user_id, event_id):
     try:
         user = User.find(user_id)
+        event = Event.find(event_id)
     except DoesNotExist:
+        return
+
+    if event.is_expired or not user.is_attending(event):
         return
 
     groups = {}
