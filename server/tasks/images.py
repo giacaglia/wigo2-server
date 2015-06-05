@@ -21,7 +21,7 @@ saving_images = threading.local()
 
 
 @agent.background_task()
-@job(images_queue, timeout=60, result_ttl=0)
+@job(images_queue, timeout=300, result_ttl=0)
 def save_images(user_id):
     cache = {}
 
