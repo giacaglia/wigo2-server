@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import logging
 import cPickle
+import threading
 import ujson
 import msgpack
 import shortuuid
@@ -22,6 +23,19 @@ from utils import epoch
 
 logger = logging.getLogger('wigo.db')
 EXPIRE_KEY = 'expire'
+
+
+class WigoDBTransactionContext(threading.local):
+    depth = 0
+    pipeline = None
+    commit_on_select = True
+
+    @property
+    def in_transaction(self):
+        return self.depth > 0
+
+
+transaction = WigoDBTransactionContext()
 
 
 class WigoDB(object):
@@ -168,17 +182,58 @@ class WigoRedisDB(WigoDB):
             else:
                 return msgpack.unpackb(value)
 
-    def set(self, key, value, expires=None, long_term_expires=None):
-        expires = check_expires(expires)
+    @contextmanager
+    def pipeline(self, commit_on_select=True):
+        transaction.depth += 1
 
-        result = self.redis.set(key, self.encode(value, dict))
+        old_commit_on_select = transaction.commit_on_select
+        transaction.commit_on_select = commit_on_select
+
+        if transaction.depth == 1:
+            p = self.redis.pipeline()
+            transaction.pipeline = p
+
+        try:
+            yield
+            if transaction.depth == 1:
+                transaction.pipeline.execute()
+        finally:
+            transaction.depth -= 1
+            if transaction.depth == 0:
+                transaction.pipeline = None
+                transaction.commit_on_select = True
+            else:
+                transaction.commit_on_select = old_commit_on_select
+
+    def get_redis(self, for_edit=False):
+        if transaction.in_transaction:
+            if for_edit:
+                return transaction.pipeline
+            else:
+                # commit on select
+                if transaction.commit_on_select:
+                    if isinstance(self.redis, RedisShardAPI):
+                        if transaction.pipeline.pipelines:
+                            transaction.pipeline.execute()
+                    else:
+                        transaction.pipeline.execute()
+                return self.redis
+        else:
+            return self.redis
+
+    def get_expire_key(self, key):
+        expire_key = EXPIRE_KEY
+        if isinstance(redis, RedisShardAPI):
+            expire_key = EXPIRE_KEY + '_' + self.redis.get_server_name(key)
+        return expire_key
+
+    def set(self, key, value, expires=None, long_term_expires=None):
+        redis = self.get_redis(True)
+        expires = check_expires(expires)
+        result = redis.set(key, self.encode(value, dict))
 
         if expires:
-            redis = self.redis
-            if isinstance(redis, RedisShardAPI):
-                redis = redis.get_server(key)
-
-            redis.zadd(EXPIRE_KEY, key, epoch(datetime.utcnow() + expires))
+            redis.zadd(self.get_expire_key(key), key, epoch(datetime.utcnow() + expires))
 
         if self.queued_db and long_term_expires != 0:
             self.queued_db.set(key, value, expires, long_term_expires)
@@ -186,131 +241,135 @@ class WigoRedisDB(WigoDB):
         return result
 
     def get(self, key):
-        value = self.redis.get(key)
+        value = self.get_redis().get(key)
         if value:
             value = self.decode(value, dict)
         return value
 
     def set_if_missing(self, key, value):
-        result = self.redis.setnx(key, self.encode(value, dict))
+        redis = self.get_redis(True)
+        result = redis.setnx(key, self.encode(value, dict))
         if self.queued_db:
             self.queued_db.set_if_missing(key, value)
         return result
 
     def mget(self, keys):
-        values = self.redis.mget(keys)
+        values = self.get_redis().mget(keys)
         return self.decode(values, dict)
 
     def delete(self, key):
-        result = self.redis.delete(key)
+        redis = self.get_redis(True)
+        result = redis.delete(key)
         if self.queued_db:
             self.queued_db.delete(key)
         return result
 
     def expire(self, key, expires, long_term_expires=None):
+        redis = self.get_redis(True)
         expires = check_expires(expires)
-
-        redis = self.redis
-        if isinstance(redis, RedisShardAPI):
-            redis = redis.get_server(key)
-
-        redis.zadd(EXPIRE_KEY, key, epoch(datetime.utcnow() + expires))
-
+        redis.zadd(self.get_expire_key(key), key, epoch(datetime.utcnow() + expires))
         if self.queued_db and long_term_expires:
             self.queued_db.expire(key, expires, long_term_expires)
 
     def set_add(self, key, value, dt=None, replicate=True):
-        result = self.redis.sadd(key, self.encode(value, dt))
+        redis = self.get_redis(True)
+        result = redis.sadd(key, self.encode(value, dt))
         if replicate and self.queued_db:
             self.queued_db.set_add(key, value)
         return result
 
     def set_is_member(self, key, value, dt=None):
-        return self.redis.sismember(key, self.encode(value, dt))
+        return self.get_redis().sismember(key, self.encode(value, dt))
 
     def set_members(self, key, dt=None):
-        return self.decode(self.redis.smembers(key), dt)
+        return self.decode(self.get_redis().smembers(key), dt)
 
     def get_set_size(self, key, dt=None):
-        return self.redis.scard(key)
+        return self.get_redis().scard(key)
 
     def set_remove(self, key, value, dt=None, replicate=True):
-        result = self.redis.srem(key, self.encode(value, dt))
+        redis = self.get_redis(True)
+        result = redis.srem(key, self.encode(value, dt))
         if replicate and self.queued_db:
             self.queued_db.set_remove(key, value)
         return result
 
     def sorted_set_add(self, key, value, score, dt=None, replicate=True):
-        result = self.redis.zadd(key, self.encode(value, dt), score)
+        redis = self.get_redis(True)
+        result = redis.zadd(key, self.encode(value, dt), score)
         if replicate and self.queued_db:
             self.queued_db.sorted_set_add(key, value, score)
         return result
 
     def sorted_set_get_score(self, key, value, dt=None):
-        return self.redis.zscore(key, self.encode(value, dt))
+        return self.get_redis().zscore(key, self.encode(value, dt))
 
     def sorted_set_is_member(self, key, value, dt=None):
         return self.sorted_set_get_score(key, value, dt) is not None
 
     def sorted_set_iter(self, key, count=20, dt=None):
-        for item, score in self.redis.zscan_iter(key, count=count):
+        for item, score in self.get_redis().zscan_iter(key, count=count):
             yield self.decode(item, dt), score
 
     def get_sorted_set_size(self, key, min=None, max=None, dt=None):
         if (min is None and max is None) or (min == '-inf' and max == '+inf'):
-            return self.redis.zcard(key)
+            return self.get_redis().zcard(key)
         else:
-            return self.redis.zcount(key, min, max)
+            return self.get_redis().zcount(key, min, max)
 
     def sorted_set_range(self, key, start=0, end=-1, withscores=False, dt=None):
-        results = self.redis.zrange(key, start, end, withscores=withscores)
+        results = self.get_redis().zrange(key, start, end, withscores=withscores)
         if withscores:
             return [(self.decode(v, dt), score) for v, score in results]
         else:
             return self.decode(results, dt)
 
     def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
-        results = self.redis.zrevrange(key, start, end, withscores=withscores)
+        results = self.get_redis().zrevrange(key, start, end, withscores=withscores)
         if withscores:
             return [(self.decode(v, dt), score) for v, score in results]
         else:
             return self.decode(results, dt)
 
     def sorted_set_range_by_score(self, key, min, max, start=0, limit=10, withscores=False, dt=None):
-        results = self.redis.zrangebyscore(key, min, max, start, limit, withscores=withscores)
+        results = self.get_redis().zrangebyscore(key, min, max, start, limit, withscores=withscores)
         if withscores:
             return [(self.decode(v, dt), score) for v, score in results]
         else:
             return self.decode(results, dt)
 
     def sorted_set_rrange_by_score(self, key, max, min, start=0, limit=10, withscores=False, dt=None):
-        results = self.redis.zrevrangebyscore(key, max, min, start, limit, withscores=withscores)
+        results = self.get_redis().zrevrangebyscore(key, max, min, start, limit, withscores=withscores)
         if withscores:
             return [(self.decode(v, dt), score) for v, score in results]
         else:
             return self.decode(results, dt)
 
     def sorted_set_rank(self, key, value, dt=None):
-        return self.redis.zrank(key, self.encode(value, dt))
+        return self.get_redis().zrank(key, self.encode(value, dt))
 
     def sorted_set_rrank(self, key, value, dt=None):
-        return self.redis.zrevrank(key, self.encode(value, dt))
+        return self.get_redis().zrevrank(key, self.encode(value, dt))
 
     def sorted_set_remove(self, key, value, dt=None, replicate=True):
-        result = self.redis.zrem(key, self.encode(value, dt))
+        redis = self.get_redis(True)
+        result = redis.zrem(key, self.encode(value, dt))
         if replicate and self.queued_db:
             self.queued_db.sorted_set_remove(key, value)
         return result
 
     def sorted_set_remove_by_score(self, key, min, max, dt=None):
+        redis = self.get_redis(True)
         # don't replicate remove by score to long term storage
-        return self.redis.zremrangebyscore(key, min, max)
+        return redis.zremrangebyscore(key, min, max)
 
     def sorted_set_incr_score(self, key, value, amount=1, dt=None):
-        return self.redis.zincrby(key, self.encode(value, dt), amount)
+        redis = self.get_redis(True)
+        return redis.zincrby(key, self.encode(value, dt), amount)
 
     def sorted_set_remove_by_rank(self, key, start, stop):
-        return self.redis.zremrangebyrank(key, start, stop)
+        redis = self.get_redis(True)
+        return redis.zremrangebyrank(key, start, stop)
 
     def clean_old(self, key, ttl=None):
         if ttl is None:
@@ -320,14 +379,27 @@ class WigoRedisDB(WigoDB):
 
     def process_expired(self):
         num_expired = 0
-        for redis in self.redis.connections.values():
-            with redis.lock('locks:expire_keys', timeout=180):
+        for server_name in self.redis.connections.keys():
+            with redis.lock('locks:expire_keys_{}'.format(server_name), timeout=180):
                 while True:
-                    keys = redis.zrangebyscore(EXPIRE_KEY, '-inf', time(), 0, 100)
+                    expire_key = EXPIRE_KEY + '_' + server_name
+                    keys = self.redis.zrangebyscore(expire_key, '-inf', time(), 0, 100)
                     if keys:
                         for key in keys:
-                            redis.delete(key)
-                            redis.zrem(EXPIRE_KEY, key)
+                            self.redis.delete(key)
+                            self.redis.zrem(expire_key, key)
+                            num_expired += 1
+                    else:
+                        break
+
+                # TODO this can be removed once the old expire keys are cleaned
+                redis_shard = self.redis.connections.get(server_name)
+                while True:
+                    keys = redis_shard.zrangebyscore(EXPIRE_KEY, '-inf', time(), 0, 100)
+                    if keys:
+                        for key in keys:
+                            self.redis.delete(key)
+                            redis_shard.zrem(EXPIRE_KEY, key)
                             num_expired += 1
                     else:
                         break
@@ -336,12 +408,17 @@ class WigoRedisDB(WigoDB):
             logger.info('expired {} keys'.format(num_expired))
 
 
+# noinspection PyAbstractClass
 class WigoQueuedDB(WigoDB):
     def __init__(self, redis):
         super(WigoQueuedDB, self).__init__()
         self.redis = redis
 
+    def get_redis(self):
+        return transaction.pipeline if transaction.in_transaction else self.redis
+
     def queue(self, cmd):
+        redis = self.get_redis()
         self.redis.lpush('db:queue:commands', cPickle.dumps(cmd))
 
     def set(self, key, value, expires=None, long_term_expires=None):

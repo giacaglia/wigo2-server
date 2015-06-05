@@ -119,14 +119,12 @@ class Event(WigoPersistentModel):
 
     def index(self):
         super(Event, self).index()
-        self.update_global_events()
 
-        # TODO on privacy change iterate the attendees of event and update attending
-        # TODO also the global event needs to be updated
-
-        self.db.clean_old(skey('group', self.group_id, 'events'), self.TTL)
-        if self.is_global:
-            self.db.clean_old(skey('global', 'events'), self.TTL)
+        with self.db.pipeline(commit_on_select=False):
+            self.update_global_events()
+            self.db.clean_old(skey('group', self.group_id, 'events'), self.TTL)
+            if self.is_global:
+                self.db.clean_old(skey('global', 'events'), self.TTL)
 
     def update_global_events(self, group=None):
         if group is None:
@@ -147,70 +145,76 @@ class Event(WigoPersistentModel):
             distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
                                                   (group.latitude, group.longitude))
 
-        if self.privacy == 'public':
-            if event_name_key:
-                self.db.set(event_name_key, self.id, expires, expires)
+        with self.db.pipeline(commit_on_select=False):
+            if self.privacy == 'public':
+                if event_name_key:
+                    self.db.set(event_name_key, self.id, expires, expires)
 
-            num_attending = self.db.get_sorted_set_size(attendees_key)
-            num_messages = get_cached_num_messages(self.id) if self.is_expired else 10
+                num_attending = self.db.get_sorted_set_size(attendees_key)
+                num_messages = get_cached_num_messages(self.id) if self.is_expired else 10
 
-            if self.is_new is False and self.owner_id is not None and (num_attending == 0 or num_messages == 0):
-                self.db.sorted_set_remove(events_key, self.id)
+                if self.is_new is False and self.owner_id is not None and (num_attending == 0 or num_messages == 0):
+                    self.db.sorted_set_remove(events_key, self.id)
 
-                if group.id == self.group_id and self.is_global:
-                    self.db.sorted_set_remove(skey('global', 'events'), self.id)
+                    if group.id == self.group_id and self.is_global:
+                        self.db.sorted_set_remove(skey('global', 'events'), self.id)
+
+                else:
+                    # special scoring of verified, and verified global events
+                    if self.is_verified:
+                        score = get_score_key(expires, 0 if self.is_global else distance, 500 + num_attending)
+                    else:
+                        score = get_score_key(expires, distance, num_attending)
+
+                    self.db.sorted_set_add(events_key, self.id, score)
+                    if group.id == self.group_id and self.is_global:
+                        self.db.sorted_set_add(skey('global', 'events'), self.id, score)
 
             else:
-                score = get_score_key(self.expires, distance, num_attending)
-                self.db.sorted_set_add(events_key, self.id, score)
+                # if the event is being made private, make sure it hasn't taken the name
+                if event_name_key:
+                    try:
+                        existing_event = self.find(group=group, name=self.name)
+                        if existing_event.id == self.id:
+                            self.db.delete(event_name_key)
+                    except DoesNotExist:
+                        pass
 
-                if group.id == self.group_id and self.is_global:
-                    self.db.sorted_set_add(skey('global', 'events'), self.id, score)
-
-        else:
-            # if the event is being made private, make sure it hasn't taken the name
-            if event_name_key:
-                try:
-                    existing_event = self.find(group=group, name=self.name)
-                    if existing_event.id == self.id:
-                        self.db.delete(event_name_key)
-                except DoesNotExist:
-                    pass
-
-            self.db.sorted_set_remove(events_key, self.id)
+                self.db.sorted_set_remove(events_key, self.id)
 
     def update_user_events(self, user):
         events_key = skey(user, 'events')
 
-        current_attending = user.get_attending_id(self)
-        if current_attending and current_attending == self.id:
-            self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, 1000))
-            self.db.clean_old(events_key, self.TTL)
-        else:
-            num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
-            num_messages = get_cached_num_messages(self.id, user.id) if self.is_expired else 10
-
-            expires = self.expires
-            if user.group_id and self.group != user.group:
-                expires = user.group.get_day_end(expires)
-
-            if self.is_new is False and (num_attending == 0 or num_messages == 0):
-                self.db.sorted_set_remove(events_key, self.id)
-            else:
-                distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
-                                                      (user.group.latitude, user.group.longitude))
-
-                self.db.sorted_set_add(events_key, self.id, get_score_key(expires, distance, num_attending))
+        with self.db.pipeline(commit_on_select=False):
+            current_attending = user.get_attending_id(self)
+            if current_attending and current_attending == self.id:
+                self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, 1000))
                 self.db.clean_old(events_key, self.TTL)
+            else:
+                num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
+                num_messages = get_cached_num_messages(self.id, user.id) if self.is_expired else 10
 
-        user.track_meta('last_event_change')
+                expires = self.expires
+                if user.group_id and self.group != user.group:
+                    expires = user.group.get_day_end(expires)
+
+                if self.is_new is False and (num_attending == 0 or num_messages == 0):
+                    self.db.sorted_set_remove(events_key, self.id)
+                else:
+                    distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
+                                                          (user.group.latitude, user.group.longitude))
+
+                    self.db.sorted_set_add(events_key, self.id, get_score_key(expires, distance, num_attending))
+                    self.db.clean_old(events_key, self.TTL)
+
+            user.track_meta('last_event_change')
 
     def add_to_user_attending(self, user, attendee):
         # add to the users view of who is attending
-
-        attendees_key = user_attendees_key(user, self)
-        self.db.sorted_set_add(attendees_key, attendee.id, time())
-        self.db.expire(attendees_key, self.ttl())
+        with self.db.pipeline(commit_on_select=False):
+            attendees_key = user_attendees_key(user, self)
+            self.db.sorted_set_add(attendees_key, attendee.id, time())
+            self.db.expire(attendees_key, self.ttl())
 
         # add to the users current events list
         self.update_user_events(user)
@@ -227,17 +231,18 @@ class Event(WigoPersistentModel):
         if group is None:
             group = self.group
 
-        self.db.delete(skey(self, 'attendees'))
-        self.db.delete(skey(self, 'messages'))
-        self.db.sorted_set_remove(skey(group, 'events'), self.id)
+        with self.db.pipeline(commit_on_select=False):
+            self.db.delete(skey(self, 'attendees'))
+            self.db.delete(skey(self, 'messages'))
+            self.db.sorted_set_remove(skey(group, 'events'), self.id)
 
-        if group.id == self.group_id:
-            try:
-                existing_event = self.find(group=group, name=self.name)
-                if existing_event.id == self.id:
-                    self.db.delete(skey(group, Event, Event.event_key(self.name, group)))
-            except:
-                pass
+            if group.id == self.group_id:
+                try:
+                    existing_event = self.find(group=group, name=self.name)
+                    if existing_event.id == self.id:
+                        self.db.delete(skey(group, Event, Event.event_key(self.name, group)))
+                except:
+                    pass
 
 
 class EventAttendee(WigoModel):
@@ -260,23 +265,25 @@ class EventAttendee(WigoModel):
         if current_event_id and current_event_id != event.id:
             EventAttendee({'event_id': current_event_id, 'user_id': user.id}).delete()
 
-        # first update the global state of the event
-        attendees_key = skey(event, 'attendees')
-        self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
-        self.db.expire(attendees_key, event.ttl())
-        event.update_global_events()
+        with self.db.pipeline(commit_on_select=False):
+            # first update the global state of the event
+            attendees_key = skey(event, 'attendees')
+            self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
+            self.db.expire(attendees_key, event.ttl())
 
-        # now update the users view of the events
-        # record the exact event the user is currently attending
-        user.set_attending(event)
+            # now update the users view of the events
+            # record the exact event the user is currently attending
+            user.set_attending(event)
 
-        # record current user as an attendee
-        attendees_key = user_attendees_key(user, event)
-        self.db.sorted_set_add(attendees_key, user.id, 'inf')
-        self.db.expire(attendees_key, event.ttl())
+            # record current user as an attendee
+            attendees_key = user_attendees_key(user, event)
+            self.db.sorted_set_add(attendees_key, user.id, 'inf')
+            self.db.expire(attendees_key, event.ttl())
 
         # record the event into the events the user can see
-        event.update_user_events(user)
+        with self.db.pipeline(commit_on_select=False):
+            event.update_global_events()
+            event.update_user_events(user)
 
     def remove_index(self):
         super(EventAttendee, self).remove_index()
@@ -285,15 +292,14 @@ class EventAttendee(WigoModel):
 
         # the event may have been deleted
         if event:
-            # first update the global state of the event
-            self.db.sorted_set_remove(skey(event, 'attendees'), user.id)
-            event.update_global_events()
+            with self.db.pipeline(commit_on_select=True):
+                user.remove_attending(event)
+                self.db.sorted_set_remove(skey(event, 'attendees'), user.id)
+                self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
 
-            # now update the users view of the events
-            self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
-            event.update_user_events(user)
-
-            user.remove_attending(event)
+            with self.db.pipeline(commit_on_select=True):
+                event.update_global_events()
+                event.update_user_events(user)
         else:
             user.remove_attending(event)
 
@@ -343,41 +349,45 @@ class EventMessage(WigoPersistentModel):
         event = self.event
 
         # record to the global by_votes sort
-        num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
-        sub_sort = epoch(self.created) / epoch(event.expires + timedelta(days=365))
-        by_votes_key = skey(event, 'messages', 'by_votes')
-        self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort)
-        self.db.expire(by_votes_key, self.ttl())
+        with self.db.pipeline(commit_on_select=False):
+            num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
+            sub_sort = epoch(self.created) / epoch(event.expires + timedelta(days=365))
+            by_votes_key = skey(event, 'messages', 'by_votes')
+            self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort)
+            self.db.expire(by_votes_key, self.ttl())
 
-        self.record_for_user(self.user)
+            self.record_for_user(self.user)
 
     def record_for_user(self, user):
         event = self.event
 
         # record into users list of messages by time
-        user_emessages_key = user_eventmessages_key(user, event)
-        self.db.sorted_set_add(user_emessages_key, self.id, epoch(self.created))
-        self.db.expire(user_emessages_key, self.ttl())
+        with self.db.pipeline(commit_on_select=False):
+            user_emessages_key = user_eventmessages_key(user, event)
+            self.db.sorted_set_add(user_emessages_key, self.id, epoch(self.created))
+            self.db.expire(user_emessages_key, self.ttl())
 
-        # record into users list by vote count
-        num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
-        sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
-        by_votes_key = user_eventmessages_key(user, event, True)
-        self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort, replicate=False)
-        self.db.expire(by_votes_key, self.ttl())
+            # record into users list by vote count
+            num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
+            sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
+            by_votes_key = user_eventmessages_key(user, event, True)
+            self.db.sorted_set_add(by_votes_key, self.id, num_votes + sub_sort, replicate=False)
+            self.db.expire(by_votes_key, self.ttl())
 
-        user.track_meta('last_event_change')
+            user.track_meta('last_event_change')
 
     def remove_index(self):
         super(EventMessage, self).remove_index()
-        self.db.sorted_set_remove(skey(self.event, 'messages', 'by_votes'), self.id)
-        self.remove_for_user(self.user)
+        with self.db.pipeline(commit_on_select=False):
+            self.db.sorted_set_remove(skey(self.event, 'messages', 'by_votes'), self.id)
+            self.remove_for_user(self.user)
 
     def remove_for_user(self, user):
         event = self.event
-        self.db.sorted_set_remove(user_eventmessages_key(user, event), self.id)
-        self.db.sorted_set_remove(user_eventmessages_key(user, event, True), self.id)
-        user.track_meta('last_event_change')
+        with self.db.pipeline(commit_on_select=False):
+            self.db.sorted_set_remove(user_eventmessages_key(user, event), self.id)
+            self.db.sorted_set_remove(user_eventmessages_key(user, event, True), self.id)
+            user.track_meta('last_event_change')
 
 
 class EventMessageVote(WigoModel):
@@ -414,11 +424,12 @@ class EventMessageVote(WigoModel):
         event = message.event
 
         # record the vote into the global "by_votes" sort order
-        num_votes = self.db.get_sorted_set_size(skey(message, 'votes'))
-        sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
-        by_votes = skey(event, 'messages', 'by_votes')
-        self.db.sorted_set_add(by_votes, self.message_id, num_votes + sub_sort, replicate=False)
-        self.db.expire(by_votes, self.ttl())
+        with self.db.pipeline(commit_on_select=False):
+            num_votes = self.db.get_sorted_set_size(skey(message, 'votes'))
+            sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
+            by_votes = skey(event, 'messages', 'by_votes')
+            self.db.sorted_set_add(by_votes, self.message_id, num_votes + sub_sort, replicate=False)
+            self.db.expire(by_votes, self.ttl())
 
         # record the vote into the users view of votes
         # a job will take care of recording the vote for friends
@@ -427,9 +438,11 @@ class EventMessageVote(WigoModel):
     def record_for_user(self, user):
         message = self.message
         event = message.event
-        user_votes = user_votes_key(user, self.message)
-        self.db.sorted_set_add(user_votes, self.user.id, epoch(self.created), replicate=False)
-        self.db.expire(user_votes, self.ttl())
+
+        with self.db.pipeline(commit_on_select=False):
+            user_votes = user_votes_key(user, self.message)
+            self.db.sorted_set_add(user_votes, self.user.id, epoch(self.created), replicate=False)
+            self.db.expire(user_votes, self.ttl())
 
         # this forces the message to update its indexes for the user
         message.record_for_user(user)

@@ -282,63 +282,65 @@ class Friend(WigoModel):
     def index(self):
         super(Friend, self).index()
 
-        if self.accepted:
-            def setup(u1, u2):
-                self.db.sorted_set_add(skey(u1, 'friends'), u2.id, epoch(self.created))
-                self.db.sorted_set_add(skey(u1, 'friends', 'alpha'), u2.id,
-                                       prefix_score(u2.full_name.lower()), replicate=False)
-                if u2.privacy == 'private':
-                    self.db.set_add(skey(u1, 'friends', 'private'), u2.id, replicate=False)
+        with self.db.pipeline(commit_on_select=False):
+            if self.accepted:
+                def setup(u1, u2):
+                    self.db.sorted_set_add(skey(u1, 'friends'), u2.id, epoch(self.created))
+                    self.db.sorted_set_add(skey(u1, 'friends', 'alpha'), u2.id,
+                                           prefix_score(u2.full_name.lower()), replicate=False)
+                    if u2.privacy == 'private':
+                        self.db.set_add(skey(u1, 'friends', 'private'), u2.id, replicate=False)
 
-            setup(self.user, self.friend)
-            setup(self.friend, self.user)
+                setup(self.user, self.friend)
+                setup(self.friend, self.user)
 
-            for type in ('friend_requests', 'friend_requested'):
-                self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
-                self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
+                for type in ('friend_requests', 'friend_requested'):
+                    self.db.sorted_set_remove(skey('user', self.user_id, type), self.friend_id)
+                    self.db.sorted_set_remove(skey('user', self.friend_id, type), self.user_id)
 
-        else:
-            def teardown(u1, u2):
+            else:
+                def teardown(u1, u2):
+                    self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
+                    self.db.sorted_set_remove(skey(u1, 'friends', 'top'), u2.id)
+                    self.db.sorted_set_remove(skey(u1, 'friends', 'alpha'), u2.id, replicate=False)
+                    self.db.set_remove(skey(u1, 'friends', 'private'), u2.id, replicate=False)
+
+                teardown(self.user, self.friend)
+                teardown(self.friend, self.user)
+
+                f_reqed_key = skey('user', self.user_id, 'friend_requested')
+                self.db.sorted_set_add(f_reqed_key, self.friend_id, epoch(self.created))
+
+                f_req_key = skey('user', self.friend_id, 'friend_requests')
+                self.db.sorted_set_add(f_req_key, self.user_id, epoch(self.created))
+
+                f_req_in_common_key = skey('user', self.friend_id, 'friend_requests', 'common')
+                f_in_common = self.user.get_num_friends_in_common(self.friend_id)
+                self.db.sorted_set_add(f_req_in_common_key, self.user_id, f_in_common)
+
+                # clean out old friend requests
+                self.db.clean_old(f_reqed_key, timedelta(days=30))
+                self.db.clean_old(f_req_key, timedelta(days=30))
+                self.db.clean_old(f_req_in_common_key, timedelta(days=30))
+
+    def remove_index(self):
+        super(Friend, self).remove_index()
+
+        with self.db.pipeline(commit_on_select=False):
+            def cleanup(u1, u2):
                 self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
                 self.db.sorted_set_remove(skey(u1, 'friends', 'top'), u2.id)
                 self.db.sorted_set_remove(skey(u1, 'friends', 'alpha'), u2.id, replicate=False)
                 self.db.set_remove(skey(u1, 'friends', 'private'), u2.id, replicate=False)
 
-            teardown(self.user, self.friend)
-            teardown(self.friend, self.user)
+            cleanup(self.user, self.friend)
+            cleanup(self.friend, self.user)
 
-            f_reqed_key = skey('user', self.user_id, 'friend_requested')
-            self.db.sorted_set_add(f_reqed_key, self.friend_id, epoch(self.created))
-
-            f_req_key = skey('user', self.friend_id, 'friend_requests')
-            self.db.sorted_set_add(f_req_key, self.user_id, epoch(self.created))
-
-            f_req_in_common_key = skey('user', self.friend_id, 'friend_requests', 'common')
-            f_in_common = self.user.get_num_friends_in_common(self.friend_id)
-            self.db.sorted_set_add(f_req_in_common_key, self.user_id, f_in_common)
-
-            # clean out old friend requests
-            self.db.clean_old(f_reqed_key, timedelta(days=30))
-            self.db.clean_old(f_req_key, timedelta(days=30))
-            self.db.clean_old(f_req_in_common_key, timedelta(days=30))
-
-    def remove_index(self):
-        super(Friend, self).remove_index()
-
-        def cleanup(u1, u2):
-            self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
-            self.db.sorted_set_remove(skey(u1, 'friends', 'top'), u2.id)
-            self.db.sorted_set_remove(skey(u1, 'friends', 'alpha'), u2.id, replicate=False)
-            self.db.set_remove(skey(u1, 'friends', 'private'), u2.id, replicate=False)
-
-        cleanup(self.user, self.friend)
-        cleanup(self.friend, self.user)
-
-        # clean it out of the current users friend_requests and friend_requested but
-        # leave the request on the other side of the relationship so it still seems to be pending
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requested'), self.friend_id)
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
-        self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests', 'common'), self.friend_id)
+            # clean it out of the current users friend_requests and friend_requested but
+            # leave the request on the other side of the relationship so it still seems to be pending
+            self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requested'), self.friend_id)
+            self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests'), self.friend_id)
+            self.db.sorted_set_remove(skey('user', self.user_id, 'friend_requests', 'common'), self.friend_id)
 
 
 class Tap(WigoModel):
@@ -520,14 +522,16 @@ class Message(WigoPersistentModel):
 
     def index(self):
         super(Message, self).index()
-        self.db.set(skey(self.user, 'conversation', self.to_user.id, 'last_message'), self.id)
-        self.db.set(skey(self.to_user, 'conversation', self.user.id, 'last_message'), self.id)
+        with self.db.pipeline(commit_on_select=False):
+            self.db.set(skey(self.user, 'conversation', self.to_user.id, 'last_message'), self.id)
+            self.db.set(skey(self.to_user, 'conversation', self.user.id, 'last_message'), self.id)
 
     @classmethod
     def delete_conversation(cls, user, to_user):
         from server.db import wigo_db
 
-        wigo_db.sorted_set_remove(skey(user, 'conversations'), to_user.id)
-        wigo_db.delete(skey(user, 'conversation', to_user.id))
-        user.track_meta('last_message_change')
-        to_user.track_meta('last_message_change')
+        with wigo_db.pipeline(commit_on_select=False):
+            wigo_db.sorted_set_remove(skey(user, 'conversations'), to_user.id)
+            wigo_db.delete(skey(user, 'conversation', to_user.id))
+            user.track_meta('last_message_change')
+            to_user.track_meta('last_message_change')
