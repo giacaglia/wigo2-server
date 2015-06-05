@@ -235,12 +235,21 @@ def tell_friends_user_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if user.is_attending(event):
-        with user_lock(user.id) as lock:
-            for friend, score in user.friends_iter():
-                if friend.can_see_event(event):
-                    event.add_to_user_attending(friend, user)
-                    friend_attending.send(None, event=event, user=friend, friend=user)
-                    lock.extend(10)
+        for friend, score in user.friends_iter():
+            if friend.can_see_event(event):
+                tell_friend_user_attending.delay(user_id, event_id, friend.id)
+
+
+@agent.background_task()
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friend_user_attending(user_id, event_id, friend_id):
+    user = User.find(user_id)
+    event = Event.find(event_id)
+    friend = User.find(friend_id)
+
+    if user.is_attending(event):
+        event.add_to_user_attending(friend, user)
+        friend_attending.send(None, event=event, user=friend, friend=user)
 
 
 @agent.background_task()
@@ -250,10 +259,19 @@ def tell_friends_user_not_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if not user.is_attending(event):
-        with user_lock(user.id) as lock:
-            for friend, score in user.friends_iter():
-                event.remove_from_user_attending(friend, user)
-                lock.extend(10)
+        for friend, score in user.friends_iter():
+            tell_friend_user_not_attending.delay(user_id, event_id, friend.id)
+
+
+@agent.background_task()
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friend_user_not_attending(user_id, event_id, friend_id):
+    user = User.find(user_id)
+    event = Event.find(event_id)
+    friend = User.find(friend_id)
+
+    if not user.is_attending(event):
+        event.remove_from_user_attending(friend, user)
 
 
 @agent.background_task()
@@ -303,6 +321,7 @@ def tell_friends_about_vote(message_id, user_id):
     #         if wigo_db.sorted_set_is_member(skey(friend, event, 'messages'), message.id):
     #             vote.record_for_user(friend)
     #
+
 
 @agent.background_task()
 @job(data_queue, timeout=600, result_ttl=0)

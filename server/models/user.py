@@ -151,12 +151,14 @@ class User(WigoPersistentModel):
     def friends_iter(self):
         from server.db import wigo_db
 
-        for friend_id, score in wigo_db.sorted_set_iter(skey(self, 'friends')):
-            try:
-                friend = User.find(int(friend_id))
-                yield friend, score
-            except DoesNotExist:
-                logger.info('user {} does not exist'.format(friend_id))
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = wigo_db.redis.zscan(skey(self, 'friends'), cursor=cursor, count=15)
+            friend_ids = [int(friend_id) for friend_id, score in data]
+            friends = User.find(friend_ids)
+            for friend in friends:
+                if friend:
+                    yield friend
 
     def is_tapped(self, tapped):
         tapped_id = tapped.id if isinstance(tapped, User) else tapped
