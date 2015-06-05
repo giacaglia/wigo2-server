@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import logging
+from time import sleep
 from newrelic import agent
 from playhouse.dataset import DataSet
 import predictionio
@@ -109,6 +110,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
         score = get_num_friends_in_common(suggest_id) + boost
         p.zadd(suggestions_key, suggest_id, score)
         suggested[suggest_id] = score
+        sleep(.1)
 
     #################################################
     # first clean up all the old suggestions
