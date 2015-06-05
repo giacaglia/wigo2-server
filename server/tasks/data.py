@@ -188,7 +188,7 @@ def user_invited(event_id, inviter_id, invited_id):
     invited = User.find(invited_id)
 
     # make sure i am seeing all my friends attending now
-    for friend, score in invited.friends_iter():
+    for friend in invited.friends_iter():
         if friend.is_attending(event):
             event.add_to_user_attending(invited, friend)
 
@@ -206,7 +206,7 @@ def send_friend_invites(user_id, event_id):
         return
 
     groups = {}
-    for friend, score in user.friends_iter():
+    for friend in user.friends_iter():
         if wigo_db.sorted_set_is_member(skey('event', event_id, user, 'invited'), friend.id):
             continue
 
@@ -239,7 +239,7 @@ def tell_friends_user_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if user.is_attending(event):
-        for friend, score in user.friends_iter():
+        for friend in user.friends_iter():
             if friend.can_see_event(event):
                 tell_friend_user_attending.delay(user_id, event_id, friend.id)
 
@@ -263,7 +263,7 @@ def tell_friends_user_not_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if not user.is_attending(event):
-        for friend, score in user.friends_iter():
+        for friend in user.friends_iter():
             tell_friend_user_not_attending.delay(user_id, event_id, friend.id)
 
 
@@ -279,19 +279,19 @@ def tell_friend_user_not_attending(user_id, event_id, friend_id):
 
 
 @agent.background_task()
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=120, result_ttl=0)
 def tell_friends_event_message(message_id):
     message = EventMessage.find(message_id)
     user = message.user
 
     with user_lock(user.id) as lock:
-        for friend, score in user.friends_iter():
+        for friend in user.friends_iter():
             message.record_for_user(friend)
             lock.extend(10)
 
 
 @agent.background_task()
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=120, result_ttl=0)
 def tell_friends_delete_event_message(user_id, event_id, message_id):
     user = User.find(user_id)
 
@@ -302,7 +302,7 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
     })
 
     with user_lock(user_id) as lock:
-        for friend, score in user.friends_iter():
+        for friend in user.friends_iter():
             message.remove_for_user(friend)
             lock.extend(10)
 
@@ -321,7 +321,7 @@ def tell_friends_about_vote(message_id, user_id):
     # if vote.message and vote.message.event:
     #     message = vote.message
     #     event = message.event
-    #     for friend, score in user.friends_iter():
+    #     for friend in user.friends_iter():
     #         if wigo_db.sorted_set_is_member(skey(friend, event, 'messages'), message.id):
     #             vote.record_for_user(friend)
     #
@@ -379,13 +379,13 @@ def delete_friend(user_id, friend_id):
 
 
 @agent.background_task()
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=120, result_ttl=0)
 def privacy_changed(user_id):
     # tell all friends about the privacy change
     with user_lock(user_id):
         user = User.find(user_id)
 
-        for friend, score in user.friends_iter():
+        for friend in user.friends_iter():
             if user.privacy == 'public':
                 wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
             else:
