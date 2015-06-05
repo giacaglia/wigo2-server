@@ -136,11 +136,8 @@ class Event(WigoPersistentModel):
         if group.id == self.group_id:
             distance = 0
             event_name_key = skey(group, Event, Event.event_key(self.name, group))
-            expires = self.expires
         else:
             event_name_key = None
-            # normalize the expiration of the event to the groups timezone
-            expires = group.get_day_end(self.expires)
             # get the distance to this event
             distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
                                                   (group.latitude, group.longitude))
@@ -148,7 +145,7 @@ class Event(WigoPersistentModel):
         with self.db.pipeline(commit_on_select=False):
             if self.privacy == 'public':
                 if event_name_key:
-                    self.db.set(event_name_key, self.id, expires, expires)
+                    self.db.set(event_name_key, self.id, self.expires, self.expires)
 
                 num_attending = self.db.get_sorted_set_size(attendees_key)
                 num_messages = get_cached_num_messages(self.id) if self.is_expired else 10
@@ -162,9 +159,9 @@ class Event(WigoPersistentModel):
                 else:
                     # special scoring of verified, and verified global events
                     if self.is_verified:
-                        score = get_score_key(expires, 0 if self.is_global else distance, 500 + num_attending)
+                        score = get_score_key(self.expires, 0 if self.is_global else distance, 500 + num_attending)
                     else:
-                        score = get_score_key(expires, distance, num_attending)
+                        score = get_score_key(self.expires, distance, num_attending)
 
                     self.db.sorted_set_add(events_key, self.id, score)
                     if group.id == self.group_id and self.is_global:
@@ -194,17 +191,13 @@ class Event(WigoPersistentModel):
                 num_attending = self.db.get_sorted_set_size(user_attendees_key(user, self))
                 num_messages = get_cached_num_messages(self.id, user.id) if self.is_expired else 10
 
-                expires = self.expires
-                if user.group_id and self.group != user.group:
-                    expires = user.group.get_day_end(expires)
-
                 if self.is_new is False and (num_attending == 0 or num_messages == 0):
                     self.db.sorted_set_remove(events_key, self.id)
                 else:
                     distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
                                                           (user.group.latitude, user.group.longitude))
 
-                    self.db.sorted_set_add(events_key, self.id, get_score_key(expires, distance, num_attending))
+                    self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, distance, num_attending))
                     self.db.clean_old(events_key, self.TTL)
 
             user.track_meta('last_event_change')
@@ -484,10 +477,10 @@ def get_num_attending(event_id, user_id=None):
 
 
 def get_score_key(time, distance, num_attending):
-    if num_attending > 1000:
-        num_attending = 1000
+    if num_attending > 999:
+        num_attending = 999
 
     targets = [0, 20, 50, 70, 100]
-    distance_bucket = next(reversed([t for t in targets if t <= distance]), None)
+    distance_bucket = next(reversed([t for t in targets if t <= distance]), None) + 10
     adjustment = (1 - (distance_bucket / 1000.0)) + (num_attending / 10000.0)
     return str(Decimal(epoch(time)) + Decimal(adjustment))

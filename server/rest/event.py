@@ -37,7 +37,7 @@ class EventListResource(WigoDbListResource):
 
         query = self.select().group(group)
         query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
-        query = query.max(epoch(group.get_day_end() + timedelta(minutes=10)))
+        query = query.max(epoch(group.get_day_end() + timedelta(hours=4)))
         count, page, events = query.execute()
 
         if count == 0 and group.status == 'initializing':
@@ -168,7 +168,7 @@ class UserEventListResource(WigoResource):
 
         query = self.select().user(user)
         query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
-        query = query.max(epoch(group.get_day_end() + timedelta(hours=1)))
+        query = query.max(epoch(group.get_day_end() + timedelta(hours=4)))
 
         count, page, events = query.execute()
 
