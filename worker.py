@@ -28,9 +28,6 @@ requests.packages.urllib3.disable_warnings()
 Configuration.IS_WORKER = True
 REDIS_URL = Configuration.REDIS_URL
 
-QUEUES = ['email', 'images', 'notifications', 'push',
-          'parse', 'predictions', 'data', 'data-priority', 'scheduled']
-
 logger.info('wiring listeners')
 
 wire_notifications_listeners()
