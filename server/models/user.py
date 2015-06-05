@@ -54,7 +54,7 @@ class User(WigoPersistentModel):
 
     enterprise = BooleanType(default=False, required=True)
 
-    email = EmailType()
+    email = StringType()
     email_validated = BooleanType(default=False, required=True)
     email_validated_date = DateTimeType()
     email_validated_status = StringType()
