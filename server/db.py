@@ -380,8 +380,8 @@ class WigoRedisDB(WigoDB):
     def process_expired(self):
         num_expired = 0
 
-        expire_keys = ['expire', 'expire_redis_0', 'expire_redis_1',
-                       'expire_redis_2', 'expire_redis_3', 'expire_redis_4']
+        expire_keys = ['expire']
+        expire_keys.extend(['expire_{}'.format(name) for name in self.redis.connections.keys()])
 
         for expire_key in expire_keys:
             with redis.lock('locks:{}'.format(expire_key), timeout=180):
