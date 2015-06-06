@@ -25,7 +25,7 @@ logger = logging.getLogger('wigo.web')
 class EventListResource(WigoDbListResource):
     model = Event
 
-    def get_limit(self, default=10):
+    def get_limit(self, default=5):
         return super(EventListResource, self).get_limit(default)
 
     @user_token_required
@@ -158,6 +158,9 @@ class EventResource(WigoDbResource):
 @api.route('/users/<user_id>/events/')
 class UserEventListResource(WigoResource):
     model = Event
+
+    def get_limit(self, default=5):
+        return super(UserEventListResource, self).get_limit(default)
 
     @user_token_required
     @check_last_modified('user', 'last_event_change')
