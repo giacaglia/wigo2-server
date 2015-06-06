@@ -409,7 +409,7 @@ class WigoQueuedDB(WigoDB):
         self.redis = redis
 
     def get_redis(self):
-        return transaction.pipeline if transaction.in_transaction else self.redis
+        return self.redis
 
     def queue(self, cmd):
         redis = self.get_redis()
