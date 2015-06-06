@@ -174,8 +174,8 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
             for friend_id in friends_to_add:
                 add_friend(friend_id, 10000)
 
-            if facebook.next:
-                user.track_meta('next_fb_friends_path', facebook.next)
+            if facebook.next_path:
+                user.track_meta('next_fb_friends_path', facebook.next_path)
             else:
                 user.remove_meta('next_fb_friends_path')
 

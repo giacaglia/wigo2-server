@@ -28,7 +28,7 @@ from __future__ import absolute_import
 import logging
 import socket
 import urllib
-from urlparse import urljoin, parse_qs
+from urlparse import urljoin
 from datetime import datetime
 from oauthlib.oauth2 import TokenExpiredError
 import requests
@@ -43,10 +43,6 @@ FB_STATE_TOKEN = '34s90ifjksdd'
 
 class Facebook(object):
     def __init__(self, token, token_expires_in):
-        self.set_token(token, token_expires_in)
-        self.next = None
-
-    def set_token(self, token, token_expires_in):
         if isinstance(token_expires_in, datetime):
             token_expires_in = int((token_expires_in - datetime.utcnow()).total_seconds())
 
@@ -59,6 +55,7 @@ class Facebook(object):
         })
 
         self.session = facebook_compliance_fix(self.session)
+        self.next_path = None
 
     def get_token_expiration(self):
         resp = requests.get('https://graph.facebook.com/debug_token', {
@@ -70,30 +67,6 @@ class Facebook(object):
             return datetime.utcfromtimestamp(data.get('expires_at'))
         else:
             self.raise_fb_error(resp)
-
-    def exchange_token(self):
-        try:
-            resp = self.session.get('https://graph.facebook.com/oauth/access_token', params={
-                'grant_type': 'fb_exchange_token',
-                'client_id': Configuration.FACEBOOK_APP_ID,
-                'client_secret': Configuration.FACEBOOK_APP_SECRET,
-                'fb_exchange_token': self.token
-            })
-
-            if resp.status_code == 200:
-                text = resp.text
-                parsed = parse_qs(text)
-                if 'access_token' in parsed:
-                    token = parsed.get('access_token')[0]
-                    token_expires_in = int(parsed.get('expires')[0])
-                    self.set_token(token, token_expires_in)
-                    return token, token_expires_in
-            else:
-                logger.warn('error exchanging facebook token')
-        except Exception, e:
-            logger.exception('exception exchanging facebook token')
-
-        return None, None
 
     def get(self, path, params=None):
         """ Fetches the data from facebook, and returns the nested 'data' attribute from it. """
@@ -132,10 +105,10 @@ class Facebook(object):
                         if 'paging' in data and 'next' in data.get('paging'):
                             next_url = data.get('paging').get('next')
                             path = next_url[next_url.find('facebook.com/') + len('facebook.com/'):]
-                            self.next = path
+                            self.next_path = path
                         else:
                             path = None
-                            self.next = None
+                            self.next_path = None
 
                         if 'data' in data:
                             data = data.get('data')
