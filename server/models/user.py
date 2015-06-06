@@ -12,7 +12,7 @@ from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from config import Configuration
 from server.models import WigoPersistentModel, JsonType, WigoModel, skey, user_attendees_key, \
-    user_privacy_change, field_memoize, DoesNotExist
+    user_privacy_change, field_memoize, DoesNotExist, cache_maker
 from utils import epoch, ValidationException, prefix_score, memoize
 
 logger = logging.getLogger('wigo.model')
@@ -540,3 +540,14 @@ class Message(WigoPersistentModel):
             wigo_db.delete(skey(user, 'conversation', to_user.id))
             user.track_meta('last_message_change')
             to_user.track_meta('last_message_change')
+
+
+@cache_maker.expiring_lrucache(maxsize=10000, timeout=60 * 60)
+def get_user_id_for_key(key):
+    from server.db import wigo_db
+
+    model_ids = wigo_db.sorted_set_range(skey('user', key, 'key'))
+    if model_ids:
+        return model_ids[0]
+    else:
+        raise DoesNotExist()

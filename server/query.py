@@ -494,6 +494,7 @@ class SelectQuery(object):
 
         return objects
 
+    @agent.function_trace()
     def __secure_results(self, objects):
         if self._model_class not in (User, EventAttendee, EventMessage, Message):
             return objects
@@ -523,7 +524,12 @@ class SelectQuery(object):
         if self._model_class in (User, EventAttendee):
             objects = [u for u in objects if can_see_user(u)]
         elif self._model_class == EventMessage:
-            objects = [m for m in objects if can_see_user(m.user)]
+            users = User.find([m.user_id for m in objects])
+            filtered = []
+            for index, m in enumerate(objects):
+                if can_see_user(users[index]):
+                    filtered.append(m)
+            objects = filtered
         elif self._model_class == Message:
             objects = [m for m in objects if can_see_user(m.user) and can_see_user(m.to_user)]
 

@@ -4,14 +4,12 @@ import logging
 from functools import wraps
 from flask import request, g, Response
 from flask.ext.restful import abort
-from time import time
 from datetime import datetime, timedelta
 from newrelic import agent
 
 from config import Configuration
-from server.db import wigo_db
-from server.models import DoesNotExist, skey
-from server.models.user import User
+from server.models import DoesNotExist, model_cache
+from server.models.user import User, get_user_id_for_key
 from server.models.group import Group
 
 logger = logging.getLogger('wigo.security')
@@ -36,7 +34,12 @@ def setup_user_by_token():
     user_token = request.headers.get('X-Wigo-User-Key')
     if user_token:
         try:
-            user = User.find(key=user_token)
+            user_id = get_user_id_for_key(user_token)
+
+            # the current user should always get a fresh copy of themself
+            model_cache.invalidate(user_id)
+
+            user = User.find(user_id)
             g.user = user
 
             group = getattr(g, 'group', None)

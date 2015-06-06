@@ -379,7 +379,9 @@ class WigoModel(Model):
 
             # save
             if hasattr(self, 'id'):
-                self.db.set(skey(self), self.to_primitive(), self.ttl())
+                primitive = self.to_primitive()
+                self.db.set(skey(self), primitive, self.ttl())
+                model_cache.put(self.id, primitive, self.memory_ttl())
 
             self.prepared()
             post_model_save.send(self, instance=self, created=created)
@@ -641,11 +643,7 @@ def should_check_memory_cache(model_id):
 
     from flask import g
 
-    current_user = getattr(g, 'user', None)
-    if current_user:
-        return current_user.id != model_id
-
-    return False
+    return getattr(g, 'user', None) is not None
 
 
 pre_model_save = signal('pre_model_save')
