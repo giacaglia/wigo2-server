@@ -52,8 +52,6 @@ class RegisterResource(WigoResource):
 
         properties = data.get('properties')
 
-        logger.info('attempting to register user for facebook_id {}'.format(facebook_id))
-
         if not facebook_id or not facebook_token:
             abort(400, message='Missing facebook id or token')
 
@@ -135,7 +133,7 @@ class RegisterResource(WigoResource):
         # if not user.email_validated and Configuration.PUSH_ENABLED:
         #     send_email_verification.delay(user.id)
 
-        logger.info('registered new account for user "%s"' % user.id)
+        logger.info('registered new account for user %s for facebook_id {}'.format(user.id, facebook_id))
 
         return self.serialize_list(User, [user])
 
