@@ -264,8 +264,8 @@ def tell_friends_user_not_attending(user_id, event_id):
     event = Event.find(event_id)
 
     if not user.is_attending(event):
-        for friend in user.friends_iter():
-            tell_friend_user_not_attending.delay(user_id, event_id, friend.id)
+        for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
+            tell_friend_user_not_attending.delay(user_id, event_id, friend_id)
 
 
 @agent.background_task()
@@ -280,22 +280,38 @@ def tell_friend_user_not_attending(user_id, event_id, friend_id):
 
 
 @agent.background_task()
-@job(data_queue, timeout=120, result_ttl=0)
-def tell_friends_event_message(message_id):
-    message = EventMessage.find(message_id)
-    user = message.user
-
-    with user_lock(user.id) as lock:
-        with wigo_db.pipeline(commit_on_select=False):
-            for friend in user.friends_iter():
-                message.record_for_user(friend)
-                lock.extend(10)
+@job(data_queue, timeout=300, result_ttl=0)
+def tell_friends_event_message(user_id, message_id):
+    for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
+        tell_friend_event_message.delay(message_id, friend_id)
 
 
 @agent.background_task()
-@job(data_queue, timeout=120, result_ttl=0)
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friend_event_message(message_id, friend_id):
+    try:
+        message = EventMessage.find(message_id)
+        friend = User.find(friend_id)
+    except DoesNotExist:
+        return
+
+    message.record_for_user(friend)
+
+
+@agent.background_task()
+@job(data_queue, timeout=300, result_ttl=0)
 def tell_friends_delete_event_message(user_id, event_id, message_id):
-    user = User.find(user_id)
+    for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
+        tell_friend_delete_event_message.delay(user_id, event_id, message_id, friend_id)
+
+
+@agent.background_task()
+@job(data_queue, timeout=60, result_ttl=0)
+def tell_friend_delete_event_message(user_id, event_id, message_id, friend_id):
+    try:
+        friend = User.find(friend_id)
+    except DoesNotExist:
+        return
 
     message = EventMessage({
         'id': message_id,
@@ -303,11 +319,7 @@ def tell_friends_delete_event_message(user_id, event_id, message_id):
         'event_id': event_id
     })
 
-    with user_lock(user_id) as lock:
-        with wigo_db.pipeline(commit_on_select=False):
-            for friend in user.friends_iter():
-                message.remove_for_user(friend)
-                lock.extend(10)
+    message.remove_for_user(friend)
 
 
 @agent.background_task()
@@ -426,7 +438,8 @@ def delete_user(user_id, group_id):
             wigo_db.sorted_set_remove(skey('event', event_id, 'messages', 'by_votes'), message_id)
             for friend_id in friend_ids:
                 wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages'), message_id)
-                wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'), message_id)
+                wigo_db.sorted_set_remove(skey('user', friend_id, 'event', event_id, 'messages', 'by_votes'),
+                                          message_id)
 
         for friend_id in friend_ids:
             # remove conversations
@@ -571,7 +584,7 @@ def wire_data_listeners():
             tell_friends_user_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, EventMessage):
             event_related_change.delay(instance.event.group_id, instance.event_id)
-            tell_friends_event_message.delay(instance.id)
+            tell_friends_event_message.delay(instance.user_id, instance.id)
         elif isinstance(instance, EventMessageVote):
             event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
             # tell_friends_about_vote.delay(instance.message_id, instance.user_id)
