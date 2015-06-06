@@ -31,7 +31,8 @@ class User(WigoPersistentModel):
     class Options:
         roles = {
             'www': blacklist('facebook_token', 'role', 'exchange_token',
-                             'email_validated_date', 'email_validated_status', 'enterprise',
+                             'email_validated', 'email_validated_date',
+                             'email_validated_status', 'enterprise',
                              'password', 'latitude', 'longitude', 'timezone'),
             'www-edit': blacklist('id', 'facebook_token', 'key', 'role',
                                   'group_id', 'user_id', 'exchange_token',
