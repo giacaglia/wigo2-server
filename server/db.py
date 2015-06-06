@@ -408,11 +408,7 @@ class WigoQueuedDB(WigoDB):
         super(WigoQueuedDB, self).__init__()
         self.redis = redis
 
-    def get_redis(self):
-        return self.redis
-
     def queue(self, cmd):
-        redis = self.get_redis()
         self.redis.lpush('db:queue:commands', cPickle.dumps(cmd))
 
     def set(self, key, value, expires=None, long_term_expires=None):
