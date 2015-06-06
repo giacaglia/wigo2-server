@@ -281,7 +281,12 @@ def tell_friend_user_not_attending(user_id, event_id, friend_id):
 
 @agent.background_task()
 @job(data_queue, timeout=300, result_ttl=0)
-def tell_friends_event_message(user_id, message_id):
+def tell_friends_event_message(message_id):
+    try:
+        message = EventMessage.find(message_id)
+        user_id = message.user_id
+    except:
+        return
     for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends')):
         tell_friend_event_message.delay(message_id, friend_id)
 
@@ -584,7 +589,7 @@ def wire_data_listeners():
             tell_friends_user_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, EventMessage):
             event_related_change.delay(instance.event.group_id, instance.event_id)
-            tell_friends_event_message.delay(instance.user_id, instance.id)
+            tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
             event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
             # tell_friends_about_vote.delay(instance.message_id, instance.user_id)
