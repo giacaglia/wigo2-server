@@ -8,6 +8,7 @@ from repoze.lru import CacheMaker
 from datetime import datetime, timedelta
 from time import time
 from pytz import timezone, UTC
+from schematics.transforms import blacklist
 from schematics.types import StringType, FloatType, IntType
 
 from server.db import redis
@@ -27,6 +28,16 @@ class Group(WigoPersistentModel):
         ('group:locked:{locked}', False, False),
         ('group:verified:{verified}', False, False),
     )
+
+    class Options:
+        roles = {
+            'www': blacklist('continent', 'continent_id', 'country_id',
+                             'state_id', 'city_id', 'population', 'timezone',
+                             'latitude', 'longitude'),
+            'www-edit': blacklist('id')
+        }
+        serialize_when_none = False
+
 
     code = StringType()
     name = StringType(required=True)

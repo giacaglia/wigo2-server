@@ -7,6 +7,7 @@ import ujson
 import msgpack
 import shortuuid
 
+from newrelic import agent
 from contextlib import contextmanager
 from random import randint
 from rq_scheduler import Scheduler
@@ -33,6 +34,10 @@ class WigoDBTransactionContext(threading.local):
     @property
     def in_transaction(self):
         return self.depth > 0
+
+    @agent.function_trace()
+    def commit(self):
+        self.pipeline.execute()
 
 
 transaction = WigoDBTransactionContext()
@@ -196,7 +201,7 @@ class WigoRedisDB(WigoDB):
         try:
             yield
             if transaction.depth == 1:
-                transaction.pipeline.execute()
+                transaction.commit()
         finally:
             transaction.depth -= 1
             if transaction.depth == 0:
@@ -212,11 +217,7 @@ class WigoRedisDB(WigoDB):
             else:
                 # commit on select
                 if transaction.commit_on_select:
-                    if isinstance(self.redis, RedisShardAPI):
-                        if transaction.pipeline.pipelines:
-                            transaction.pipeline.execute()
-                    else:
-                        transaction.pipeline.execute()
+                    transaction.commit()
                 return self.redis
         else:
             return self.redis
