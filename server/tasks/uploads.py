@@ -27,7 +27,15 @@ def process_eventmessage_image(message_id):
     except DoesNotExist:
         return
 
-    media = message.image if message.media_mime_type == 'video/mp4' else message.media
+    if message.media_mime_type == 'video/mp4':
+        media = message.image
+        if media is None and message.thumbnail:
+            media = message.thumbnail
+            message.image = media
+            message.thumbnail = None
+            message.save()
+    else:
+        media = message.media
 
     if not media:
         return
