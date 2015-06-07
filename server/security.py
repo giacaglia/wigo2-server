@@ -9,7 +9,7 @@ from newrelic import agent
 
 from config import Configuration
 from server.models import DoesNotExist, model_cache
-from server.models.user import User, get_user_id_for_key
+from server.models.user import User, get_user_id_for_key, user_lock
 from server.models.group import Group
 
 logger = logging.getLogger('wigo.security')
@@ -23,7 +23,11 @@ def user_token_required(fn):
             setup_user_by_token()
             user = getattr(g, 'user', None)
         if user:
-            return fn(*args, **kwargs)
+            if request.method in ('POST', 'PUT', 'DELETE'):
+                with user_lock(user.id, timeout=15):
+                    return fn(*args, **kwargs)
+            else:
+                return fn(*args, **kwargs)
         else:
             abort(403, message='Unauthorized')
 

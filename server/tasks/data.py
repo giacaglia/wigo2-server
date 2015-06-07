@@ -7,7 +7,6 @@ from random import randint
 from threading import Thread
 from time import time, sleep
 from datetime import datetime, timedelta
-from contextlib import contextmanager
 from urlparse import urlparse
 from geodis.location import Location
 from newrelic import agent
@@ -18,7 +17,7 @@ from config import Configuration
 from server.db import wigo_db, scheduler
 from server.models.group import Group, get_close_groups, get_all_groups
 
-from server.models.user import User, Friend, Invite, Tap, Block, Message
+from server.models.user import User, Friend, Invite, Tap, Block, Message, user_lock
 from server.tasks import data_queue, is_new_user, data_priority_queue
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
     user_attendees_key, user_votes_key, friend_attending
@@ -360,17 +359,16 @@ def new_friend(user_id, friend_id):
 
     # tells each friend about the event history of the other
     def capture_history(u, f):
-        with user_lock(f.id, 300):
-            # capture each of the users posted photos
-            with wigo_db.pipeline(commit_on_select=False):
-                for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
-                    if message.user and message.event:
-                        message.record_for_user(f)
+        # capture each of the users posted photos
+        with wigo_db.pipeline(commit_on_select=False):
+            for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
+                if message.user and message.event:
+                    message.record_for_user(f)
 
-            # capture the events being attended
-            for event in Event.select().user(u).min(min):
-                if u.is_attending(event) and f.can_see_event(event):
-                    event.add_to_user_attending(f, u)
+        # capture the events being attended
+        for event in Event.select().user(u).min(min):
+            if u.is_attending(event) and f.can_see_event(event):
+                event.add_to_user_attending(f, u)
 
     capture_history(user, friend)
     capture_history(friend, user)
@@ -386,15 +384,14 @@ def delete_friend(user_id, friend_id):
         return
 
     def delete_history(u, f):
-        with user_lock(f.id, 300):
-            with wigo_db.pipeline(commit_on_select=False):
-                for message in EventMessage.select().key(skey(u, 'event_messages')):
-                    if message.user and message.event:
-                        message.remove_for_user(f)
+        with wigo_db.pipeline(commit_on_select=False):
+            for message in EventMessage.select().key(skey(u, 'event_messages')):
+                if message.user and message.event:
+                    message.remove_for_user(f)
 
-            for event in Event.select().user(u):
-                if wigo_db.sorted_set_is_member(user_attendees_key(f, event), u.id):
-                    event.remove_from_user_attending(f, u)
+        for event in Event.select().user(u):
+            if wigo_db.sorted_set_is_member(user_attendees_key(f, event), u.id):
+                event.remove_from_user_attending(f, u)
 
     delete_history(user, friend)
     delete_history(friend, user)
@@ -404,15 +401,14 @@ def delete_friend(user_id, friend_id):
 @job(data_queue, timeout=120, result_ttl=0)
 def privacy_changed(user_id):
     # tell all friends about the privacy change
-    with user_lock(user_id):
-        user = User.find(user_id)
+    user = User.find(user_id)
 
-        with wigo_db.pipeline(commit_on_select=False):
-            for friend in user.friends_iter():
-                if user.privacy == 'public':
-                    wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
-                else:
-                    wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
+    with wigo_db.pipeline(commit_on_select=False):
+        for friend in user.friends_iter():
+            if user.privacy == 'public':
+                wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
+            else:
+                wigo_db.set_add(skey(friend, 'friends', 'private'), user_id)
 
 
 @agent.background_task()
@@ -481,21 +477,6 @@ def delete_user(user_id, group_id):
         wigo_db.delete(skey('user', user_id, 'tapped'))
         wigo_db.delete(skey('user', user_id, 'votes'))
         wigo_db.delete(skey('user', user_id, 'messages'))
-
-
-@contextmanager
-def user_lock(user_id, timeout=30):
-    if Configuration.ENVIRONMENT != 'test':
-        from server.db import redis
-
-        lock = redis.lock('locks:user:{}'.format(user_id), timeout=timeout)
-        if lock.acquire():
-            try:
-                yield lock
-            finally:
-                lock.release()
-    else:
-        yield
 
 
 @agent.background_task()

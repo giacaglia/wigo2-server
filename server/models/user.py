@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from contextlib import contextmanager
 
 import logging
 
@@ -551,3 +552,22 @@ def get_user_id_for_key(key):
         return model_ids[0]
     else:
         raise DoesNotExist()
+
+
+@contextmanager
+def user_lock(user_id, timeout=30, yield_on_blocking_timeout=True):
+    if Configuration.ENVIRONMENT != 'test':
+        from server.db import redis
+
+        lock = redis.lock('locks:user:{}'.format(user_id), timeout=timeout)
+        if lock.acquire(blocking=True, blocking_timeout=5):
+            try:
+                yield
+            finally:
+                lock.release()
+        elif yield_on_blocking_timeout:
+            yield
+    else:
+        yield
+
+
