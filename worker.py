@@ -70,13 +70,14 @@ def process_expired():
     wigo_db.process_expired()
 
 
-def check_queues():
-    possible_issues = defaultdict(int)
+possible_issues = defaultdict(int)
 
+
+def check_queues():
     def check_queue(q, threshold_size, iterations):
-        if q.count > threshold_size:
+        if q.count >= threshold_size:
             possible_issues[q.name] += 1
-            if possible_issues[q.name] > iterations:
+            if possible_issues[q.name] >= iterations:
                 logger.ops_alert('queue {name} has {num} items, '
                                  'possible issue'.format(name=q.name, num=q.count))
                 possible_issues[q.name] = 0
