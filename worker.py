@@ -8,7 +8,6 @@ logconfig.configure(Configuration.ENVIRONMENT)
 import requests
 import logging
 from time import sleep
-from datetime import datetime, timedelta
 from threading import Thread
 from collections import defaultdict
 from rq import get_failed_queue, Queue
@@ -47,61 +46,51 @@ class SchedulerThread(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.daemon = True
+        self.possible_issues = defaultdict(int)
 
     def run(self):
-        logger.info('running rq scheduler')
+        logger.info('running scheduled tasks')
         while True:
-            with redis.lock('locks:schedule_jobs', timeout=30):
+            with redis.lock('locks:run_schedule', timeout=30):
                 scheduler.enqueue_jobs()
+
+                try:
+                    logger.info('processing waitlist')
+                    process_waitlist()
+                except:
+                    logger.exception('error processing waitlist')
+
+                try:
+                    logger.info('processing expired')
+                    wigo_db.process_expired()
+                except:
+                    logger.exception('error processing expired')
+
+                try:
+                    for q_name in ALL_QUEUES:
+                        self.check_queue(Queue(q_name, connection=redis), 4000, 5)
+                    f_queue = get_failed_queue(redis)
+                    self.check_queue(f_queue, 20, 10)
+                except:
+                    logger.exception('error checking queues')
+
             sleep(10)
+
+    def check_queue(self, q, threshold_size, iterations):
+        if q.count >= threshold_size:
+            self.possible_issues[q.name] += 1
+            if self.possible_issues[q.name] >= iterations:
+                logger.ops_alert('queue {name} has {num} items, '
+                                 'possible issue'.format(name=q.name, num=q.count))
+                self.possible_issues[q.name] = 0
+        else:
+            self.possible_issues[q.name] = 0
 
 # clear any pre-existing scheduled jobs
 jobs = scheduler.get_jobs()
 for job in jobs:
     if job.meta.get('interval'):
         scheduler.cancel(job)
-
-# schedule job to process the user wait list
-scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
-                   process_waitlist, interval=60, timeout=600)
-
-
-def process_expired():
-    wigo_db.process_expired()
-
-
-possible_issues = defaultdict(int)
-
-
-def check_queues():
-    def check_queue(q, threshold_size, iterations):
-        if q.count >= threshold_size:
-            possible_issues[q.name] += 1
-            if possible_issues[q.name] >= iterations:
-                logger.ops_alert('queue {name} has {num} items, '
-                                 'possible issue'.format(name=q.name, num=q.count))
-                possible_issues[q.name] = 0
-        else:
-            possible_issues[q.name] = 0
-
-    try:
-        for q_name in ALL_QUEUES:
-            check_queue(Queue(q_name, connection=redis), 4000, 5)
-
-        f_queue = get_failed_queue(redis)
-        check_queue(f_queue, 20, 10)
-
-    except:
-        logger.exception('error checking queues')
-
-# schedule job to expire redis keys
-scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
-                   process_expired, interval=60, timeout=600)
-
-
-# schedule job to check the queues
-scheduler.schedule(datetime.utcnow() + timedelta(seconds=10),
-                   check_queues, interval=60, timeout=600)
 
 # start schedule processor
 thread = SchedulerThread()
