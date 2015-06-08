@@ -212,7 +212,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     ##################################
     # add via prediction io
 
-    if False and len(suggested) < 50 and not is_limited('last_pio_check', ttl=60):
+    if Configuration.PREDICTION_IO_ENABLED and len(suggested) < 50 and not is_limited('last_pio_check', ttl=60):
         try:
             # flesh out the rest via prediction io
             engine_client = predictionio.EngineClient(
@@ -280,7 +280,23 @@ def wire_predictions_listeners():
         if isinstance(instance, User):
             if is_new_user(instance, created):
                 generate_friend_recs(instance, force=True)
+        elif isinstance(instance, Tap):
+            if Configuration.PREDICTION_IO_ENABLED:
+                capture_interaction.delay(instance.user_id, instance.tapped_id, instance.created)
+        elif isinstance(instance, Message):
+            if Configuration.PREDICTION_IO_ENABLED:
+                capture_interaction.delay(instance.user_id, instance.to_user_id, instance.created)
+        elif isinstance(instance, Invite):
+            if Configuration.PREDICTION_IO_ENABLED:
+                capture_interaction.delay(instance.user_id, instance.invited_id, instance.created)
         elif isinstance(instance, Friend) and instance.accepted:
+            if Configuration.PREDICTION_IO_ENABLED:
+                capture_interaction.delay(instance.user_id, instance.friend_id, instance.created, action='view')
+                capture_interaction.delay(instance.friend_id, instance.user_id, instance.created, action='view')
+
+                capture_interaction.delay(instance.user_id, instance.friend_id, instance.created, action='buy')
+                capture_interaction.delay(instance.friend_id, instance.user_id, instance.created, action='buy')
+
             generate_friend_recs(instance.user)
             generate_friend_recs(instance.friend)
 

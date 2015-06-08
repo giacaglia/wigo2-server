@@ -13,6 +13,7 @@ from config import Configuration
 Configuration.ENVIRONMENT = 'test'
 Configuration.PUSH_ENABLED = False
 Configuration.REDIS_URL = 'redis://localhost:9999'
+Configuration.PREDICTION_IO_ENABLED = False
 
 NEXT_ID = 1
 patches = []

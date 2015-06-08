@@ -65,11 +65,6 @@ def setup_user_by_token():
                 if user.modified <= (datetime.utcnow() - timedelta(minutes=30)):
                     user.latitude = round(g.latitude, 3)
                     user.longitude = round(g.longitude, 3)
-            else:
-                if not user.latitude:
-                    user.latitude = group.latitude
-                if not user.longitude:
-                    user.longitude = group.longitude
 
             platform = request.headers.get('X-Wigo-Device')
             if not platform:
