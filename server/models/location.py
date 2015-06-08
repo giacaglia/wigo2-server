@@ -21,7 +21,7 @@ class WigoLocation(Location):
     def get_by_radius(cls, lat, lon, radius=50):
         from server.db import redis
 
-        ids = cls._keys['geoname'].getIds(redis, lat=lat, lon=lon, radius=radius, store=True)
+        ids = cls._keys['geoname'].getIds(redis, lat=lat, lon=lon, radius=radius)
         p = redis.pipeline(False)
         [p.hgetall(id[0]) for id in ids]
         rx = p.execute()
