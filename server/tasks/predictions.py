@@ -289,7 +289,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
                 if num_randoms_checked > 25:
                     return
 
-    if len(suggested < 20):
+    if len(suggested) < 20:
         suggest_randoms()
 
     p.execute()
