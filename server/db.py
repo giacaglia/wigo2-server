@@ -401,6 +401,10 @@ class WigoRedisDB(WigoDB):
         if num_expired > 0:
             logger.info('expired {} keys'.format(num_expired))
 
+        # also cleanup old rate limits
+        for rl_key in ['rate_limits_{}'.format(name) for name in self.redis.connections.keys()]:
+            self.sorted_set_remove_by_score(rl_key, '-inf', time()-1)
+
 
 # noinspection PyAbstractClass
 class WigoQueuedDB(WigoDB):
@@ -662,26 +666,33 @@ def get_range_val(val):
 
 
 @contextmanager
-def rate_limit(key, expires, timeout=30):
+def rate_limit(key, expires, lock_timeout=30):
     if Configuration.ENVIRONMENT in ('dev', 'test'):
         yield False
     else:
+        # TODO this is legacy and can be removed at some point
+        if redis.exists('rate_limit:{}'.format(key)):
+            yield True
+            return
+
         if isinstance(expires, datetime):
             expires = expires - datetime.utcnow()
 
-        if not key.startswith('rate_limit:'):
-            key = 'rate_limit:{}'.format(key)
-        if redis.exists(key):
+        rate_limit_set = 'rate_limits_{}'.format(wigo_db.redis.get_server_name(key))
+        score = wigo_db.sorted_set_get_score(rate_limit_set, key)
+
+        if score and float(score) > time():
             yield True
         else:
-            lock = redis.lock('locks:{}'.format(key), timeout=timeout)
+            lock = redis.lock('locks:{}'.format(key), timeout=lock_timeout)
             if lock.acquire(blocking=False):
-                if redis.exists(key):
+                score = wigo_db.sorted_set_get_score(rate_limit_set, key)
+                if score and float(score) > time():
                     yield True
                 else:
                     try:
                         yield False
-                        redis.setex(key, True, expires)
+                        wigo_db.sorted_set_add(rate_limit_set, key, epoch(datetime.utcnow() + expires))
                     finally:
                         lock.release()
             else:
