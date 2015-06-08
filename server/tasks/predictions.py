@@ -9,6 +9,7 @@ from datetime import timedelta, datetime
 from pytz import UTC, timezone
 from rq.decorators import job
 from server.db import wigo_db, rate_limit
+from server.models.group import get_close_groups
 from server.services.facebook import Facebook, FacebookTokenExpiredException
 from server.tasks import predictions_queue, is_new_user
 from server.models import post_model_save, skey, DoesNotExist
@@ -261,6 +262,35 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
                     add_friend(suggest_id)
                     if len(suggested) >= num_friends_to_recommend:
                         break
+
+    ####################################
+    # Add randoms
+
+    def suggest_randoms():
+        num_randoms_checked = 0
+        for close_group in get_close_groups(user.group.latitude, user.group.longitude, 20):
+            for suggest_id, score in wigo_db.sorted_set_iter(skey(close_group, 'users')):
+                if should_suggest(suggest_id):
+                    add_friend(suggest_id)
+                    if len(suggested) >= num_friends_to_recommend:
+                        return
+                num_randoms_checked += 1
+                if num_randoms_checked > 25:
+                    return
+
+        if len(suggested) < 20:
+            num_randoms_checked = 0
+            for suggest_id, score in wigo_db.sorted_set_iter('user'):
+                if should_suggest(suggest_id):
+                    add_friend(suggest_id)
+                    if len(suggested) >= num_friends_to_recommend:
+                        return
+                num_randoms_checked += 1
+                if num_randoms_checked > 25:
+                    return
+
+    if len(suggested < 20):
+        suggest_randoms()
 
     p.execute()
 
