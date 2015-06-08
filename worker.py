@@ -55,13 +55,11 @@ class SchedulerThread(Thread):
                 scheduler.enqueue_jobs()
 
                 try:
-                    logger.info('processing waitlist')
                     process_waitlist()
                 except:
                     logger.exception('error processing waitlist')
 
                 try:
-                    logger.info('processing expired')
                     wigo_db.process_expired()
                 except:
                     logger.exception('error processing expired')
