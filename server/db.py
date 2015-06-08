@@ -403,7 +403,7 @@ class WigoRedisDB(WigoDB):
 
         # also cleanup old rate limits
         for rl_key in ['rate_limits_{}'.format(name) for name in self.redis.connections.keys()]:
-            self.sorted_set_remove_by_score(rl_key, '-inf', time()-1)
+            self.sorted_set_remove_by_score(rl_key, '-inf', time())
 
 
 # noinspection PyAbstractClass
