@@ -252,7 +252,7 @@ class SelectQuery(object):
 
         if self._model_class == Event and self._group:
             if min is None:
-                min = epoch(datetime.utcnow() - timedelta(days=7))
+                min = epoch(self._group.get_day_start() - timedelta(days=7))
             if max is None:
                 # add 1 hour to account for sub-scoring
                 max = epoch(self._group.get_day_end() + timedelta(hours=1))
@@ -472,7 +472,7 @@ class SelectQuery(object):
         objects = [o for o in objects if o is not None]
         objects = self.__secure_results(objects)
 
-        if self._model_class == Event:
+        if self._model_class == Event and (self._user or self._group):
             events = []
             for e in objects:
                 if e.is_expired:

@@ -325,7 +325,7 @@ class WigoRedisDB(WigoDB):
         else:
             return self.decode(results, dt)
 
-    def sorted_set_rrange(self, key, start, end, withscores=False, dt=None):
+    def sorted_set_rrange(self, key, start=0, end=-1, withscores=False, dt=None):
         results = self.get_redis().zrevrange(key, start, end, withscores=withscores)
         if withscores:
             return [(self.decode(v, dt), score) for v, score in results]
