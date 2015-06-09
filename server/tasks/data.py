@@ -182,9 +182,12 @@ def event_related_change(group_id, event_id):
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def user_invited(event_id, inviter_id, invited_id):
-    event = Event.find(event_id)
-    inviter = User.find(inviter_id)
-    invited = User.find(invited_id)
+    try:
+        event = Event.find(event_id)
+        inviter = User.find(inviter_id)
+        invited = User.find(invited_id)
+    except DoesNotExist:
+        return
 
     # make sure i am seeing all my friends attending now
     for friend in invited.friends_iter():
@@ -234,8 +237,11 @@ def send_friend_invites(user_id, event_id):
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_user_attending(user_id, event_id, notify=True):
-    user = User.find(user_id)
-    event = Event.find(event_id)
+    try:
+        user = User.find(user_id)
+        event = Event.find(event_id)
+    except DoesNotExist:
+        return
 
     if user.is_attending(event):
         for friend in user.friends_iter():
@@ -246,9 +252,12 @@ def tell_friends_user_attending(user_id, event_id, notify=True):
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friend_user_attending(user_id, event_id, friend_id, notify=True):
-    user = User.find(user_id)
-    event = Event.find(event_id)
-    friend = User.find(friend_id)
+    try:
+        user = User.find(user_id)
+        event = Event.find(event_id)
+        friend = User.find(friend_id)
+    except DoesNotExist:
+        return
 
     if user.is_attending(event):
         event.add_to_user_attending(friend, user)
@@ -259,8 +268,11 @@ def tell_friend_user_attending(user_id, event_id, friend_id, notify=True):
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friends_user_not_attending(user_id, event_id):
-    user = User.find(user_id)
-    event = Event.find(event_id)
+    try:
+        user = User.find(user_id)
+        event = Event.find(event_id)
+    except DoesNotExist:
+        return
 
     if not user.is_attending(event):
         for friend_id, score in wigo_db.sorted_set_iter(skey(user, 'friends')):
@@ -270,9 +282,12 @@ def tell_friends_user_not_attending(user_id, event_id):
 @agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def tell_friend_user_not_attending(user_id, event_id, friend_id):
-    user = User.find(user_id)
-    event = Event.find(event_id)
-    friend = User.find(friend_id)
+    try:
+        user = User.find(user_id)
+        event = Event.find(event_id)
+        friend = User.find(friend_id)
+    except DoesNotExist:
+        return
 
     if not user.is_attending(event):
         event.remove_from_user_attending(friend, user)
