@@ -13,7 +13,7 @@ from collections import defaultdict
 from rq import get_failed_queue, Queue
 
 from server.db import redis, scheduler, wigo_db
-from server.tasks.data import wire_data_listeners, process_waitlist
+from server.tasks.data import wire_data_listeners, process_waitlist, clean_old_events
 from server.tasks.parse import wire_parse_listeners
 from server.tasks.predictions import wire_predictions_listeners
 from server.tasks.uploads import wire_uploads_listeners
@@ -51,28 +51,41 @@ class SchedulerThread(Thread):
     def run(self):
         logger.info('running scheduled tasks')
         while True:
-            with redis.lock('locks:run_schedule', timeout=30):
-                scheduler.enqueue_jobs()
-
+            lock = redis.lock('locks:run_schedule', timeout=60)
+            if lock.acquire(blocking=False):
                 try:
-                    process_waitlist()
-                except:
-                    logger.exception('error processing waitlist')
+                    scheduler.enqueue_jobs()
 
-                try:
-                    wigo_db.process_expired()
-                except:
-                    logger.exception('error processing expired')
+                    try:
+                        process_waitlist()
+                    except:
+                        logger.exception('error processing waitlist')
 
-                try:
-                    for q_name in ALL_QUEUES:
-                        self.check_queue(Queue(q_name, connection=redis), 4000, 5)
-                    f_queue = get_failed_queue(redis)
-                    self.check_queue(f_queue, 20, 10)
-                except:
-                    logger.exception('error checking queues')
+                    try:
+                        wigo_db.process_rate_limits()
+                    except:
+                        logger.exception('error processing rate limits')
 
-            sleep(10)
+                    try:
+                        wigo_db.process_expired()
+                    except:
+                        logger.exception('error processing expired')
+
+                    # kick off a job to cleanup old events
+                    clean_old_events.delay()
+
+                    # check the state of the queues
+                    try:
+                        for q_name in ALL_QUEUES:
+                            self.check_queue(Queue(q_name, connection=redis), 4000, 5)
+                        f_queue = get_failed_queue(redis)
+                        self.check_queue(f_queue, 20, 10)
+                    except:
+                        logger.exception('error checking queues')
+                finally:
+                    lock.release()
+
+            sleep(60)
 
     def check_queue(self, q, threshold_size, iterations):
         if q.count >= threshold_size:

@@ -378,6 +378,11 @@ class WigoRedisDB(WigoDB):
         up_to = datetime.utcnow() - ttl
         self.sorted_set_remove_by_score(key, '-inf', epoch(up_to))
 
+    def process_rate_limits(self):
+        # also cleanup old rate limits
+        for rl_key in ['rate_limits_{}'.format(name) for name in self.redis.connections.keys()]:
+            self.sorted_set_remove_by_score(rl_key, '-inf', time())
+
     def process_expired(self):
         num_expired = 0
 
@@ -400,10 +405,6 @@ class WigoRedisDB(WigoDB):
 
         if num_expired > 0:
             logger.info('expired {} keys'.format(num_expired))
-
-        # also cleanup old rate limits
-        for rl_key in ['rate_limits_{}'.format(name) for name in self.redis.connections.keys()]:
-            self.sorted_set_remove_by_score(rl_key, '-inf', time())
 
 
 # noinspection PyAbstractClass

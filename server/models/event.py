@@ -122,9 +122,6 @@ class Event(WigoPersistentModel):
 
         with self.db.pipeline(commit_on_select=False):
             self.update_global_events()
-            self.db.clean_old(skey('group', self.group_id, 'events'), self.TTL)
-            if self.is_global:
-                self.db.clean_old(skey('global', 'events'), self.TTL)
 
     def update_global_events(self, group=None):
         if group is None:

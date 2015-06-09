@@ -43,12 +43,12 @@ def new_user(user_id):
 
 
 @agent.background_task()
-@job(notifications_queue, timeout=600, result_ttl=0)
+@job(notifications_queue, timeout=120, result_ttl=0)
 def notify_fb_friend_user_joined(user_id, facebook_id):
     user = User.find(user_id)
 
     with rate_limit('notify:friend_joined:{}:{}'.format(user_id, facebook_id),
-                    timedelta(hours=1)) as limited:
+                    timedelta(hours=12)) as limited:
         if not limited:
             try:
                 friend = User.find(facebook_id=facebook_id)

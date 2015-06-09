@@ -120,64 +120,72 @@ def new_group(group_id):
 
 @agent.background_task()
 @job(data_queue, timeout=360, result_ttl=0)
-def event_related_change(group_id, event_id):
+def event_related_change(group_id, event_id, is_global=False, deleted=False):
     from server.db import redis
 
     lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=120)
     if lock.acquire(blocking=False):
         try:
-            agent.add_custom_parameter('group_id', group_id)
             logger.debug('recording event change in group {}'.format(group_id))
-
-            try:
-                event = Event.find(event_id)
-                event.deleted = False
-            except DoesNotExist:
-                event = Event({
-                    'id': event_id,
-                    'group_id': group_id
-                })
-                event.deleted = True
-
             group = Group.find(group_id)
 
-            with wigo_db.pipeline(commit_on_select=False):
-                # add to the time in case other changes come in while this lock is taken,
-                # or in case the job queues get backed up
-                group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
+            # add to the time in case other changes come in while this lock is taken,
+            # or in case the job queues get backed up
+            group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
 
-                if event.is_global:
-                    groups_to_add_to = get_all_groups()
-                else:
-                    radius = 100
-                    population = group.population or 50000
-                    if population < 60000:
-                        radius = 40
-                    elif population < 100000:
-                        radius = 60
+            if is_global:
+                groups_to_add_to = get_all_groups()
+            else:
+                radius = 100
+                population = group.population or 50000
+                if population < 60000:
+                    radius = 40
+                elif population < 100000:
+                    radius = 60
 
-                    groups_to_add_to = get_close_groups(group.latitude, group.longitude, radius)
+                groups_to_add_to = get_close_groups(group.latitude, group.longitude, radius)
 
-                for group_to_add_to in groups_to_add_to:
-                    if group_to_add_to.id == group.id:
-                        continue
-
-                    # index this event into the close group
-                    if event.deleted is False:
-                        event.update_global_events(group=group_to_add_to)
-                    else:
-                        event.remove_index(group=group_to_add_to)
-
-                    # clean out old events
-                    wigo_db.clean_old(skey(group_to_add_to, 'events'), Event.TTL)
-
-                    # track the change for the group
-                    group_to_add_to.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
-
-                    lock.extend(30)
+            for group_to_add_to in groups_to_add_to:
+                if group_to_add_to.id != group.id:
+                    tell_group_event_related_change.delay(group_to_add_to.id, event_id)
 
         finally:
             lock.release()
+
+
+@agent.background_task()
+@job(data_queue, timeout=360, result_ttl=0)
+def tell_group_event_related_change(group_id, event_id, deleted=False):
+    if not deleted:
+        try:
+            event = Event.find(event_id)
+            event.deleted = False
+        except DoesNotExist:
+            event = Event({'id': event_id, 'group_id': group_id})
+            event.deleted = True
+    else:
+        event = Event({'id': event_id, 'group_id': group_id})
+        event.deleted = True
+
+    group = Group.find(group_id)
+
+    # index this event into the close group
+    if event.deleted is False:
+        event.update_global_events(group)
+    else:
+        event.remove_index(group)
+
+    # track the change for the group
+    group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
+
+
+@agent.background_task()
+@job(data_queue, timeout=360, result_ttl=0)
+def clean_old_events():
+    with wigo_db.pipeline(commit_on_select=False):
+        for group in get_all_groups():
+            wigo_db.clean_old(skey(group, 'events'), Event.TTL)
+        wigo_db.clean_old(skey('global', 'events'), Event.TTL)
 
 
 @agent.background_task()
@@ -561,7 +569,7 @@ def wire_data_listeners():
             publish_model_change(instance)
 
         elif isinstance(instance, Event):
-            event_related_change.delay(instance.group_id, instance.id)
+            event_related_change.delay(instance.group_id, instance.id, instance.is_global)
 
             if not created:
                 publish_model_change(instance)
@@ -582,13 +590,16 @@ def wire_data_listeners():
         elif isinstance(instance, Invite):
             user_invited.delay(instance.event_id, instance.user_id, instance.invited_id)
         elif isinstance(instance, EventAttendee):
-            event_related_change.delay(instance.event.group_id, instance.event_id)
+            event = instance.event
+            event_related_change.delay(event.group_id, event.id, event.is_global)
             tell_friends_user_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, EventMessage):
-            event_related_change.delay(instance.event.group_id, instance.event_id)
+            event = instance.event
+            event_related_change.delay(event.group_id, event.id, event.is_global)
             tell_friends_event_message.delay(instance.id)
         elif isinstance(instance, EventMessageVote):
-            event_related_change.delay(instance.message.event.group_id, instance.message.event_id)
+            event = instance.message.event
+            event_related_change.delay(event.group_id, event.id, event.is_global)
             # tell_friends_about_vote.delay(instance.message_id, instance.user_id)
         elif isinstance(instance, Message):
             instance.user.track_meta('last_message_change')
@@ -600,13 +611,15 @@ def wire_data_listeners():
             delete_user.delay(instance.id, instance.group_id)
             publish_model_change(instance)
         elif isinstance(instance, Event):
-            event_related_change.delay(instance.group_id, instance.id)
+            event_related_change.delay(instance.group_id, instance.id, instance.is_global, deleted=True)
         elif isinstance(instance, EventMessage):
-            event_related_change.delay(instance.event.group_id, instance.event_id)
+            event = instance.event
+            event_related_change.delay(event.group_id, event.id, event.is_global, deleted=True)
             tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
         elif isinstance(instance, EventAttendee):
             if instance.event is not None:
-                event_related_change.delay(instance.event.group_id, instance.event_id)
+                event = instance.event
+                event_related_change.delay(event.group_id, event.id, event.is_global, deleted=True)
                 tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, Friend):
             delete_friend.delay(instance.user_id, instance.friend_id)
