@@ -17,7 +17,7 @@ from urlparse import urlparse
 from flask.ext.restful import abort
 from flask.ext.sslify import SSLify
 from rq_dashboard import RQDashboard
-from flask import Flask, render_template, g, request, jsonify
+from flask import Flask, render_template, g, request, jsonify, Response
 from flask.ext.admin import Admin
 from flask.ext.compress import Compress
 from flask.ext.restplus import apidoc
@@ -281,6 +281,14 @@ def referrer_dashboard():
         r.num_referrals = int(referrer_ids[index][1])
 
     return render_template('who_dashboard.html', referrers=referrers, payouts=payouts)
+
+
+@app.errorhandler(401)
+def custom_401(error):
+    return Response(
+        'Could not verify your access level for that URL.\n'
+        'You have to login with proper credentials', 401,
+        {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
 
 def is_request_secure():
