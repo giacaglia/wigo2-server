@@ -183,6 +183,15 @@ def event_related_change(group_id, event_id, is_global=False, deleted=False):
 
 
 @agent.background_task()
+@job(data_queue, timeout=360, result_ttl=0)
+def clean_old_events():
+    with wigo_db.pipeline(commit_on_select=False):
+        for group in get_all_groups():
+            wigo_db.clean_old(skey(group, 'events'), Event.TTL)
+        wigo_db.clean_old(skey('global', 'events'), Event.TTL)
+
+
+@agent.background_task()
 @job(data_queue, timeout=60, result_ttl=0)
 def user_invited(event_id, inviter_id, invited_id):
     try:
