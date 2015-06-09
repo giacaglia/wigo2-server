@@ -1,7 +1,10 @@
 from __future__ import absolute_import
+import logging
 
-from geodis.index import GeoboxIndex
+from geodis.index import GeoboxIndex, TimeSampler
 from geodis.location import Location
+import math
+from upoints.point import Point
 
 
 class WigoGeoboxIndex(GeoboxIndex):
@@ -21,9 +24,17 @@ class WigoLocation(Location):
     def get_by_radius(cls, lat, lon, radius=50):
         from server.db import redis
 
-        ids = cls._keys['geoname'].getIds(redis, lat=lat, lon=lon, radius=radius)
         p = redis.pipeline(False)
-        [p.hgetall(id[0]) for id in ids]
+
+        all_city_ids = set()
+        union_keys = cls._keys['geoname'].getIds(redis, lat=lat, lon=lon, radius=radius, store=True)
+        for union_key in union_keys:
+            p.zrange(union_key, 0, -1)
+        for city_ids in p.execute():
+            all_city_ids.update(city_ids)
+
+        for city_id in all_city_ids:
+            p.hgetall(city_id)
         rx = p.execute()
 
         # filter out null records
