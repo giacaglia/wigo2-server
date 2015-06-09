@@ -17,7 +17,7 @@ from config import Configuration
 from server.db import wigo_db, scheduler
 from server.models.group import Group, get_close_groups, get_all_groups
 
-from server.models.user import User, Friend, Invite, Tap, Block, Message, user_lock
+from server.models.user import User, Friend, Invite, Tap, Block, Message
 from server.tasks import data_queue, is_new_user, data_priority_queue
 from server.models import post_model_save, skey, user_privacy_change, DoesNotExist, post_model_delete, \
     user_attendees_key, user_votes_key, friend_attending
@@ -126,6 +126,7 @@ def event_related_change(group_id, event_id):
     lock = redis.lock('locks:group_event_change:{}:{}'.format(group_id, event_id), timeout=120)
     if lock.acquire(blocking=False):
         try:
+            agent.add_custom_parameter('group_id', group_id)
             logger.debug('recording event change in group {}'.format(group_id))
 
             try:

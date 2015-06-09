@@ -21,7 +21,7 @@ logger = logging.getLogger('wigo.notifications')
 
 
 @agent.background_task()
-@job(notifications_queue, timeout=600, result_ttl=0)
+@job(notifications_queue, timeout=120, result_ttl=0)
 def new_user(user_id):
     if Configuration.ENVIRONMENT == 'test':
         return
@@ -35,31 +35,36 @@ def new_user(user_id):
 
     try:
         for facebook_id in facebook.get_friend_ids():
-            with rate_limit('notify:friend_joined:{}:{}'.format(user_id, facebook_id),
-                            timedelta(hours=1)) as limited:
-                if not limited:
-                    try:
-                        friend = User.find(facebook_id=facebook_id)
-
-                        notification = Notification({
-                            'user_id': friend.id,
-                            'type': 'friend.joined',
-                            'navigate': '/find/users/user/{}'.format(user.id),
-                            'badge': 1,
-                            'message': 'Your Facebook friend {} just joined Wigo Summer'.format(user.full_name.encode('utf-8'))
-                        })
-
-                        __send_notification_push(notification)
-
-                    except DoesNotExist:
-                        pass
-
-        user.track_meta('last_facebook_check')
+            notify_fb_friend_user_joined.delay(user.id, facebook_id)
     except FacebookTokenExpiredException:
         logger.warn('error finding facebook friends to alert for user {}, token expired'.format(user_id))
-        user.track_meta('last_facebook_check')
         user.facebook_token_expires = datetime.utcnow()
         user.save()
+
+
+@agent.background_task()
+@job(notifications_queue, timeout=600, result_ttl=0)
+def notify_fb_friend_user_joined(user_id, facebook_id):
+    user = User.find(user_id)
+
+    with rate_limit('notify:friend_joined:{}:{}'.format(user_id, facebook_id),
+                    timedelta(hours=1)) as limited:
+        if not limited:
+            try:
+                friend = User.find(facebook_id=facebook_id)
+
+                notification = Notification({
+                    'user_id': friend.id,
+                    'type': 'friend.joined',
+                    'navigate': '/find/users/user/{}'.format(user.id),
+                    'badge': 1,
+                    'message': 'Your Facebook friend {} just joined Wigo Summer'.format(
+                        user.full_name.encode('utf-8'))
+                })
+
+                __send_notification_push(notification)
+            except DoesNotExist:
+                pass
 
 
 @agent.background_task()
