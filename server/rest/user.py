@@ -114,7 +114,7 @@ class UserMetaResource(WigoResource):
 
         meta = {}
         if user_id == g.user.id:
-            user_meta = wigo_db.redis.hgetall(skey('user', user_id, 'meta'))
+            user_meta = wigo_db.get_redis().hgetall(skey('user', user_id, 'meta'))
             if user_meta:
                 def format_date(field):
                     return datetime.utcfromtimestamp(float(user_meta[field])).isoformat()

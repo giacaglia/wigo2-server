@@ -157,7 +157,7 @@ class User(WigoPersistentModel):
 
         cursor = '0'
         while cursor != 0:
-            cursor, data = wigo_db.redis.zscan(skey(self, 'friends'), cursor=cursor, count=15)
+            cursor, data = wigo_db.get_redis().zscan(skey(self, 'friends'), cursor=cursor, count=15)
             friend_ids = [int(friend_id) for friend_id, score in data]
             friends = User.find(friend_ids)
             for friend in friends:

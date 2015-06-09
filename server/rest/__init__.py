@@ -483,7 +483,7 @@ def check_last_modified(context_var, field, max_age=0):
             if not context:
                 return f(*args, **kw)
 
-            last_change = wigo_db.redis.hget(skey(context, 'meta'), field)
+            last_change = wigo_db.get_redis().hget(skey(context, 'meta'), field)
             if last_change:
                 last_change = datetime.utcfromtimestamp(float(last_change))
             else:

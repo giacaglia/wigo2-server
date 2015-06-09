@@ -520,19 +520,19 @@ class WigoPersistentModel(WigoModel):
             value = time()
 
         meta_key = skey(self, 'meta')
-        wigo_db.redis.hset(meta_key, key, value)
+        wigo_db.get_redis(True).hset(meta_key, key, value)
         if expire:
-            wigo_db.redis.expire(meta_key, timedelta(days=60))
+            wigo_db.get_redis(True).expire(meta_key, timedelta(days=60))
 
     def remove_meta(self, key):
         from server.db import wigo_db
 
-        wigo_db.redis.hdel(skey(self, 'meta'), key)
+        wigo_db.get_redis(True).hdel(skey(self, 'meta'), key)
 
     def get_meta(self, key):
         from server.db import wigo_db
 
-        return wigo_db.redis.hget(skey(self, 'meta'), key)
+        return wigo_db.get_redis().hget(skey(self, 'meta'), key)
 
     def __cmp__(self, other):
         return cmp(self.id, other.id)
