@@ -614,15 +614,16 @@ def wire_data_listeners():
             delete_user.delay(instance.id, instance.group_id)
             publish_model_change(instance)
         elif isinstance(instance, Event):
+            logger.info('deleting event {} {}'.format(instance.id, instance.name))
             event_related_change.delay(instance.group_id, instance.id, instance.is_global, deleted=True)
         elif isinstance(instance, EventMessage):
             event = instance.event
-            event_related_change.delay(event.group_id, event.id, event.is_global, deleted=True)
+            event_related_change.delay(event.group_id, event.id, event.is_global)
             tell_friends_delete_event_message.delay(instance.user_id, instance.event_id, instance.id)
         elif isinstance(instance, EventAttendee):
             if instance.event is not None:
                 event = instance.event
-                event_related_change.delay(event.group_id, event.id, event.is_global, deleted=True)
+                event_related_change.delay(event.group_id, event.id, event.is_global)
                 tell_friends_user_not_attending.delay(instance.user_id, instance.event_id)
         elif isinstance(instance, Friend):
             delete_friend.delay(instance.user_id, instance.friend_id)

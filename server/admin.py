@@ -23,6 +23,7 @@ from server.models.event import Event
 from server.models.group import Group
 from server.models.user import User
 from server.security import check_basic_auth, authenticate
+from utils import SecurityException
 
 
 class WigoAdminIndexView(AdminIndexView):
@@ -269,6 +270,9 @@ class GroupModelView(WigoModelView):
 
     def scaffold_list_columns(self):
         return ['id', 'name', 'status', 'created']
+
+    def delete_model(self, model):
+        raise SecurityException('Not allowed')
 
 
 class EventModelView(WigoModelView):
