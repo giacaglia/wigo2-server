@@ -224,12 +224,12 @@ def notify_on_message(message_id):
         }
     }
 
-    if message.user.is_ios_push_enabled():
+    if user.is_ios_push_enabled():
         push.alert(data=data, where=dict(where, **{
             'deviceType': 'ios'
         }), enterprise=user.enterprise)
 
-    if message.user.is_android_push_enabled():
+    if user.is_android_push_enabled():
         push.alert(data=dict(data, **{
             'action': 'com.whoisgoingout.wigo.ACTION_MESSAGE'
         }), where=dict(where, **{
