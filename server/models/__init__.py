@@ -431,7 +431,7 @@ class WigoModel(Model):
                 raise IntegrityException('Unique contraint violation, key={}'.format(key))
 
     def index(self):
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             for key, id_value, unique, expires in self.__each_index():
                 self.db.sorted_set_add(key, id_value, self.get_index_score())
 
@@ -448,7 +448,7 @@ class WigoModel(Model):
         return self
 
     def remove_index(self):
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             for key, id_value, unique, expires in self.__each_index():
                 self.db.sorted_set_remove(key, id_value)
 

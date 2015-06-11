@@ -120,7 +120,7 @@ class Event(WigoPersistentModel):
     def index(self):
         super(Event, self).index()
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             self.update_global_events()
 
     def update_global_events(self, group=None):
@@ -139,7 +139,7 @@ class Event(WigoPersistentModel):
             distance = Location.getLatLonDistance((self.group.latitude, self.group.longitude),
                                                   (group.latitude, group.longitude))
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             if self.privacy == 'public':
                 if event_name_key:
                     self.db.set(event_name_key, self.id, self.expires, self.expires)
@@ -179,7 +179,7 @@ class Event(WigoPersistentModel):
     def update_user_events(self, user):
         events_key = skey(user, 'events')
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             current_attending = user.get_attending_id(self)
             if current_attending and current_attending == self.id:
                 self.db.sorted_set_add(events_key, self.id, get_score_key(self.expires, 0, 1000))
@@ -201,7 +201,7 @@ class Event(WigoPersistentModel):
 
     def add_to_user_attending(self, user, attendee):
         # add to the users view of who is attending
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             attendees_key = user_attendees_key(user, self)
             self.db.sorted_set_add(attendees_key, attendee.id, time())
             self.db.expire(attendees_key, self.ttl())
@@ -221,7 +221,7 @@ class Event(WigoPersistentModel):
         if group is None:
             group = self.group
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             self.db.delete(skey(self, 'attendees'))
             self.db.delete(skey(self, 'messages'))
             self.db.sorted_set_remove(skey(group, 'events'), self.id)
@@ -255,7 +255,7 @@ class EventAttendee(WigoModel):
         if current_event_id and current_event_id != event.id:
             EventAttendee({'event_id': current_event_id, 'user_id': user.id}).delete()
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             # first update the global state of the event
             attendees_key = skey(event, 'attendees')
             self.db.sorted_set_add(attendees_key, user.id, epoch(self.created))
@@ -271,7 +271,7 @@ class EventAttendee(WigoModel):
             self.db.expire(attendees_key, event.ttl())
 
         # record the event into the events the user can see
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             event.update_global_events()
             event.update_user_events(user)
 
@@ -282,12 +282,12 @@ class EventAttendee(WigoModel):
 
         # the event may have been deleted
         if event:
-            with self.db.pipeline(commit_on_select=True):
+            with self.db.transaction(commit_on_select=True):
                 user.remove_attending(event)
                 self.db.sorted_set_remove(skey(event, 'attendees'), user.id)
                 self.db.sorted_set_remove(user_attendees_key(user, event), user.id)
 
-            with self.db.pipeline(commit_on_select=True):
+            with self.db.transaction(commit_on_select=True):
                 event.update_global_events()
                 event.update_user_events(user)
         else:
@@ -339,7 +339,7 @@ class EventMessage(WigoPersistentModel):
         event = self.event
 
         # record to the global by_votes sort
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             num_votes = self.db.get_sorted_set_size(skey(self, 'votes'))
             sub_sort = epoch(self.created) / epoch(event.expires + timedelta(days=365))
             by_votes_key = skey(event, 'messages', 'by_votes')
@@ -352,7 +352,7 @@ class EventMessage(WigoPersistentModel):
         event = self.event
 
         # record into users list of messages by time
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             user_emessages_key = user_eventmessages_key(user, event)
             self.db.sorted_set_add(user_emessages_key, self.id, epoch(self.created))
             self.db.expire(user_emessages_key, self.ttl())
@@ -368,13 +368,13 @@ class EventMessage(WigoPersistentModel):
 
     def remove_index(self):
         super(EventMessage, self).remove_index()
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             self.db.sorted_set_remove(skey(self.event, 'messages', 'by_votes'), self.id)
             self.remove_for_user(self.user)
 
     def remove_for_user(self, user):
         event = self.event
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             self.db.sorted_set_remove(user_eventmessages_key(user, event), self.id)
             self.db.sorted_set_remove(user_eventmessages_key(user, event, True), self.id)
             user.track_meta('last_event_change')
@@ -414,7 +414,7 @@ class EventMessageVote(WigoModel):
         event = message.event
 
         # record the vote into the global "by_votes" sort order
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             num_votes = self.db.get_sorted_set_size(skey(message, 'votes'))
             sub_sort = epoch() / epoch(event.expires + timedelta(days=365))
             by_votes = skey(event, 'messages', 'by_votes')
@@ -429,7 +429,7 @@ class EventMessageVote(WigoModel):
         message = self.message
         event = message.event
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             user_votes = user_votes_key(user, self.message)
             self.db.sorted_set_add(user_votes, self.user.id, epoch(self.created), replicate=False)
             self.db.expire(user_votes, self.ttl())

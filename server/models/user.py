@@ -203,8 +203,8 @@ class User(WigoPersistentModel):
     def get_friend_ids_in_common(self, with_user_id):
         from server.db import wigo_db
 
-        friend_ids = set(wigo_db.sorted_set_rrange(skey(self, 'friends'), 0, -1))
-        with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', with_user_id, 'friends'), 0, -1))
+        friend_ids = set(self.get_friend_ids())
+        with_friend_ids = set(wigo_db.sorted_set_range(skey('user', with_user_id, 'friends'), 0, -1))
         return friend_ids & with_friend_ids
 
     def get_friend_ids(self):
@@ -288,7 +288,7 @@ class Friend(WigoModel):
     def index(self):
         super(Friend, self).index()
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             if self.accepted:
                 def setup(u1, u2):
                     self.db.sorted_set_add(skey(u1, 'friends'), u2.id, epoch(self.created))
@@ -332,7 +332,7 @@ class Friend(WigoModel):
     def remove_index(self):
         super(Friend, self).remove_index()
 
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             def cleanup(u1, u2):
                 self.db.sorted_set_remove(skey(u1, 'friends'), u2.id)
                 self.db.sorted_set_remove(skey(u1, 'friends', 'top'), u2.id)
@@ -528,7 +528,7 @@ class Message(WigoPersistentModel):
 
     def index(self):
         super(Message, self).index()
-        with self.db.pipeline(commit_on_select=False):
+        with self.db.transaction(commit_on_select=False):
             self.db.set(skey(self.user, 'conversation', self.to_user.id, 'last_message'), self.id)
             self.db.set(skey(self.to_user, 'conversation', self.user.id, 'last_message'), self.id)
 
@@ -536,7 +536,7 @@ class Message(WigoPersistentModel):
     def delete_conversation(cls, user, to_user):
         from server.db import wigo_db
 
-        with wigo_db.pipeline(commit_on_select=False):
+        with wigo_db.transaction(commit_on_select=False):
             wigo_db.sorted_set_remove(skey(user, 'conversations'), to_user.id)
             wigo_db.delete(skey(user, 'conversation', to_user.id))
             user.track_meta('last_message_change')

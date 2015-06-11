@@ -91,7 +91,7 @@ def new_group(group_id):
 
     min = epoch(group.get_day_end() - timedelta(days=7))
 
-    with wigo_db.pipeline(commit_on_select=False):
+    with wigo_db.transaction(commit_on_select=False):
         for close_group in get_close_groups(group.latitude, group.longitude, 100):
             if close_group.id == group.id:
                 continue
@@ -142,7 +142,7 @@ def event_related_change(group_id, event_id, is_global=False, deleted=False):
 
             group = Group.find(group_id)
 
-            with wigo_db.pipeline(commit_on_select=False):
+            with wigo_db.transaction(commit_on_select=False):
                 # add to the time in case other changes come in while this lock is taken,
                 # or in case the job queues get backed up
                 group.track_meta('last_event_change', time() + EVENT_CHANGE_TIME_BUFFER)
@@ -185,7 +185,7 @@ def event_related_change(group_id, event_id, is_global=False, deleted=False):
 @agent.background_task()
 @job(data_queue, timeout=360, result_ttl=0)
 def clean_old_events():
-    with wigo_db.pipeline(commit_on_select=False):
+    with wigo_db.transaction(commit_on_select=False):
         for group in get_all_groups():
             wigo_db.clean_old(skey(group, 'events'), Event.TTL)
         wigo_db.clean_old(skey('global', 'events'), Event.TTL)
@@ -387,7 +387,7 @@ def new_friend(user_id, friend_id):
     # tells each friend about the event history of the other
     def capture_history(u, f):
         # capture each of the users posted photos
-        with wigo_db.pipeline(commit_on_select=False):
+        with wigo_db.transaction(commit_on_select=False):
             for message in EventMessage.select().key(skey(u, 'event_messages')).min(min):
                 if message.user and message.event:
                     message.record_for_user(f)
@@ -411,7 +411,7 @@ def delete_friend(user_id, friend_id):
         return
 
     def delete_history(u, f):
-        with wigo_db.pipeline(commit_on_select=False):
+        with wigo_db.transaction(commit_on_select=False):
             for message in EventMessage.select().key(skey(u, 'event_messages')):
                 if message.user and message.event:
                     message.remove_for_user(f)
@@ -430,7 +430,7 @@ def privacy_changed(user_id):
     # tell all friends about the privacy change
     user = User.find(user_id)
 
-    with wigo_db.pipeline(commit_on_select=False):
+    with wigo_db.transaction(commit_on_select=False):
         for friend in user.friends_iter():
             if user.privacy == 'public':
                 wigo_db.set_remove(skey(friend, 'friends', 'private'), user_id)
@@ -445,7 +445,7 @@ def delete_user(user_id, group_id):
 
     friend_ids = wigo_db.sorted_set_range(skey('user', user_id, 'friends'))
 
-    with wigo_db.pipeline(commit_on_select=False):
+    with wigo_db.transaction(commit_on_select=False):
         # remove from attendees
         for event_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'events')):
             wigo_db.sorted_set_remove(skey('event', event_id, 'attendees'), user_id)

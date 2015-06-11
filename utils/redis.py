@@ -32,7 +32,9 @@ class PromisePipeline(object):
         results = self.pipeline.execute()
         for index, result in enumerate(results):
             self.__pending[index].fulfill(result)
+        self.__pending = []
         return results
 
     def __getattr__(self, method):
         return functools.partial(self.__wrap, method)
+

@@ -79,8 +79,10 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     suggestions_key = skey(user, 'friend', 'suggestions')
     suggested = {}
 
-    blocked = user.get_blocked_ids()
-    friend_ids = set(user.get_friend_ids() + user.get_friend_request_ids() + user.get_friend_requested_ids())
+    friend_id_list = user.get_friend_ids()
+    friend_ids = set(friend_id_list)
+    exclude = set(friend_id_list + user.get_blocked_ids() + user.get_friend_request_ids() +
+                  user.get_friend_requested_ids())
 
     def is_limited(field, ttl=10):
         last_check = user.get_meta(field)
@@ -91,13 +93,12 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
         return last_check >= (datetime.utcnow() - timedelta(minutes=ttl))
 
     def should_suggest(suggest_id):
-        if ((suggest_id == user.id) or (suggest_id in suggested) or
-                (suggest_id in blocked) or (suggest_id in friend_ids)):
+        if (suggest_id == user.id) or (suggest_id in suggested) or (suggest_id in exclude):
             return False
         return True
 
     def get_num_friends_in_common(suggest_id):
-        with_friend_ids = set(wigo_db.sorted_set_rrange(skey('user', suggest_id, 'friends'), 0, -1))
+        with_friend_ids = set(wigo_db.sorted_set_range(skey('user', suggest_id, 'friends'), 0, -1))
         return len(friend_ids & with_friend_ids)
 
     p = wigo_db.redis.pipeline()
@@ -195,7 +196,7 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
     # add friends of friends
 
     def each_friends_friend():
-        for friend_id in wigo_db.sorted_set_rrange(skey(user, 'friends'), 0, 50):
+        for friend_id in friend_ids:
             friends_friends = wigo_db.sorted_set_rrange(skey('user', friend_id, 'friends'), 0, 50)
             for friends_friend in friends_friends:
                 if should_suggest(friends_friend):
