@@ -129,6 +129,28 @@ class FutureEventListResource(WigoDbListResource):
         return self.serialize_list(self.model, events, count, page), 200, headers
 
 
+@api.route('/events/future/meta')
+class FutureEventMetaListResource(WigoResource):
+    @user_token_required
+    @check_last_modified('group', 'last_event_change')
+    @api.response(200, 'Success', model=Event.to_doc_list_model(api))
+    def get(self, headers):
+        group = g.group
+        meta = {}
+
+        dates = [(group.get_day_end() + timedelta(days=i)) for i in range(10)]
+
+        p = wigo_db.redis.pipeline()
+        for d in dates:
+            p.zcount(skey(group, 'events'), epoch(d), epoch(d + timedelta(hours=3)))
+        counts = p.execute()
+
+        for index, d in enumerate(dates):
+            meta[(d - timedelta(days=1)).date().isoformat()] = counts[index]
+
+        return meta, 200, headers
+
+
 @api.route('/events/<int:model_id>')
 @api.response(403, 'If not invited')
 class EventResource(WigoDbResource):
@@ -207,6 +229,29 @@ class FutureUserEventListResource(WigoResource):
         count, page, instances = query.execute()
 
         return self.serialize_list(self.model, instances, count, page), 200, headers
+
+
+@api.route('/users/<user_id>/events/future/meta')
+class FutureUserEventMetaListResource(WigoResource):
+    @user_token_required
+    @check_last_modified('user', 'last_event_change')
+    @api.response(200, 'Success', model=Event.to_doc_list_model(api))
+    def get(self, user_id, headers):
+        user = g.user
+        group = g.group
+        meta = {}
+
+        dates = [(group.get_day_end() + timedelta(days=i)) for i in range(10)]
+
+        p = wigo_db.redis.pipeline()
+        for d in dates:
+            p.zcount(skey(user, 'events'), epoch(d), epoch(d + timedelta(hours=3)))
+        counts = p.execute()
+
+        for index, d in enumerate(dates):
+            meta[(d - timedelta(days=1)).date().isoformat()] = counts[index]
+
+        return meta, 200, headers
 
 
 @api.route('/events/<int:event_id>/attendees')

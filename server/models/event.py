@@ -10,7 +10,7 @@ from schematics.types import LongType, StringType, IntType, DateTimeType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from server.models import WigoModel, WigoPersistentModel, skey, DoesNotExist, JsonType
-from server.models import AlreadyExistsException, user_attendees_key, user_eventmessages_key, \
+from server.models import user_attendees_key, user_eventmessages_key, \
     DEFAULT_EXPIRING_TTL, field_memoize, user_votes_key
 from server.models import cache_maker
 from utils import strip_unicode, strip_punctuation, epoch, ValidationException
@@ -56,18 +56,6 @@ class Event(WigoPersistentModel):
             return (self.expires + self.TTL) - datetime.utcnow()
         else:
             return super(Event, self).ttl()
-
-    def validate(self, partial=False, strict=False):
-        if self.id is None and self.privacy == 'public':
-            # for new events make sure there is an existing event with the same name
-            try:
-                existing_event = self.find(group=self.group, name=self.name)
-                if existing_event.id != self.id:
-                    raise AlreadyExistsException(existing_event)
-            except DoesNotExist:
-                pass
-
-        return super(Event, self).validate(partial, strict)
 
     @classmethod
     def find(cls, *args, **kwargs):

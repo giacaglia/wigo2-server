@@ -23,7 +23,7 @@ from server.models.event import EventMessage, Event, EventAttendee
 from server.models.group import Group
 from server.models.user import User
 from server.security import user_token_required
-from utils import ValidationException, partition
+from utils import ValidationException
 from utils import SecurityException
 
 

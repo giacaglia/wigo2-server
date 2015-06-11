@@ -28,14 +28,6 @@ def test_create_event():
         assert user1.is_attending(event), 'user is attending the new event'
         assert 1 == Event.select().count()
 
-        # post again with the same name
-        new_event_id = create_event(c, user1, 'test event')
-        assert new_event_id == event_id, 'posting with same name should return same event'
-        assert 1 == Event.select().count()
-        count, page, results = Event.select().group(user1.group).execute()
-        assert 1 == count
-
-        # post again with a different name
         event_id = create_event(c, user1, 'test event 2')
         user1 = User.find(key='test')
         assert user1.get_attending_id() == event_id
