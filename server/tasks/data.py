@@ -500,6 +500,7 @@ def delete_user(user_id, group_id):
         wigo_db.delete(skey('user', user_id, 'friends', 'friend_requests', 'common'))
         wigo_db.delete(skey('user', user_id, 'blocked'))
         wigo_db.delete(skey('user', user_id, 'notifications'))
+        wigo_db.delete(skey('user', user_id, 'notification_store'), replicate=False)
         wigo_db.delete(skey('user', user_id, 'conversations'))
         wigo_db.delete(skey('user', user_id, 'tapped'))
         wigo_db.delete(skey('user', user_id, 'votes'))

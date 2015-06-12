@@ -570,7 +570,7 @@ class NotificationsResource(WigoResource):
         group = g.group
 
         query = self.select().user(user)
-        query = query.min(epoch(group.get_day_end() - timedelta(days=8)))
+        query = query.min(epoch(group.get_day_end() - timedelta(days=15)))
         query = query.max(time())
         count, page, instances = query.execute()
 

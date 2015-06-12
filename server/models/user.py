@@ -460,12 +460,8 @@ class Invite(WigoModel):
         pass
 
 
-class Notification(WigoPersistentModel):
-    TTL = timedelta(days=30)
-
-    indexes = (
-        ('user:{user_id}:notifications', False, True),
-    )
+class Notification(WigoModel):
+    TTL = timedelta(days=15)
 
     user_id = LongType(required=True)
     type = StringType(required=True)
@@ -488,6 +484,13 @@ class Notification(WigoPersistentModel):
     @serializable(serialized_name='from_user', serialize_when_none=False)
     def from_user_ref(self):
         return self.ref_field(User, 'from_user_id')
+
+    def index(self):
+        super(Notification, self).index()
+        key = skey('user', self.user_id, 'notification_store')
+        primitive = self.to_primitive()
+        self.db.sorted_set_add(key, primitive, self.get_index_score(), dt=dict, replicate=False)
+        self.db.clean_old(key, self.TTL)
 
 
 class Message(WigoPersistentModel):

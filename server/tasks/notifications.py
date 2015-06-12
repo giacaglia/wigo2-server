@@ -117,7 +117,7 @@ def notify_on_attendee(event_id, user_id):
                     num_attending, event.name.encode('utf-8'))
             }).save()
 
-            send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.to_primitive())
 
 
 @agent.background_task()
@@ -157,7 +157,7 @@ def notify_on_eventmessage(message_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.to_primitive())
 
 
 @agent.background_task()
@@ -192,7 +192,7 @@ def notify_on_eventmessage_vote(voter_id, message_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.to_primitive())
 
 
 @agent.background_task()
@@ -253,7 +253,7 @@ def notify_on_tap(user_id, tapped_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.to_primitive())
 
 
 @agent.background_task()
@@ -278,7 +278,7 @@ def notify_on_invite(inviter_id, invited_id, event_id):
                 'message': message_text
             }).save()
 
-            send_notification_push.delay(notification.id)
+            send_notification_push.delay(notification.to_primitive())
 
 
 @agent.background_task()
@@ -303,7 +303,7 @@ def notify_on_friend(user_id, friend_id, accepted):
 
     if accepted:
         notification.save()
-        send_notification_push.delay(notification.id)
+        send_notification_push.delay(notification.to_primitive())
     else:
         __send_notification_push(notification)
 
@@ -356,15 +356,15 @@ def notify_on_friend_attending(event_id, user_id, friend_id):
                         num_attending - 2, event.name.encode('utf-8'))
                 }).save()
 
-                send_notification_push.delay(notification.id)
+                send_notification_push.delay(notification.to_primitive())
 
 
 
 @agent.background_task()
 @job(push_queue, timeout=30, result_ttl=0)
 @retry(tries=3, delay=2, backoff=2)
-def send_notification_push(notification_id):
-    notification = Notification.find(notification_id)
+def send_notification_push(notification_data):
+    notification = Notification(notification_data)
     __send_notification_push(notification)
 
 

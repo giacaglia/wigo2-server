@@ -315,7 +315,26 @@ class SelectQuery(object):
             return count, page, Message.find(message_ids)
 
     def __get_notifications(self):
-        return self.__get_page(skey(self._user, 'notifications'))
+        key = skey(self._user, 'notification_store')
+
+        min = self._min or '-inf'
+        max = self._max or '+inf'
+
+        count = self.db.get_sorted_set_size(key, min, max)
+        if count == 0:
+            return 0, self._page, []
+
+        pages = int(math.ceil(float(count) / self._limit))
+        start = (self._page - 1) * self._limit
+
+        results = self.db.sorted_set_rrange_by_score(key, max, min, start, self._limit, dt=dict)
+        instances = []
+        for result in results:
+            instance = Notification(result)
+            instance.prepared()
+            instances.append(instance)
+
+        return count, self._page, instances
 
     def __filtered(self):
         from server.db import wigo_db

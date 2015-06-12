@@ -33,7 +33,7 @@ from server.tasks.parse import wire_parse_listeners
 from server.tasks.predictions import wire_predictions_listeners
 from server.tasks.data import wire_data_listeners
 from server.db import wigo_db
-from server.models.user import User, Notification, Message
+from server.models.user import User, Message
 from server.models.event import Event, EventMessage
 from server.models.group import Group
 from server.models import Config, DoesNotExist
@@ -62,7 +62,6 @@ admin.add_view(UserModelView(User))
 admin.add_view(EventModelView(Event))
 admin.add_view(EventMessageView(EventMessage))
 admin.add_view(MessageView(Message))
-admin.add_view(NotificationView(Notification))
 admin.add_view(ConfigView(Config))
 
 wire_notifications_listeners()

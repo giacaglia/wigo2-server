@@ -258,10 +258,10 @@ class WigoRedisDB(WigoDB):
         values = self.get_redis().mget(keys)
         return self.decode(values, dict)
 
-    def delete(self, key):
+    def delete(self, key, replicate=True):
         redis = self.get_redis(True)
         result = redis.delete(key)
-        if self.queued_db:
+        if self.queued_db and replicate:
             self.queued_db.delete(key)
         return result
 

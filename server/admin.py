@@ -282,14 +282,6 @@ class EventModelView(WigoModelView):
         return ['group', 'name', 'created']
 
 
-class NotificationView(WigoModelView):
-    def scaffold_list_columns(self):
-        return ['id', 'user_id', 'type']
-
-    def is_visible(self):
-        return False
-
-
 class MessageView(WigoModelView):
     def scaffold_list_columns(self):
         return ['id', 'user_id', 'to_user_id']
