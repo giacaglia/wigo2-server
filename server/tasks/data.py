@@ -208,7 +208,7 @@ def user_invited(event_id, inviter_id, invited_id):
 
 
 @agent.background_task()
-@job(data_queue, timeout=60, result_ttl=0)
+@job(data_queue, timeout=300, result_ttl=0)
 def send_friend_invites(user_id, event_id):
     try:
         user = User.find(user_id)
