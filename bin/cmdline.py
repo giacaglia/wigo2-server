@@ -513,6 +513,8 @@ def migrate_notifications(start=0):
         for n_id in notification_ids:
             notification = Notification.find(n_id)
             notification.index()
+
+            count += 1
             if (count % 100) == 0:
                 logger.info('migrated {} notifications from {} users'.format(count, users))
 
