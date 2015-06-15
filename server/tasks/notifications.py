@@ -432,10 +432,6 @@ def wire_notifications_listeners():
         elif isinstance(instance, Notification) and created:
             instance.user.track_meta('last_notification', epoch(instance.created))
 
-            # TODO this can be removed later. This removes notifications scheduled way in the future
-            # which were the result of an indexing issue
-            wigo_db.sorted_set_remove_by_score(skey(instance.user, 'notifications'), time()+60, '+inf')
-
     post_model_save.connect(notifications_model_listener, weak=False)
 
     def on_friend_attending(sender, event, user, friend):
