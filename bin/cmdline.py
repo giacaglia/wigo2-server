@@ -502,6 +502,8 @@ def update_facebook_token_expirations():
 
 @cli.command()
 def migrate_notifications(start=0):
+    logconfig.configure('dev')
+
     if start == 0:
         start = epoch(datetime.utcnow() - timedelta(days=15))
     end = epoch(datetime.utcnow()) + 60
@@ -509,7 +511,7 @@ def migrate_notifications(start=0):
     users = 0
     count = 0
     for user_id, score in wigo_db.sorted_set_iter(skey('user')):
-        key = skey('user', 19855, 'notifications')
+        key = skey('user', user_id, 'notifications')
         notification_ids = wigo_db.sorted_set_rrange_by_score(key, end, start, limit=100)
         for n_id in notification_ids:
             notification = Notification.find(n_id)
