@@ -511,6 +511,7 @@ def migrate_notifications(start=0):
     users = 0
     count = 0
     for user_id, score in wigo_db.sorted_set_iter(skey('user')):
+        wigo_db.delete(skey('user', user_id, 'notifs'))
         key = skey('user', user_id, 'notifications')
         notification_ids = wigo_db.sorted_set_rrange_by_score(key, end, start, limit=100)
         for n_id in notification_ids:
@@ -521,6 +522,7 @@ def migrate_notifications(start=0):
             if (count % 100) == 0:
                 logger.info('migrated {} notifications from {} users'.format(count, users))
 
+        wigo_db.redis.hset(skey('user', user_id, 'meta'), 'last_notification', epoch(datetime.utcnow()))
         users += 1
 
 
