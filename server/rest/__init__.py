@@ -364,7 +364,7 @@ class WigoResource(Resource):
                         resolve_nested(nested_objects, nested, resolved)
 
         nested = set()
-        resolve_nested(objects, nested, set([o.id for o in objects]))
+        resolve_nested(objects, nested, set([o.id for o in objects if hasattr(o, 'id')]))
         data['include'] = [self.serialize_object(o) for o in nested if o]
 
         request_arguments = request.args.copy().to_dict()

@@ -315,7 +315,7 @@ class SelectQuery(object):
             return count, page, Message.find(message_ids)
 
     def __get_notifications(self):
-        key = skey(self._user, 'notification_store')
+        key = skey(self._user, 'notifs')
 
         min = self._min or '-inf'
         max = self._max or '+inf'

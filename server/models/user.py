@@ -466,7 +466,7 @@ class Notification(WigoModel):
     user_id = LongType(required=True)
     type = StringType(required=True)
     from_user_id = LongType()
-    navigate = StringType(required=True)
+    navigate = StringType()
     message = StringType(required=True)
     badge = StringType()
 
@@ -487,9 +487,9 @@ class Notification(WigoModel):
 
     def index(self):
         super(Notification, self).index()
-        key = skey('user', self.user_id, 'notification_store')
+        key = skey('user', self.user_id, 'notifs')
         primitive = self.to_primitive()
-        self.db.sorted_set_add(key, primitive, self.get_index_score(), dt=dict, replicate=False)
+        self.db.sorted_set_add(key, primitive, epoch(self.created), dt=dict, replicate=False)
         self.db.clean_old(key, self.TTL)
 
 

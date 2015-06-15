@@ -23,7 +23,7 @@ from flask.ext.compress import Compress
 from flask.ext.restplus import apidoc
 
 from server import ApiSessionInterface
-from server.admin import UserModelView, GroupModelView, ConfigView, NotificationView, \
+from server.admin import UserModelView, GroupModelView, ConfigView, \
     MessageView, EventModelView, WigoAdminIndexView, EventMessageView
 from server.rest import api_blueprint
 from server.tasks.uploads import wire_uploads_listeners
