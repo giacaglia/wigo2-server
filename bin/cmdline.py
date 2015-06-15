@@ -6,6 +6,7 @@ import os
 from datetime import timedelta
 from peewee import SQL
 from repoze.lru import LRUCache
+from utils import epoch
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -22,7 +23,7 @@ from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
 from config import Configuration
 from server.models import IntegrityException, DoesNotExist, skey
-from server.models.user import User
+from server.models.user import User, Notification
 
 logger = logging.getLogger('wigo.cmdline')
 
@@ -497,6 +498,25 @@ def update_facebook_token_expirations():
                     print 'updated user {}'.format(u.id)
             except FacebookTokenExpiredException:
                 pass
+
+
+@cli.command()
+def migrate_notifications(start=0):
+    if start == 0:
+        start = epoch(datetime.utcnow() - timedelta(days=15))
+
+    users = 0
+    count = 0
+    for user_id, score in wigo_db.sorted_set_iter(skey('user')):
+        key = skey('user', 19855, 'notifications')
+        notification_ids = wigo_db.sorted_set_rrange_by_score(key, '+inf', start, limit=100)
+        for n_id in notification_ids:
+            notification = Notification.find(n_id)
+            notification.index()
+            if (count % 100) == 0:
+                logger.info('migrated {} notifications from {} users'.format(count, users))
+
+        users += 1
 
 
 if __name__ == '__main__':

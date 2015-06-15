@@ -111,7 +111,7 @@ class WigoModel(Model):
         if self.id is None:
             self.id = self.db.gen_id()
             self.is_new = True
-        return object
+        return self
 
     @serializable(serialized_name='$type')
     def type_for_ref(self):
@@ -379,9 +379,7 @@ class WigoModel(Model):
 
             # save
             if hasattr(self, 'id'):
-                primitive = self.to_primitive()
-                self.db.set(skey(self), primitive, self.ttl())
-                model_cache.put(self.id, primitive, self.memory_ttl())
+                self.persist()
 
             self.prepared()
             post_model_save.send(self, instance=self, created=created)
@@ -396,6 +394,9 @@ class WigoModel(Model):
                     logger.exception('error cleaning up')
 
             raise
+
+    def persist(self):
+        pass
 
     def __each_index(self):
         # process indexes
@@ -512,6 +513,11 @@ class WigoPersistentModel(WigoModel):
         if self.id:
             return '{}:{}'.format(self.__class__.__name__, self.id)
         return None
+
+    def persist(self):
+        primitive = self.to_primitive()
+        self.db.set(skey(self), primitive, self.ttl())
+        model_cache.put(self.id, primitive, self.memory_ttl())
 
     def track_meta(self, key, value=None, expire=timedelta(days=60)):
         from server.db import wigo_db

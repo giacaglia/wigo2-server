@@ -463,6 +463,7 @@ class Invite(WigoModel):
 class Notification(WigoModel):
     TTL = timedelta(days=15)
 
+    id = LongType()
     user_id = LongType(required=True)
     type = StringType(required=True)
     from_user_id = LongType()
