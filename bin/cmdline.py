@@ -507,20 +507,24 @@ def migrate_notifications(start=0):
     if start == 0:
         start = epoch(datetime.utcnow() - timedelta(days=15))
     end = epoch(datetime.utcnow()) + 60
+    hour_ago = epoch(datetime.utcnow() - timedelta(hours=1))
 
     users = 0
     count = 0
     for user_id, score in wigo_db.sorted_set_iter(skey('user')):
-        wigo_db.delete(skey('user', user_id, 'notifs'))
+        wigo_db.sorted_set_remove_by_score(skey('user', user_id, 'notifs'), 0, hour_ago)
         key = skey('user', user_id, 'notifications')
         notification_ids = wigo_db.sorted_set_rrange_by_score(key, end, start, limit=100)
         for n_id in notification_ids:
-            notification = Notification.find(n_id)
-            notification.index()
+            try:
+                notification = Notification.find(n_id)
+                notification.index()
 
-            count += 1
-            if (count % 100) == 0:
-                logger.info('migrated {} notifications from {} users'.format(count, users))
+                count += 1
+                if (count % 100) == 0:
+                    logger.info('migrated {} notifications from {} users'.format(count, users))
+            except DoesNotExist:
+                pass
 
         wigo_db.redis.hset(skey('user', user_id, 'meta'), 'last_notification', epoch(datetime.utcnow()))
         users += 1
