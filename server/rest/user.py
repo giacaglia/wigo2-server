@@ -359,6 +359,22 @@ class FriendsInCommonResource(WigoResource):
         }
 
 
+@api.route('/users/<user_id>/interactions')
+class UserInteractionResource(WigoResource):
+    model = User
+
+    @user_token_required
+    @api.expect(api.model('NewInteraction', {
+        'user_id': fields.Integer(description='User interacted with', required=True),
+        'type': fields.String(description='The interaction type')
+    }))
+    @api.response(200, 'Success')
+    def post(self, user_id):
+        top_friends_key = skey('user', g.user.id, 'friends', 'top')
+        wigo_db.sorted_set_incr_score(top_friends_key, self.get_id_field('user_id'))
+        return {'success': True}
+
+
 @api.route('/events/<int:event_id>/invites')
 class InviteListResource(WigoResource):
     model = Invite
