@@ -386,9 +386,8 @@ class WigoRedisDB(WigoDB):
     def process_expired(self):
         num_expired = 0
 
-        expire_keys = ['expire']
-        expire_keys.extend(['expire_{}'.format(name) for name in self.redis.connections.keys()])
-
+        # new sharded expires
+        expire_keys = ['expire_{}'.format(name) for name in self.redis.connections.keys()]
         for expire_key in expire_keys:
             with redis.lock('locks:{}'.format(expire_key), timeout=180):
                 while True:
