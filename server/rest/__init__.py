@@ -65,8 +65,6 @@ class WigoResource(Resource):
     def select(self, model=None):
         model = model if model else self.model
         query = self.setup_query(model.select())
-        if request.args.get('ordering') == 'asc':
-            query = query.order('asc')
         return query
 
     def get_page(self):
@@ -82,7 +80,10 @@ class WigoResource(Resource):
         return default
 
     def setup_query(self, query):
-        return query.page(self.get_page()).limit(self.get_limit()).start(self.get_start())
+        query = query.page(self.get_page()).limit(self.get_limit()).start(self.get_start())
+        if request.args.get('ordering') == 'asc':
+            query = query.order('asc')
+        return query
 
     def get_id(self, id_value):
         if id_value == '(null)':

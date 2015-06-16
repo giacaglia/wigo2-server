@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from collections import defaultdict, OrderedDict
 from newrelic import agent
+from geodis.location import Location
 from server.models import user_eventmessages_key, skey, user_attendees_key, DoesNotExist, index_key
 from server.models.event import EventMessage, EventAttendee, Event, get_cached_num_messages, EventMessageVote, \
     get_cached_num_attending
@@ -40,6 +41,7 @@ class SelectQuery(object):
         self._max = None
         self._lat = None
         self._lon = None
+        self._distance = None
         self._secure = None
         self._start = None
         self._where = {}
@@ -67,6 +69,7 @@ class SelectQuery(object):
         clone._max = self._max
         clone._lat = self._lat
         clone._lon = self._lon
+        clone._distance = self._distance
         clone._start = self._start
         clone._secure = self._secure
         return clone
@@ -164,6 +167,10 @@ class SelectQuery(object):
     @returns_clone
     def lon(self, lon):
         self._lon = lon
+
+    @returns_clone
+    def distance(self, distance):
+        self._distance = distance
 
     @returns_clone
     def where(self, **kwargs):
@@ -284,8 +291,7 @@ class SelectQuery(object):
             secured = self.__clean_results(instances)
             collected.extend(secured)
 
-            # if the results weren't filtered, break
-            if len(secured) == len(instances):
+            if len(secured) >= self._limit or len(secured) >= count:
                 break
 
         return count, page, collected
@@ -491,7 +497,13 @@ class SelectQuery(object):
         objects = [o for o in objects if o is not None]
         objects = self.__secure_results(objects)
 
-        if self._model_class == Event and (self._user or self._group):
+        if self._model_class == User and self._user and self._distance:
+            objects = [u for u in objects if Location.getLatLonDistance(
+                (self._user.group.latitude, self._user.group.longitude),
+                (u.group.latitude, u.group.longitude)
+            ) <= self._distance]
+
+        elif self._model_class == Event and (self._user or self._group):
             events = []
             for e in objects:
                 if e.is_expired:

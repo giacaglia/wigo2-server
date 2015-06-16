@@ -12,7 +12,7 @@ from schematics.transforms import blacklist
 from schematics.types import StringType, FloatType, IntType
 
 from server.db import redis
-from server.models import WigoPersistentModel, DoesNotExist, IntegrityException
+from server.models import WigoPersistentModel, DoesNotExist, IntegrityException, WigoModel
 from server.models.location import WigoCity
 
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
@@ -59,6 +59,10 @@ class Group(WigoPersistentModel):
     longitude = FloatType()
 
     status = StringType(default='initializing')
+
+    @classmethod
+    def memory_mode(cls):
+        return WigoModel
 
     def get_day_start(self, current=None):
         tz = timezone(self.timezone)
@@ -108,8 +112,8 @@ class Group(WigoPersistentModel):
                 return get_group_by_city_id(city.city_id)
             except DoesNotExist:
                 return cls.create_from_city(city)
-
-        return super(Group, cls).find(*args, **kwargs)
+        else:
+            return super(Group, cls).find(*args, **kwargs)
 
     @classmethod
     def create_from_city(cls, city):

@@ -107,6 +107,10 @@ class WigoModel(Model):
     def memory_ttl(cls):
         return 0
 
+    @classmethod
+    def memory_mode(cls):
+        return dict
+
     def check_id(self):
         if self.id is None:
             self.id = self.db.gen_id()
@@ -289,13 +293,17 @@ class WigoModel(Model):
 
         model_id = int(model_id)
         memory_ttl = cls.memory_ttl()
+        memory_mode = cls.memory_mode()
 
         instance = None
         if memory_ttl and should_check_memory_cache(model_id):
             result = model_cache.get(model_id)
             if result:
-                instance = cls(result)
-                instance.prepared()
+                if isinstance(result, WigoModel):
+                    instance = result
+                else:
+                    instance = cls(result)
+                    instance.prepared()
 
         if instance is None:
             result = wigo_db.get(skey(cls, model_id))
@@ -303,7 +311,10 @@ class WigoModel(Model):
                 instance = cls(result)
                 instance.prepared()
                 if memory_ttl:
-                    model_cache.put(model_id, result, memory_ttl)
+                    if memory_mode == WigoModel:
+                        model_cache.put(model_id, instance, memory_ttl)
+                    else:
+                        model_cache.put(model_id, result, memory_ttl)
 
         if instance:
             return instance
@@ -331,6 +342,7 @@ class WigoModel(Model):
 
         # check the memory cache for the objects
         memory_ttl = cls.memory_ttl()
+        memory_mode = cls.memory_mode()
         if memory_ttl:
             for index, model_id in enumerate(model_ids):
                 if not should_check_memory_cache(model_id):
@@ -338,8 +350,12 @@ class WigoModel(Model):
 
                 result = model_cache.get(model_id)
                 if result is not None:
-                    instance = cls(result)
-                    instance.prepared()
+                    if isinstance(result, WigoModel):
+                        instance = result
+                    else:
+                        instance = cls(result)
+                        instance.prepared()
+
                     results[index] = instance
                     remaining[model_id].remove(index)
                     if len(remaining[model_id]) == 0:
@@ -354,7 +370,10 @@ class WigoModel(Model):
                     for index in remaining[instance.id]:
                         results[index] = instance
                     if memory_ttl:
-                        model_cache.put(instance.id, result, memory_ttl)
+                        if memory_mode == WigoModel:
+                            model_cache.put(instance.id, instance, memory_ttl)
+                        else:
+                            model_cache.put(instance.id, result, memory_ttl)
 
         return results
 

@@ -292,6 +292,7 @@ class Friend(WigoModel):
             if self.accepted:
                 def setup(u1, u2):
                     self.db.sorted_set_add(skey(u1, 'friends'), u2.id, epoch(self.created))
+                    self.db.sorted_set_add(skey(u1, 'friends', 'top'), u2.id, 1)
                     self.db.sorted_set_add(skey(u1, 'friends', 'alpha'), u2.id,
                                            prefix_score(u2.full_name.lower()), replicate=False)
                     if u2.privacy == 'private':

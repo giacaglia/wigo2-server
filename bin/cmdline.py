@@ -3,10 +3,6 @@ from collections import Counter
 
 import sys
 import os
-from datetime import timedelta
-from peewee import SQL
-from repoze.lru import LRUCache
-from utils import epoch
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -15,6 +11,10 @@ import logconfig
 import ujson
 import click
 import geodis
+
+from datetime import timedelta
+from peewee import SQL
+from repoze.lru import LRUCache
 
 from datetime import datetime
 from server.db import wigo_db
@@ -501,32 +501,18 @@ def update_facebook_token_expirations():
 
 
 @cli.command()
-def migrate_notifications(start=0):
+def migrate_top_friends():
     logconfig.configure('dev')
 
-    if start == 0:
-        start = epoch(datetime.utcnow() - timedelta(days=15))
-    end = epoch(datetime.utcnow()) + 60
-
     users = 0
-    count = 0
-    for user_id, score in wigo_db.sorted_set_iter(skey('user')):
-        wigo_db.delete(skey('user', user_id, 'notifs'))
-        key = skey('user', user_id, 'notifications')
-        notification_ids = wigo_db.sorted_set_rrange_by_score(key, end, start, limit=100)
-        for n_id in notification_ids:
-            try:
-                notification = Notification.find(n_id)
-                notification.index()
+    for user_id, score in wigo_db.sorted_set_iter(skey('user'), count=50):
+        for friend_id, score in wigo_db.sorted_set_iter(skey('user', user_id, 'friends'), count=50):
+            if not wigo_db.sorted_set_is_member(skey('user', user_id, 'friends', 'top'), friend_id):
+                wigo_db.sorted_set_add(skey('user', user_id, 'friends', 'top'), friend_id, 1)
 
-                count += 1
-                if (count % 100) == 0:
-                    logger.info('migrated {} notifications from {} users'.format(count, users))
-            except DoesNotExist:
-                pass
-
-        wigo_db.redis.hset(skey('user', user_id, 'meta'), 'last_notification', epoch(datetime.utcnow()))
         users += 1
+        if (users % 100) == 0:
+            logger.info('fixed {} users'.format(users))
 
 
 if __name__ == '__main__':
