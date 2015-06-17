@@ -32,7 +32,7 @@ class GeventWorker(Worker):
     death_penalty_class = GeventDeathPenalty
 
     def __init__(self, *args, **kwargs):
-        pool_size = 20
+        pool_size = 50
         if 'pool_size' in kwargs:
             pool_size = kwargs.pop('pool_size')
         self.gevent_pool = gevent.pool.Pool(pool_size)
