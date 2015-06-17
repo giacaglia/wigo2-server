@@ -340,4 +340,4 @@ def wire_predictions_listeners():
                                            'friend', 'suggestions'), instance.user_id)
 
     post_model_save.connect(predictions_listener, weak=False)
-A
+
