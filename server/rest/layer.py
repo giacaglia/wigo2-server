@@ -36,7 +36,7 @@ class LayerTokenResource(WigoResource):
         id_token = jwt.encode(
             payload={
                 'iss': PROVIDER_ID,  # String - The Provider ID found in the Layer Dashboard
-                'prn': user_id,  # String - Provider's internal ID for the authenticating user
+                'prn': str(user_id),  # String - Provider's internal ID for the authenticating user
                 'iat': datetime.now(),  # Integer - Time of Token Issuance in RFC 3339 seconds
                 'exp': datetime.utcnow() + timedelta(seconds=30),
                 # Integer - Arbitrary Token Expiration in RFC 3339 seconds
