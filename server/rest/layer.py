@@ -3,9 +3,11 @@ from __future__ import absolute_import
 import jwt
 import logging
 from datetime import datetime, timedelta
+from flask.ext.restplus import fields
 from Crypto.PublicKey import RSA
 from flask import request, g
 from server.rest import api, WigoResource
+from server.security import user_token_required
 
 PROVIDER_ID = '9b822724-1432-11e5-b140-5fe9000000fb'
 KEY_ID = 'ae5e5c58-1524-11e5-b43d-5fe9000008e7'
@@ -14,15 +16,18 @@ RSA_KEY_PATH = 'data/layer.pem'
 logger = logging.getLogger('wigo.web')
 
 with open(RSA_KEY_PATH, 'r') as rsa_priv_file:
-    RSA_KEY = RSA.importKey(rsa_priv_file.read())
+    RSA_KEY = rsa_priv_file.read()
 
 
-@api.route('/api/vendor/layer/token')
+@api.route('/vendor/layer/token')
 class LayerTokenResource(WigoResource):
+    @user_token_required
+    @api.expect(api.model('Nonce', {
+        'nonce': fields.String(description='Nonce', required=True)
+    }))
     def post(self):
-        # Grab variables from request
-        user_id = request.values.get('user_id', g.user.id)
-        nonce = request.values.get('nonce')
+        user_id = g.user.id
+        nonce = request.get_json().get('nonce')
 
         # Create identity token
         # Make sure you have PyJWT and PyCrypto libraries installed and imported
