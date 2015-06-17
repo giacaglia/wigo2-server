@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from flask.ext.restful import abort
 
 import jwt
 import logging
@@ -30,6 +31,9 @@ class LayerTokenResource(WigoResource):
     def post(self):
         user_id = g.user.id
         nonce = request.get_json().get('nonce')
+
+        if not nonce:
+            abort(400, message='Nonce missing')
 
         # Create identity token
         # Make sure you have PyJWT and PyCrypto libraries installed and imported
