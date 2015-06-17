@@ -518,3 +518,4 @@ import server.rest.user
 import server.rest.event
 import server.rest.uploads
 import server.rest.suggestions
+import server.rest.layer
