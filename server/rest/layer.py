@@ -4,20 +4,22 @@ import jwt
 import logging
 from datetime import datetime, timedelta
 from flask.ext.restplus import fields
-from Crypto.PublicKey import RSA
 from flask import request, g
 from server.rest import api, WigoResource
 from server.security import user_token_required
 
 PROVIDER_ID = '9b822724-1432-11e5-b140-5fe9000000fb'
 KEY_ID = 'ae5e5c58-1524-11e5-b43d-5fe9000008e7'
-RSA_KEY_PATH = 'data/layer.pem'
+RSA_KEY_PATH = 'data/layer.key'
 
 logger = logging.getLogger('wigo.web')
 
-with open(RSA_KEY_PATH, 'r') as rsa_priv_file:
-    RSA_KEY = rsa_priv_file.read()
-
+try:
+    with open(RSA_KEY_PATH, 'r') as rsa_priv_file:
+        RSA_KEY = rsa_priv_file.read()
+except Exception, e:
+    logger.error('error reading rsa key {}'.format(e.message))
+    RSA_KEY = None
 
 @api.route('/vendor/layer/token')
 class LayerTokenResource(WigoResource):
