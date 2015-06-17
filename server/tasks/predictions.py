@@ -81,8 +81,10 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
 
     friend_id_list = user.get_friend_ids()
     friend_ids = set(friend_id_list)
+    deleted_suggest_ids = wigo_db.sorted_set_range((user, 'friend', 'suggestions', 'deleted'))
+
     exclude = set(friend_id_list + user.get_blocked_ids() + user.get_friend_request_ids() +
-                  user.get_friend_requested_ids())
+                  user.get_friend_requested_ids() + deleted_suggest_ids)
 
     def is_limited(field, ttl=10):
         last_check = user.get_meta(field)
