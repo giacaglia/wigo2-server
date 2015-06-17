@@ -1,9 +1,8 @@
 from __future__ import absolute_import
-from datetime import datetime, timedelta
 
-import os
 import jwt
 import logging
+from datetime import datetime, timedelta
 from Crypto.PublicKey import RSA
 from flask import request, g
 from server.rest import api, WigoResource
@@ -14,8 +13,7 @@ RSA_KEY_PATH = 'data/layer.pem'
 
 logger = logging.getLogger('wigo.web')
 
-root = os.path.dirname(__file__)
-with open(os.path.join(root, RSA_KEY_PATH), 'r') as rsa_priv_file:
+with open(RSA_KEY_PATH, 'r') as rsa_priv_file:
     RSA_KEY = RSA.importKey(rsa_priv_file.read())
 
 
