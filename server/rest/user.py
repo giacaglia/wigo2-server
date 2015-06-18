@@ -227,13 +227,7 @@ class FriendsListResource(WigoResource):
 
             return self.serialize_list(self.model, users), 200, headers
         else:
-            query = self.select(User).user(user)
-
-            if request.args.get('ordering') == 'top':
-                query = query.key(skey(g.user, 'friends', 'top')).distance(80).order('desc')
-            else:
-                query = query.friends()
-
+            query = self.select(User).user(user).friends()
             count, page, users = query.execute()
             if g.user == user:
                 for friend in users:
@@ -274,6 +268,27 @@ class FriendsListResource(WigoResource):
             'friend_id': self.get_id_field('friend_id')
         }).delete()
         return {'success': True}
+
+
+@api.route('/users/<user_id>/friends/nearby')
+class NearbyFriendsListResource(WigoResource):
+    model = Friend
+
+    @user_token_required
+    @check_last_modified('user', 'last_friend_change')
+    @api.response(200, 'Success', model=User.to_doc_list_model(api))
+    def get(self, user_id, headers):
+        user = g.user
+
+        query = self.select(User).user(user).key(
+            skey(g.user, 'friends', 'top')
+        ).distance(80)
+
+        count, page, users = query.execute()
+        for friend in users:
+            friend.friend = True
+
+        return self.serialize_list(User, users, count, page), 200, headers
 
 
 @api.route('/users/<user_id>/friends/ids')

@@ -486,7 +486,12 @@ def check_last_modified(context_var, field, max_age=0):
             headers = {}
             kw['headers'] = headers
 
-            context = getattr(g, context_var, None)
+            if context_var == 'user' and 'user_id' in kw:
+                user_id = kw['user_id']
+                context = g.user if user_id == 'me' else User.find(int(user_id))
+            else:
+                context = getattr(g, context_var, None)
+
             if not context:
                 return f(*args, **kw)
 
