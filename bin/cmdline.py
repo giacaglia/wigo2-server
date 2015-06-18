@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from collections import Counter
 
 import sys
 import os
@@ -12,19 +11,19 @@ import ujson
 import click
 import geodis
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from peewee import SQL
 from repoze.lru import LRUCache
-
-from datetime import datetime
-from server.db import wigo_db
-from server.models.location import WigoCity
+from collections import Counter
 from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
-from config import Configuration
-from server.tasks.analytics import import_friend_interactions
+
+from server.db import wigo_db
+from server.models.location import WigoCity
+from server.tasks.analytics import import_friend_interactions, import_active_user_ids
 from server.models import IntegrityException, DoesNotExist, skey
 from server.models.user import User
+from config import Configuration
 
 logger = logging.getLogger('wigo.cmdline')
 
@@ -485,6 +484,11 @@ def import_predictions():
 @cli.command()
 def import_interactions():
     import_friend_interactions()
+
+
+@cli.command()
+def import_active_users():
+    import_active_user_ids()
 
 
 @cli.command()

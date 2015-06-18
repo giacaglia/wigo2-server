@@ -23,8 +23,6 @@ def get_bigquery_client():
                       private_key_file='data/wigo2.key.p12')
 
 
-@agent.background_task()
-@job(predictions_queue, timeout=30, result_ttl=0)
 def import_friend_interactions():
     bq = get_bigquery_client()
     job_id, results = bq.query("""
@@ -85,6 +83,45 @@ def check_friend_interactions_job(job_id):
                         wigo_db.sorted_set_add(top_friends_key, friend_id, score)
 
         logger.info('finished importing interaction scores')
+
+    else:
+        scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
+                           check_friend_interactions_job,
+                           args=[job_id], result_ttl=0, timeout=30)
+
+
+def import_active_user_ids():
+    bq = get_bigquery_client()
+    job_id, results = bq.query("""
+        SELECT user.id, TIMESTAMP_TO_SEC(max(time)) last_active
+        FROM wigo2_production_stream.2015_01_01
+        WHERE time > DATE_ADD(CURRENT_TIMESTAMP(), -1, "DAY")
+        GROUP BY user.id
+    """)
+
+    scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
+                       check_active_users_job,
+                       args=[job_id], result_ttl=0, timeout=600)
+
+
+@agent.background_task()
+@job(predictions_queue, timeout=600, result_ttl=0)
+def check_active_users_job(job_id):
+    logger.debug('checking bigquery results for job {}'.format(job_id))
+    bq = get_bigquery_client()
+    complete, row_count = bq.check_job(job_id)
+    if complete:
+        logger.info('importing active user records, {} rows'.format(row_count))
+        results = bq.get_query_rows(job_id)
+
+        # zunionstore test_union 1 test_union WEIGHTS 0
+        with wigo_db.transaction(commit_on_select=False):
+            for record in results:
+                user_id = record['user_id']
+                last_active = record['last_active']
+                wigo_db.get_redis(True).hset(skey('user', user_id, 'meta'), 'last_active', last_active)
+
+        logger.info('finished importing active user records')
 
     else:
         scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
