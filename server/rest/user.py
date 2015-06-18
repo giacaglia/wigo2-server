@@ -151,11 +151,16 @@ class UserListResource(WigoResource):
     @user_token_required
     @api.response(200, 'Success', model=User.to_doc_list_model(api))
     def get(self):
+        user_ids = request.args.get('ids')
         text = request.args.get('text')
         if text:
             text = text.strip()
 
-        if text and len(text) > 1:
+        if user_ids:
+            user_ids = [int(user_id.strip()) for user_id in user_ids.split(',')]
+            users = User.find(user_ids)
+            return self.serialize_list(self.model, users, len(users), 1)
+        elif text and len(text) > 1:
             sql = "SELECT id FROM users WHERE "
             text = text.encode('utf-8')
 
