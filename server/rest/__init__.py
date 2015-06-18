@@ -267,6 +267,11 @@ class WigoResource(Resource):
             elif obj.role == 'celeb':
                 prim['last_name'] = u'{} \u2705'.format(obj.last_name)
 
+            if 'birthdate' in prim:
+                del prim['birthdate']
+
+            if 'properties' in prim and 'birthday' in prim['properties']:
+                del prim['properties']['birthdate']
 
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
@@ -488,6 +493,8 @@ def check_last_modified(context_var, field, max_age=0):
 
             if context_var == 'user' and 'user_id' in kw:
                 user_id = kw['user_id']
+                if user_id == '(null)':
+                    return f(*args, **kw)
                 context = g.user if user_id == 'me' else User.find(int(user_id))
             else:
                 context = getattr(g, context_var, None)

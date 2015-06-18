@@ -1,13 +1,13 @@
 from __future__ import absolute_import
-from collections import Counter
-from itertools import groupby
+
 import logging
 
+from itertools import groupby
 from bigquery.client import get_client
 from datetime import timedelta, datetime
 from rq.decorators import job
-
 from newrelic import agent
+
 from server.db import scheduler, wigo_db
 from server.models import skey
 from server.tasks import predictions_queue
@@ -56,7 +56,7 @@ def import_friend_interactions():
 
     scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
                        check_friend_interactions_job,
-                       args=[job_id], result_ttl=0, timeout=30)
+                       args=[job_id], result_ttl=0, timeout=600)
 
 
 @agent.background_task()
@@ -71,6 +71,7 @@ def check_friend_interactions_job(job_id):
 
         # zunionstore test_union 1 test_union WEIGHTS 0
         for user_id, scores in groupby(results, lambda r: r['user_id']):
+            friends = wigo_db.sorted_set_rrange(skey('user', user_id, 'friends'))
             top_friends_key = skey('user', user_id, 'friends', 'top')
 
             # 0 out all of the existing top friend scores
@@ -79,7 +80,7 @@ def check_friend_interactions_job(job_id):
             with wigo_db.transaction(commit_on_select=False):
                 for score in scores:
                     friend_id = score['target_user_id']
-                    if wigo_db.sorted_set_is_member(skey('user', user_id, 'friends'), friend_id):
+                    if friend_id in friends:
                         score = score['score']
                         wigo_db.sorted_set_add(top_friends_key, friend_id, score)
 
