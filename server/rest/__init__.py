@@ -271,7 +271,7 @@ class WigoResource(Resource):
                 del prim['birthdate']
 
             if 'properties' in prim and 'birthday' in prim['properties']:
-                del prim['properties']['birthdate']
+                del prim['properties']['birthday']
 
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
