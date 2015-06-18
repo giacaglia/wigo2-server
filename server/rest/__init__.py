@@ -262,6 +262,9 @@ class WigoResource(Resource):
             if hasattr(obj, 'friend_request'):
                 prim['friend_request'] = obj.friend_request
 
+            if hasattr(obj, 'last_name') and obj.role == 'supernova':
+                prim['last_name'] = u'{} \U0001f4a5'.format(obj.last_name)
+
         if hasattr(obj, 'num_attending'):
             prim['num_attending'] = obj.num_attending
 
