@@ -6,6 +6,7 @@ import logging
 from uuid import uuid4
 from time import time
 from datetime import timedelta, datetime
+from redis.exceptions import LockError
 
 from schematics.transforms import blacklist
 from schematics.types import StringType, BooleanType, DateTimeType, EmailType, LongType, FloatType, DateType
@@ -240,13 +241,6 @@ class User(WigoPersistentModel):
 
         return wigo_db.sorted_set_range(skey(self, 'blocked'), 0, -1)
 
-    def track_friend_interaction(self, user):
-        from server.db import wigo_db
-
-        # increment the score for the user in the friends table
-        top_friends_key = skey(self, 'friends', 'top')
-        wigo_db.sorted_set_incr_score(top_friends_key, user.id)
-
     def save(self):
         is_new = self.is_new
         privacy_changed = self.is_changed(User.privacy.name)
@@ -377,11 +371,6 @@ class Tap(WigoModel):
         if Configuration.ENVIRONMENT != 'dev' and self.user.is_tapped(self.tapped_id):
             raise ValidationException('Already tapped')
 
-    def save(self):
-        super(Tap, self).save()
-        self.user.track_friend_interaction(self.tapped)
-        return self
-
 
 class Block(WigoModel):
     indexes = (
@@ -452,11 +441,6 @@ class Invite(WigoModel):
         if not inviter.is_attending(event):
             raise ValidationException('Must be attending the event')
 
-    def save(self):
-        super(Invite, self).save()
-        self.user.track_friend_interaction(self.invited)
-        return self
-
     def delete(self):
         pass
 
@@ -526,11 +510,6 @@ class Message(WigoPersistentModel):
         if not self.user.is_friend(self.to_user_id):
             raise ValidationException('Not friends')
 
-    def save(self):
-        super(Message, self).save()
-        self.user.track_friend_interaction(self.to_user)
-        return self
-
     def index(self):
         super(Message, self).index()
         with self.db.transaction(commit_on_select=False):
@@ -569,7 +548,10 @@ def user_lock(user_id, timeout=30, yield_on_blocking_timeout=True):
             try:
                 yield
             finally:
-                lock.release()
+                try:
+                    lock.release()
+                except LockError:
+                    pass
         elif yield_on_blocking_timeout:
             yield
     else:

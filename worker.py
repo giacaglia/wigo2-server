@@ -46,7 +46,6 @@ class SchedulerThread(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.daemon = True
-        self.possible_issues = defaultdict(int)
 
     def run(self):
         logger.info('running scheduled tasks')
@@ -55,7 +54,24 @@ class SchedulerThread(Thread):
             if lock.acquire(blocking=False):
                 try:
                     scheduler.enqueue_jobs()
+                finally:
+                    lock.release()
 
+            sleep(5)
+
+
+class MaintenanceThread(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+        self.daemon = True
+        self.possible_issues = defaultdict(int)
+
+    def run(self):
+        logger.info('running maintenance tasks')
+        while True:
+            lock = redis.lock('locks:run_maintenance', timeout=60)
+            if lock.acquire(blocking=False):
+                try:
                     try:
                         process_waitlist()
                     except:
@@ -97,12 +113,16 @@ class SchedulerThread(Thread):
         else:
             self.possible_issues[q.name] = 0
 
-# clear any pre-existing scheduled jobs
+# clear any pre-existing repeating jobs
 jobs = scheduler.get_jobs()
 for job in jobs:
     if job.meta.get('interval'):
         scheduler.cancel(job)
 
-# start schedule processor
-thread = SchedulerThread()
-thread.start()
+# start scheduler
+scheduler_thread = SchedulerThread()
+scheduler_thread.start()
+
+# start maintenance thread
+maintenance_thread = MaintenanceThread()
+maintenance_thread.start()

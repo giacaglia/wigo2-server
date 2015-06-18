@@ -22,7 +22,7 @@ from server.models.location import WigoCity
 from playhouse.dataset import DataSet
 from schematics.exceptions import ModelValidationError
 from config import Configuration
-from server.services.analytics import import_friend_interactions
+from server.tasks.analytics import import_friend_interactions
 from server.models import IntegrityException, DoesNotExist, skey
 from server.models.user import User
 
@@ -483,10 +483,8 @@ def import_predictions():
 
 
 @cli.command()
-@click.option('--days-back', type=int, default=30)
-@click.argument('user_id', type=int)
-def import_interactions(user_id, days_back=30):
-    import_friend_interactions(user_id, days_back)
+def import_interactions():
+    import_friend_interactions()
 
 
 @cli.command()
