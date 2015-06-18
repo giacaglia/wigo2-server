@@ -54,7 +54,7 @@ def import_friend_interactions():
 
     scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
                        check_friend_interactions_job,
-                       args=[job_id], result_ttl=0, timeout=600)
+                       args=[job_id], result_ttl=0, timeout=600, queue_name='predictions')
 
 
 @agent.background_task()
@@ -67,20 +67,8 @@ def check_friend_interactions_job(job_id):
         logger.info('importing interaction scores, {} rows'.format(row_count))
         results = bq.get_query_rows(job_id)
 
-        # zunionstore test_union 1 test_union WEIGHTS 0
         for user_id, scores in groupby(results, lambda r: r['user_id']):
-            friends = wigo_db.sorted_set_rrange(skey('user', user_id, 'friends'))
-            top_friends_key = skey('user', user_id, 'friends', 'top')
-
-            # 0 out all of the existing top friend scores
-            wigo_db.redis.tag_zunionstore(top_friends_key, {top_friends_key: 0})
-
-            with wigo_db.transaction(commit_on_select=False):
-                for score in scores:
-                    friend_id = score['target_user_id']
-                    if friend_id in friends:
-                        score = score['score']
-                        wigo_db.sorted_set_add(top_friends_key, friend_id, score)
+            process_user_interactions(user_id, scores)
 
         logger.info('finished importing interaction scores')
 
@@ -88,6 +76,21 @@ def check_friend_interactions_job(job_id):
         scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
                            check_friend_interactions_job,
                            args=[job_id], result_ttl=0, timeout=30)
+
+
+def process_user_interactions(user_id, scores):
+    friends = wigo_db.sorted_set_rrange(skey('user', user_id, 'friends'))
+    top_friends_key = skey('user', user_id, 'friends', 'top')
+
+    # 0 out all of the existing top friend scores
+    wigo_db.redis.tag_zunionstore(top_friends_key, {top_friends_key: 0})
+
+    with wigo_db.transaction(commit_on_select=False):
+        for score in scores:
+            friend_id = score['target_user_id']
+            # make sure the user is still a friend
+            if friend_id in friends:
+                wigo_db.sorted_set_add(top_friends_key, friend_id, score['score'])
 
 
 def import_active_user_ids():
@@ -101,7 +104,7 @@ def import_active_user_ids():
 
     scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
                        check_active_users_job,
-                       args=[job_id], result_ttl=0, timeout=600)
+                       args=[job_id], result_ttl=0, timeout=600, queue_name='predictions')
 
 
 @agent.background_task()
@@ -114,7 +117,6 @@ def check_active_users_job(job_id):
         logger.info('importing active user records, {} rows'.format(row_count))
         results = bq.get_query_rows(job_id)
 
-        # zunionstore test_union 1 test_union WEIGHTS 0
         with wigo_db.transaction(commit_on_select=False):
             for record in results:
                 user_id = record['user_id']

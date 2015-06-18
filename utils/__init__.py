@@ -1,10 +1,11 @@
 from __future__ import absolute_import
-from itertools import tee
 
 import re
 import six
 import signal
 
+from itertools import tee
+from random import random
 from collections import namedtuple
 from functools import wraps
 from string import punctuation
@@ -19,6 +20,15 @@ def epoch(input=None):
     if input is None:
         input = datetime.utcnow()
     return (input - EPOCH).total_seconds()
+
+
+def weighted_choice(items):
+    values, weights = zip(*items)
+    rnd = random() * sum(weights)
+    for i, w in enumerate(weights):
+        rnd -= w
+        if rnd < 0:
+            return values[i]
 
 
 def strip_punctuation(word):
