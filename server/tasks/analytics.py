@@ -106,7 +106,9 @@ def update_top_friends(user_id, interaction_scores):
         p.hget(skey(f, 'meta'), 'last_active')
     last_active_dates = p.execute()
     for index, f in enumerate(friends):
-        f.last_active = last_active_dates[index] or last_active_window
+        last_active = last_active_dates[index]
+        last_active = datetime.utcfromtimestamp(last_active) or last_active_window
+        f.last_active = last_active
 
     # bucket and score
     def get_score(f):
