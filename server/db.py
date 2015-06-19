@@ -241,6 +241,9 @@ class WigoRedisDB(WigoDB):
 
         return result
 
+    def exists(self, key):
+        return self.get_redis().exists(key)
+
     def get(self, key):
         value = self.get_redis().get(key)
         if value:

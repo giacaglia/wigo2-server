@@ -84,16 +84,31 @@ def check_friend_interactions_job(job_id):
 def update_top_friends(user_id, interaction_scores):
     last_active_window = datetime.utcnow() - timedelta(days=30)
 
-    friends = User.find(wigo_db.sorted_set_rrange(skey('user', user_id, 'friends')))
+    friend_ids = wigo_db.sorted_set_rrange(skey('user', user_id, 'friends'))
+    friends = User.find(friend_ids)
+
+    # remove missing friends
+    with wigo_db.transaction(commit_on_select=False):
+        for index, f in enumerate(friends):
+            if f is None:
+                friend_id = friend_ids[index]
+                if not wigo_db.exists(skey('user', friend_id)):
+                    wigo_db.sorted_set_remove(skey('user', user_id, 'friends'), friend_id)
+                    for type in ['top', 'alpha', 'private', 'friend_requests', 'friend_requested']:
+                        wigo_db.sorted_set_remove(skey('user', user_id, 'friends', type), friend_id)
+
+    # remove nulls
+    friends = [f for f in friends if f is not None]
 
     # get all my friends last active dates
     p = wigo_db.redis.pipeline()
-    for f in friends:
+    for index, f in enumerate(friends):
         p.hget(skey(f, 'meta'), 'last_active')
     last_active_dates = p.execute()
     for index, f in enumerate(friends):
         f.last_active = last_active_dates[index] or last_active_window
 
+    # bucket and score
     def get_score(f):
         score = 1
         if f.gender == 'female':
