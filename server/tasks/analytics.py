@@ -69,9 +69,14 @@ def check_friend_interactions_job(job_id):
         logger.info('importing interaction scores, {} rows'.format(row_count))
         results = bq.get_query_rows(job_id)
 
+        processed = 0
         for user_id, user_results in groupby(results, lambda r: r['user_id']):
             scores = {s['target_user_id']: s['score'] for s in user_results}
             update_top_friends(user_id, scores)
+            processed += 1
+
+            if (processed % 150) == 0:
+                logger.info('processed {} users interaction scores'.format(processed))
 
         logger.info('finished importing interaction scores')
 
