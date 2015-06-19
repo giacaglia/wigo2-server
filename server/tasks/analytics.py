@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import logging
 
 from itertools import groupby
+from random import random
 from bigquery.client import get_client
 from datetime import timedelta, datetime
 from rq.decorators import job
@@ -10,6 +11,7 @@ from newrelic import agent
 
 from server.db import scheduler, wigo_db
 from server.models import skey
+from server.models.user import User
 from server.tasks import predictions_queue
 
 BIGQUERY_PROJECT_ID = 1001456183496
@@ -67,8 +69,9 @@ def check_friend_interactions_job(job_id):
         logger.info('importing interaction scores, {} rows'.format(row_count))
         results = bq.get_query_rows(job_id)
 
-        for user_id, scores in groupby(results, lambda r: r['user_id']):
-            process_user_interactions(user_id, scores)
+        for user_id, user_results in groupby(results, lambda r: r['user_id']):
+            scores = {s['target_user_id']: s['score'] for s in user_results}
+            update_top_friends(user_id, scores)
 
         logger.info('finished importing interaction scores')
 
@@ -78,29 +81,63 @@ def check_friend_interactions_job(job_id):
                            args=[job_id], result_ttl=0, timeout=30)
 
 
-def process_user_interactions(user_id, scores):
-    friends = wigo_db.sorted_set_rrange(skey('user', user_id, 'friends'))
-    top_friends_key = skey('user', user_id, 'friends', 'top')
+def update_top_friends(user_id, interaction_scores):
+    last_active_window = datetime.utcnow() - timedelta(days=30)
+
+    friends = User.find(wigo_db.sorted_set_rrange(skey('user', user_id, 'friends')))
+
+    # get all my friends last active dates
+    p = wigo_db.redis.pipeline()
+    for f in friends:
+        p.hget(skey(f, 'meta'), 'last_active')
+    last_active_dates = p.execute()
+    for index, f in enumerate(friends):
+        f.last_active = last_active_dates[index] or last_active_window
+
+    def get_score(f):
+        score = 1
+        if f.gender == 'female':
+            score += 2
+        if f.last_active > last_active_window:
+            score += 2
+        return score
+
+    buckets = [[], [], [], []]
+    for f in friends:
+        if f.id in friends:
+            score = interaction_scores.get(f.id, 0)
+            if score == 0:
+                buckets[0].append(f)
+            elif score <= 3:
+                buckets[1].append(f)
+            elif score <= 15:
+                buckets[2].append(f)
+            else:
+                buckets[3].append(f)
+
+    for b in buckets:
+        b.sort(key=lambda f: random() * get_score(f))
 
     # 0 out all of the existing top friend scores
+    top_friends_key = skey('user', user_id, 'friends', 'top')
     wigo_db.redis.tag_zunionstore(top_friends_key, {top_friends_key: 0})
 
     with wigo_db.transaction(commit_on_select=False):
-        for score in scores:
-            friend_id = score['target_user_id']
-            # make sure the user is still a friend
-            if friend_id in friends:
-                wigo_db.sorted_set_add(top_friends_key, friend_id, score['score'])
+        score = 0
+        for b in buckets:
+            for f in b:
+                wigo_db.sorted_set_add(top_friends_key, f.id, score)
+                score += 1
 
 
-def import_active_user_ids():
+def import_active_user_ids(window=2):
     bq = get_bigquery_client()
     job_id, results = bq.query("""
         SELECT user.id, TIMESTAMP_TO_SEC(max(time)) last_active
         FROM wigo2_production_stream.2015_01_01
-        WHERE time > DATE_ADD(CURRENT_TIMESTAMP(), -1, "DAY")
+        WHERE time > DATE_ADD(CURRENT_TIMESTAMP(), -{}, "DAY")
         GROUP BY user.id
-    """)
+    """.format(window))
 
     scheduler.schedule(datetime.utcnow() + timedelta(seconds=5),
                        check_active_users_job,

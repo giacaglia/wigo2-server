@@ -487,8 +487,9 @@ def import_interactions():
 
 
 @cli.command()
-def import_active_users():
-    import_active_user_ids()
+@click.option('--window', type=int, default=2)
+def import_active_users(window=2):
+    import_active_user_ids(window)
 
 
 @cli.command()
