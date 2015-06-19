@@ -291,9 +291,6 @@ class SelectQuery(object):
             secured = self.__clean_results(instances)
             collected.extend(secured)
 
-            # if < limit ids returned, at the end of the list
-            if len(model_ids) < self._limit:
-                break
             # if we have page size results, break
             if len(collected) >= self._limit:
                 break
