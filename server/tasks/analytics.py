@@ -94,7 +94,8 @@ def update_top_friends(user_id, interaction_scores):
                 friend_id = friend_ids[index]
                 if not wigo_db.exists(skey('user', friend_id)):
                     wigo_db.sorted_set_remove(skey('user', user_id, 'friends'), friend_id)
-                    for type in ['top', 'alpha', 'private', 'friend_requests', 'friend_requested']:
+                    wigo_db.set_remove(skey('user', user_id, 'friends', 'private'), friend_id)
+                    for type in ['top', 'alpha', 'friend_requests', 'friend_requested']:
                         wigo_db.sorted_set_remove(skey('user', user_id, 'friends', type), friend_id)
 
     # remove nulls
