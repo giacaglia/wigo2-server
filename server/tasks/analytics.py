@@ -117,17 +117,19 @@ def update_top_friends(user_id, interaction_scores):
         f.last_active = last_active
 
     # bucket the friends
-    buckets = [[], [], [], []]
+    buckets = [[], [], [], [], []]
     for f in friends:
         score = interaction_scores.get(f.id, 0)
         if score == 0:
             buckets[0].append(f)
         elif score <= 3:
             buckets[1].append(f)
-        elif score <= 15:
+        elif score <= 10:
             buckets[2].append(f)
-        else:
+        elif score <= 20:
             buckets[3].append(f)
+        else:
+            buckets[4].append(f)
 
     # score
     def get_score(f):
