@@ -1,5 +1,5 @@
 GitPython==1.0.1
-freezegun==0.3.3
+freezegun==0.3.4
 httpretty==0.8.10
 mock==1.0.1
 moto==0.4.3

@@ -15,7 +15,7 @@ from config import Configuration
 from server.models import post_model_save
 from server.models.user import User
 from server.tasks import images_queue
-
+from utils import ValidationException
 
 saving_images = threading.local()
 
@@ -55,6 +55,8 @@ def save_images(user_id):
                     upload_image(path, img_obj)
                     url = 'https://{cdn}/{key}'.format(cdn=Configuration.IMAGE_CDN, key=path)
                     img['url'] = url
+                else:
+                    raise ValidationException('Could not download image for storage on s3')
 
             # if no width and height set, get image and get width/height
             if not width or not height:
