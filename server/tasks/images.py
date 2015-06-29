@@ -1,13 +1,16 @@
 from __future__ import absolute_import
-from copy import deepcopy
+
 import hashlib
+import logging
 import os
 import threading
+import requests
+
+from copy import deepcopy
 from urlparse import urlparse
 from boto.s3.connection import S3Connection
 from newrelic import agent
 
-import requests
 from StringIO import StringIO
 from PIL import Image
 from rq.decorators import job
@@ -15,9 +18,10 @@ from config import Configuration
 from server.models import post_model_save
 from server.models.user import User
 from server.tasks import images_queue
-from utils import ValidationException
 
 saving_images = threading.local()
+
+logger = logging.getLogger('wigo.images')
 
 
 @agent.background_task()
@@ -56,7 +60,8 @@ def save_images(user_id):
                     url = 'https://{cdn}/{key}'.format(cdn=Configuration.IMAGE_CDN, key=path)
                     img['url'] = url
                 else:
-                    raise ValidationException('Could not download image for storage on s3')
+                    logger.warn('could not download image for user {}, {}'.format(user_id, url))
+                    continue
 
             # if no width and height set, get image and get width/height
             if not width or not height:
