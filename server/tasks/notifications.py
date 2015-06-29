@@ -121,7 +121,7 @@ def notify_on_attendee(event_id, user_id):
 
 
 @agent.background_task()
-@job(notifications_queue, timeout=30, result_ttl=0)
+@job(notifications_queue, timeout=300, result_ttl=0)
 def notify_on_eventmessage(message_id):
     try:
         message = EventMessage.find(message_id)
@@ -135,14 +135,14 @@ def notify_on_eventmessage(message_id):
 
     type = 'video' if message.media_mime_type == 'video/mp4' else 'photo'
 
-    with rate_limit('notify:eventmessage:{}:{}'.format(user.id, message.event.id),
-                    timedelta(hours=2)) as limited:
-        if limited:
-            return
+    for friend in EventAttendee.select().user(message.user).event(message.event):
+        if friend == user:
+            continue
 
-        for friend in EventAttendee.select().user(message.user).event(message.event):
-            if friend == user:
-                continue
+        with rate_limit('notify:eventmessage:{}:{}:{}'.format(user.id, message.event.id, friend.id),
+                        timedelta(hours=2)) as limited:
+            if limited:
+                return
 
             message_text = '{name} posted a {type} in {event}'.format(
                 name=user.full_name.encode('utf-8'),
