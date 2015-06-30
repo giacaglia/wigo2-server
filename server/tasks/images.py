@@ -168,16 +168,14 @@ def needs_image_saved(img):
 def get_image(url, cache):
     img_obj = cache.get(url)
     if img_obj is None:
-        try:
-            resp = requests.get(url, timeout=15)
-            if resp.status_code == 200:
-                img_data = StringIO(resp.content)
-                img_obj = Image.open(img_data)
-                cache[url] = img_obj
-            elif resp.status_code == 403 or resp.status_code == 404:
-                raise ImageGoneException()
-        except:
-            pass
+        resp = requests.get(url, timeout=15)
+        if resp.status_code == 200:
+            img_data = StringIO(resp.content)
+            img_obj = Image.open(img_data)
+            cache[url] = img_obj
+        elif resp.status_code == 403 or resp.status_code == 404:
+            raise ImageGoneException()
+
     return img_obj
 
 
