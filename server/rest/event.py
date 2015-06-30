@@ -95,6 +95,11 @@ class EventListResource(WigoDbListResource):
                 event.date = group.get_day_start()
                 event.expires = group.get_day_end()
 
+            if 'latitude' in json:
+                event.latitude = json.get('latitude')
+            if 'longitude' in json:
+                event.longitude = json.get('longitude')
+
             event.save()
             return self.serialize_list(Event, [event])
         except AlreadyExistsException, e:
