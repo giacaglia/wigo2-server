@@ -6,7 +6,7 @@ from time import time
 from datetime import datetime, timedelta
 from geodis.location import Location
 from schematics.transforms import blacklist
-from schematics.types import LongType, StringType, IntType, DateTimeType
+from schematics.types import LongType, StringType, IntType, DateTimeType, FloatType
 from schematics.types.compound import ListType
 from schematics.types.serializable import serializable
 from server.models import WigoModel, WigoPersistentModel, skey, DoesNotExist, JsonType
@@ -34,6 +34,9 @@ class Event(WigoPersistentModel):
 
     date = DateTimeType(required=True)
     expires = DateTimeType(required=True)
+
+    latitude = FloatType()
+    longitude = FloatType()
 
     properties = JsonType(default=lambda: {})
     tags = ListType(StringType)
