@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import logging
 from time import sleep
 from newrelic import agent
-from playhouse.dataset import DataSet
 import predictionio
 from datetime import timedelta, datetime
 from pytz import UTC, timezone
@@ -17,10 +16,6 @@ from server.models.user import User, Tap, Message, Invite, Friend
 from config import Configuration
 
 logger = logging.getLogger('wigo.predictions')
-
-old_rdbms = DataSet(Configuration.OLD_DATABASE_URL)
-old_rdbms.close()
-
 
 if Configuration.ENVIRONMENT != 'test':
     client = predictionio.EventClient(
@@ -240,31 +235,6 @@ def _do_generate_friend_recs(user_id, num_friends_to_recommend=200, force=False)
             user.track_meta('last_pio_check')
         except Exception, e:
             logger.error('error connecting to prediction.io, {}'.format(e.message))
-
-    ##################################
-    # add old friends
-
-    if user.id < 150000 and len(suggested) < 50 and not is_limited('last_legacy_check', ttl=60):
-        with old_rdbms:
-            results = old_rdbms.query("""
-                select t1.follow_id from follow t1, follow t2 where
-                t1.user_id = {} and t1.user_id = t2.follow_id and t1.follow_id = t2.user_id and
-                t1.accepted is True and t2.accepted is True limit 50
-            """.format(user.id))
-
-            for result in results:
-                suggest_id = result[0]
-
-                # make sure the user exists here
-                try:
-                    User.find(suggest_id)
-                except DoesNotExist:
-                    continue
-
-                if should_suggest(suggest_id):
-                    add_friend(suggest_id)
-                    if len(suggested) >= num_friends_to_recommend:
-                        break
 
     ####################################
     # Add randoms

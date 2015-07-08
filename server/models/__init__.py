@@ -22,7 +22,6 @@ logger = logging.getLogger('wigo.model')
 
 INDEX_FIELD = re.compile('\{(.*?)\}', re.I)
 
-# Must be enough days to cover 7 days of history, 7 days of future (padding a bit)
 DEFAULT_EXPIRING_TTL = timedelta(days=20)
 
 cache_maker = CacheMaker(maxsize=1000, timeout=60)
