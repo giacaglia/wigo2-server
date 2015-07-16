@@ -79,11 +79,15 @@ def process_eventmessage_image(message_id):
     if resp.status_code == 200:
         json = resp.json()
         if 'error' in json:
-            logger.error('error creating blitline thumbnail job for '
-                         'event message {id}, {error}'.format(id=message.id, error=json.get('error')))
+            error_str = 'error creating blitline thumbnail job for ' \
+                        'event message {id}, {error}'.format(id=message.id, error=json.get('error'))
+            logger.error(error_str)
+            raise Exception(error_str)
     else:
-        logger.error('error creating blitline thumbnail job '
-                     'for event message {id}, {error}'.format(id=message.id, error=resp.content))
+        error_str = 'error creating blitline thumbnail job ' \
+                    'for event message {id}, {error}'.format(id=message.id, error=resp.content)
+        logger.error(error_str)
+        raise Exception(error_str)
 
 
 def wire_uploads_listeners():
